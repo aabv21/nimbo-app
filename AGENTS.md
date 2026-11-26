@@ -4,7 +4,7 @@ Guidance for anyone, human or AI, working in this repository.
 
 ## Project
 
-Nimbo is a migraine companion for iPhone and Android, built as a portfolio demo with Expo (SDK 58) and Supabase. Locales are `en` (source), `es` and `pt`; themes are `day` and `dim`; tabs are `today`, `companion`, `history` and `profile`.
+Nimbo is a migraine companion for iPhone and Android, built as a portfolio demo with Expo (SDK 58) and Supabase. Locales are `en` (source), `es` and `pt`; themes are `day`, `dark` and `dim` (the profile stores `system`, `day`, `dark` or `dim`; crisis mode forces `dim`); tabs are `today`, `companion`, `history` and `profile`.
 It is not a medical device: it never diagnoses or prescribes. Status: foundation, only the Expo scaffold exists. What it does: [`README.md`](README.md).
 
 ## Expo has changed — do not trust your training data
@@ -30,6 +30,7 @@ Docs for agents: `https://docs.expo.dev/llms.txt`
 ## Where things live
 
 - `src/app/`: Expo Router routes only. `src/__tests__/`: tests that span routes.
+- `src/ui/`: the theme tokens, motion tokens and base components (`Screen`, `Button`, `TextField`, `Notice`, `TabBar`, `ChoiceGroup`, `SwitchRow`) and `usePressFeedback`; components read colours only from `useTheme()` and durations only from `useMotion()`.
 - `src/auth/`, `src/profile/`: sign-in, the session and the cached profile. `src/lib/`: the Supabase client, kv store and request helpers. `src/test/`: shared test mocks. `integration/`: tests against the local stack.
 - `scripts/`: repo tooling in TypeScript, run with Node's type stripping.
 - `supabase/`: `config.toml`, `migrations/`, pgTAP `tests/`, the auth email `templates/` and the Edge Function code (`functions/`).
@@ -56,7 +57,7 @@ Docs for agents: `https://docs.expo.dev/llms.txt`
 - Lint: typescript-eslint `strictTypeChecked`, `eslint-plugin-security` and `eslint-plugin-react-hooks` (not `eslint-config-expo`; see [`CONTRIBUTING.md`](CONTRIBUTING.md#supply-chain-hardening)).
 - Navigation is Expo Router: routes in `src/app/`, `Link`, `router` and `useLocalSearchParams` from `expo-router`.
 - App identity: display name "Nimbo", slug `nimbo-app`, scheme `nimbo`, bundle id and package `com.aabv21.nimbo`.
-- Appearance follows the system (`userInterfaceStyle: "automatic"`). Controls are 48 pt tall minimum with 44 pt hit targets; no `#ffffff` in a theme; no decorative looping animation.
+- Appearance follows the profile's choice; Automatic (the default) follows the system (`userInterfaceStyle: "automatic"`) between Day and Dark. Controls are 48 pt tall minimum with 44 pt hit targets; no `#ffffff` in a theme; no decorative looping animation.
 - Comments:
   1. Say why, not what.
   2. One home per fact: flows and decisions live in `docs/`, and code links to them in one line.

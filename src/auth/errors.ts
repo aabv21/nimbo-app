@@ -1,5 +1,7 @@
 import { isAuthError, isAuthRetryableFetchError } from '@supabase/supabase-js';
 
+import type { MessageKey } from '../i18n';
+
 export type AuthErrorKey =
   | 'auth.error.invalidCredentials'
   | 'auth.error.emailNotConfirmed'
@@ -10,6 +12,30 @@ export type AuthErrorKey =
   | 'auth.error.network'
   | 'auth.error.cancelled'
   | 'auth.error.unknown';
+
+/** The catalog message an error shows; the exhaustive switch fails typecheck for an error with no text in en, es and pt. */
+export function authErrorMessage(error: AuthErrorKey): MessageKey {
+  switch (error) {
+    case 'auth.error.invalidCredentials':
+      return 'auth.signIn.error.invalid';
+    case 'auth.error.emailNotConfirmed':
+      return 'auth.signIn.error.unconfirmed';
+    case 'auth.error.emailInUse':
+      return 'auth.signUp.error.emailTaken';
+    case 'auth.error.weakPassword':
+      return 'auth.signUp.error.weakPassword';
+    case 'auth.error.invalidCode':
+      return 'auth.confirm.error.invalid';
+    case 'auth.error.rateLimited':
+      return 'auth.error.rateLimited';
+    case 'auth.error.network':
+      return 'error.network';
+    case 'auth.error.cancelled':
+      return 'auth.error.cancelled';
+    case 'auth.error.unknown':
+      return 'error.generic';
+  }
+}
 
 const CODE_TO_KEY: Readonly<Record<string, AuthErrorKey>> = {
   invalid_credentials: 'auth.error.invalidCredentials',

@@ -26,6 +26,8 @@ environment. `jest.setup.ts` mocks what has no native module under Jest:
 - `expo-haptics`: resolved no-ops.
 - `expo-sqlite/kv-store`: an in-memory map behind the same synchronous API `src/lib/kv.ts` calls.
 - `Dimensions`: `fontScale` 1, since React Native's preset reports 2 and would render every large-text layout.
+- `react-native-reanimated`: `src/test/reanimatedMock.ts`, since Reanimated's own mock loads the worklets native module. Animations settle at once on their target; a shared value written with `.set()` reaches a style only through `useAnimatedStyle`, as on a device.
+- `expo-glass-effect` and `expo-blur`: plain views; `isLiquidGlassAvailable` is a `jest.fn()` returning `false`, so a suite can reach the iOS 26 glass branch.
 
 Tests use `@testing-library/react-native` v14, where `render`, `renderHook` and `fireEvent` are async.
 
@@ -39,13 +41,27 @@ What the suites cover:
   - `nonce`: the Apple nonce is 32 random bytes and its hash is the SHA-256 of the raw value.
   - `signOutOffline`: against a real supabase-js client with a failing fetch, an expired stored session still signs out and leaves nothing in storage.
   - `useSignOut`: the pending state and a failure's message key.
-  - `AuthProvider`: with a stored session and a cached profile the first render is signed in and never waits for the network; a failed read keeps the cached profile and one with no cache still settles; a different user never sees another's cached profile; sign-out clears memory but keeps the cache; a slow read for a signed-out user is dropped; a recovery session is not a sign-in.
-- `src/profile/__tests__/profileRepository.test.ts`: the snake_case to `Profile` mapping, the cache under `profile.<userId>` and `null` for another user, an update sending only the given columns, the consent RPC arguments, and a network failure leaving the cache untouched.
+  - `AuthProvider`: with a stored session and a cached profile the first render is signed in and never waits for the network; a failed read keeps the cached profile and one with no cache still settles; a different user never sees another's cached profile; sign-out clears memory but keeps the cache; a slow read for a signed-out user is dropped; a recovery session is not a sign-in; a read that a local change overtook is dropped (not shown or cached) and read again; the email and `patchProfile`.
+- `src/ui/__tests__/`:
+  - `theme`: every theme meets the contrast floor (text 4.5:1, marks 3:1), Dim stays under its luminance caps, Day and Dark have no pure white, Dark reads at 10:1 or more on a background that is not pure black, and `resolveTheme` maps each preference, phone scheme and crisis flag.
+  - `motion`: the durations per level (Day and Dark full, Dim 1.5 times slower, reduced motion a 150 ms fade).
+  - `ThemeProvider`: Automatic follows the phone, a fixed choice ignores it, signed out follows the phone, crisis mode forces Dim and gives the choice back, and the in-app or OS reduce-motion setting makes every motion a fade.
+  - `Button`: 48 pt minimum, a label that wraps, the disabled state reported to assistive technology.
+  - `TabBar`: the bar is opaque until the OS answers whether to reduce transparency, reduce transparency renders no glass or blur view, iOS 26 renders the system glass, otherwise a blur; tabs report their selected state.
+- `src/profile/__tests__/`:
+  - `profileRepository`: the snake_case to `Profile` mapping, the cache under `profile.<userId>` and `null` for another user, an update sending only the given columns, the consent RPC arguments, writes and the consent refetch never touching the cache (the provider caches what it shows), and a network failure leaving the cache untouched.
+  - `tabs`: the companion tab exists only with the AI on.
+  - `useProfileChange`: a change shows at once and a failure puts it back; an older write answering (or failing) after a newer one never undoes the newer value.
+  - `profileCache`: the real provider, `useProfileChange` and repository with a faked client: an older write answering after a newer one leaves the screen and the cache on the newer value.
+  - `useTimezoneSync`: a device zone that differs from the profile is saved once (on mount or resume), an equal one never, and a failed save is tried again.
 - `src/__tests__/`: tests that span routes.
+  - `smoke`: the root layout's gates, and the tab shell: four tabs with the AI on, three without it, a deep link to the companion with the AI off landing on Today, and the Nimbo tab appearing when the AI is turned on.
+  - `profile`: language, appearance (applied at once, put back on a failed save), reduce motion, the AI switch's confirmation and consent text, and sign-out.
 
 `src/test/authMock.ts` stands in for `AuthProvider` in screen suites:
 `jest.mock('../auth/AuthProvider', () => require('../test/authMock'))`. `resetAuth()` in
-`beforeEach` signs in `user-1` with a fully consented profile, and `setAuth` changes it.
+`beforeEach` signs in `user-1` (`user-1@example.com`) with a fully consented profile, and `setAuth` changes it;
+its `patchProfile` merges into the current profile like the provider's.
 
 ## `scripts` and `functions`
 

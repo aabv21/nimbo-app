@@ -2,14 +2,14 @@
 -- only through the two RPCs below, which stamp them with the server clock.
 
 create type public.app_language as enum ('en', 'es', 'pt');
-create type public.app_theme as enum ('day', 'dim');
+create type public.app_theme as enum ('system', 'day', 'dark', 'dim');
 
 create table public.profiles (
   user_id uuid primary key references auth.users (id) on delete cascade,
   condition text not null default 'migraine' check (condition in ('migraine')),
   language public.app_language,
   timezone text check (timezone is null or char_length(timezone) between 1 and 64),
-  theme public.app_theme not null default 'day',
+  theme public.app_theme not null default 'system',
   reduce_motion boolean not null default false,
   notify_start time not null default '08:00',
   notify_end time not null default '21:00',

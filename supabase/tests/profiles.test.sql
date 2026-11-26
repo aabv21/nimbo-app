@@ -21,8 +21,8 @@ select is(
 select is(
   (select theme::text || ',' || ai_enabled::text || ',' || notify_daily_cap::text
    from public.profiles where user_id = '11111111-1111-1111-1111-111111111111'),
-  'day,false,2',
-  'the new row defaults to theme day, AI off and a daily cap of 2'
+  'system,false,2',
+  'the new row defaults to theme system, AI off and a daily cap of 2'
 );
 
 -- Impersonate user A.
@@ -46,7 +46,7 @@ select lives_ok(
 reset role;
 select is(
   (select theme::text from public.profiles where user_id = '22222222-2222-2222-2222-222222222222'),
-  'day',
+  'system',
   'user A''s update did not change user B''s row'
 );
 

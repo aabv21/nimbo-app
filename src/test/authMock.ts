@@ -33,8 +33,13 @@ export function resetAuth(patch: Partial<AuthContextValue> = {}): AuthContextVal
   state = {
     status: 'signedIn',
     userId: 'user-1',
+    email: 'user-1@example.com',
     profile: READY_PROFILE,
     refreshProfile: jest.fn(() => Promise.resolve()),
+    // Like the provider: merges into the current profile, so a screen re-renders with the change.
+    patchProfile: jest.fn((change: Partial<Profile>) => {
+      if (state.profile !== null) setAuth({ profile: { ...state.profile, ...change } });
+    }),
     ...patch,
   };
   for (const listener of listeners) listener();

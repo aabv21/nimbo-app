@@ -20,6 +20,22 @@ jest.mock('expo-haptics', () => ({
   NotificationFeedbackType: { Success: 'success', Warning: 'warning', Error: 'error' },
 }));
 
+jest.mock('react-native-reanimated', () => require('./src/test/reanimatedMock'));
+// The glass and blur views render as plain views; a suite flips `isLiquidGlassAvailable` to reach the iOS 26 branch.
+jest.mock('expo-glass-effect', () => {
+  const { View } = jest.requireActual<typeof import('react-native')>('react-native');
+  return {
+    GlassView: View,
+    GlassContainer: View,
+    isLiquidGlassAvailable: jest.fn(() => false),
+    isGlassEffectAPIAvailable: jest.fn(() => true),
+  };
+});
+jest.mock('expo-blur', () => {
+  const { View } = jest.requireActual<typeof import('react-native')>('react-native');
+  return { BlurView: View, BlurTargetView: View };
+});
+
 // `expo-sqlite/kv-store` wraps a native SQLite database; under Jest there is no native module to
 // back it, so replace it with a plain in-memory map that implements the same synchronous methods.
 jest.mock('expo-sqlite/kv-store', () => {

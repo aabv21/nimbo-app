@@ -29,7 +29,7 @@ jest.mock('../../profile/profileRepository', () => {
   return { ...actual, fetchProfile: () => mockFetchProfile() };
 });
 
-import { kvRemove, kvSet } from '../../lib/kv';
+import { kvGet, kvRemove, kvSet } from '../../lib/kv';
 import type { Profile } from '../../profile/profileRepository';
 import { AuthProvider, useAuth } from '../AuthProvider';
 
@@ -247,4 +247,67 @@ test('useAuth outside the provider throws', async () => {
   const spy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
   await expect(renderHook(() => useAuth())).rejects.toThrow('useAuth must be used within an AuthProvider');
   spy.mockRestore();
+});
+
+test('the email comes from the stored session at once, then from the session event', async () => {
+  mockReadStoredSession.mockReturnValue({ userId: 'u1', email: 'ana@example.com' });
+  kvSet('profile.u1', JSON.stringify(PROFILE));
+  const { result } = await renderHook(() => useAuth(), { wrapper });
+  expect(result.current.email).toBe('ana@example.com');
+
+  await act(() => {
+    authStateCallback?.('USER_UPDATED', { user: { id: 'u1', email: 'ana.rios@example.com' } });
+  });
+  expect(result.current.email).toBe('ana.rios@example.com');
+});
+
+test('patchProfile shows a change at once and keeps the rest of the profile', async () => {
+  mockReadStoredSession.mockReturnValue({ userId: 'u1', email: null });
+  kvSet('profile.u1', JSON.stringify(PROFILE));
+  const { result } = await renderHook(() => useAuth(), { wrapper });
+
+  await act(() => {
+    result.current.patchProfile({ theme: 'dim' });
+  });
+  expect(result.current.profile).toEqual({ ...PROFILE, theme: 'dim' });
+});
+
+test('a read that a local change overtook is dropped, not shown or cached, and the row is read again', async () => {
+  mockReadStoredSession.mockReturnValue({ userId: 'u1', email: null });
+  kvSet('profile.u1', JSON.stringify(PROFILE));
+  let resolveFetch: (value: Result) => void = () => undefined;
+  mockFetchProfile.mockReturnValueOnce(new Promise((resolve) => (resolveFetch = resolve)));
+  const { result } = await renderHook(() => useAuth(), { wrapper });
+  await act(() => {
+    authStateCallback?.('INITIAL_SESSION', null);
+  });
+  expect(mockFetchProfile).toHaveBeenCalledTimes(1);
+
+  await act(() => {
+    result.current.patchProfile({ theme: 'dark' });
+  });
+  // The read went out before the change, so its row still says Day.
+  await act(async () => {
+    resolveFetch({ ok: true, value: { ...PROFILE, theme: 'day' } });
+    await Promise.resolve();
+  });
+
+  expect(result.current.profile?.theme).toBe('dark');
+  expect(JSON.parse(kvGet('profile.u1') ?? 'null')).toMatchObject({ theme: 'dark' });
+  expect(mockFetchProfile).toHaveBeenCalledTimes(2);
+});
+
+test('a read that no change overtook is shown and cached', async () => {
+  mockReadStoredSession.mockReturnValue({ userId: 'u1', email: null });
+  kvSet('profile.u1', JSON.stringify(PROFILE));
+  mockFetchProfile.mockResolvedValueOnce({ ok: true, value: { ...PROFILE, theme: 'dim' } });
+  const { result } = await renderHook(() => useAuth(), { wrapper });
+  await act(async () => {
+    authStateCallback?.('INITIAL_SESSION', null);
+    await Promise.resolve();
+  });
+
+  expect(result.current.profile?.theme).toBe('dim');
+  expect(JSON.parse(kvGet('profile.u1') ?? 'null')).toMatchObject({ theme: 'dim' });
+  expect(mockFetchProfile).toHaveBeenCalledTimes(1);
 });

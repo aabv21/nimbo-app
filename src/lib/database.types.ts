@@ -54,7 +54,7 @@ export type Database = {
                            }
           }
           Enums: {
-            "app_language": "en"|"es"|"pt","app_theme": "day"|"dim"
+            "app_language": "en"|"es"|"pt","app_theme": "system"|"day"|"dark"|"dim"
           }
           CompositeTypes: {
             [_ in never]: never
@@ -174,7 +174,7 @@ export const Constants = {
           }
         },"public": {
           Enums: {
-            "app_language": ["en", "es", "pt"],"app_theme": ["day", "dim"]
+            "app_language": ["en", "es", "pt"],"app_theme": ["system", "day", "dark", "dim"]
           }
         }
 } as const

@@ -16,7 +16,7 @@ the signup trigger. A client never inserts a row, so every client write is an up
 | `condition` | `text` | `not null default 'migraine'`; check allows only `migraine`; not client-writable |
 | `language` | `app_language` | nullable (`en`, `es`, `pt`); null follows the device |
 | `timezone` | `text` | nullable; 1 to 64 characters |
-| `theme` | `app_theme` | `not null default 'day'` (`day`, `dim`) |
+| `theme` | `app_theme` | `not null default 'system'` (`system`, `day`, `dark`, `dim`); `system` follows the phone between `day` and `dark` |
 | `reduce_motion` | `boolean` | `not null default false` |
 | `notify_start`, `notify_end` | `time` | `not null`, default `08:00` and `21:00` |
 | `notify_daily_cap` | `smallint` | `not null default 2`; check 0 to 2 |

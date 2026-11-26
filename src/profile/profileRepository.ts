@@ -6,12 +6,15 @@ import { supabase } from '../lib/supabase';
 import type { Locale } from '../i18n';
 import type { Tables, TablesUpdate } from '../lib/database.types';
 
-export type ThemeName = 'day' | 'dim';
+/** A rendered appearance. */
+export type ThemeName = 'day' | 'dark' | 'dim';
+/** What the user chose in Profile; `system` follows the phone between `day` and `dark`. */
+export type ThemePreference = 'system' | ThemeName;
 
 export interface Profile {
   language: Locale | null;
   timezone: string | null;
-  theme: ThemeName;
+  theme: ThemePreference;
   reduceMotion: boolean;
   notifyStart: string;
   notifyEnd: string;
@@ -53,7 +56,7 @@ function isProfile(value: unknown): value is Profile {
   return (
     (v['language'] === null || isOneOf(v['language'], ['en', 'es', 'pt'])) &&
     isNullableString(v['timezone']) &&
-    isOneOf(v['theme'], ['day', 'dim']) &&
+    isOneOf(v['theme'], ['system', 'day', 'dark', 'dim']) &&
     typeof v['reduceMotion'] === 'boolean' &&
     typeof v['notifyStart'] === 'string' &&
     typeof v['notifyEnd'] === 'string' &&
@@ -92,6 +95,11 @@ export function readCachedProfileSync(userId: string): Profile | null {
   return kvGetJson(cacheKey(userId), isProfile);
 }
 
+/** Stores `profile` as `userId`'s cached copy (the app keeps it equal to what it shows). */
+export function writeCachedProfile(userId: string, profile: Profile): void {
+  kvSet(cacheKey(userId), JSON.stringify(profile));
+}
+
 /** What the last successful fetch stored for `userId`; never another user's. */
 export function readCachedProfile(userId: string): Promise<Profile | null> {
   return Promise.resolve(readCachedProfileSync(userId));
@@ -99,8 +107,8 @@ export function readCachedProfile(userId: string): Promise<Profile | null> {
 
 type Outcome = { data: Row | null; error: { code?: string; message?: string } | null; status: number };
 
-/** Turns a single-row answer into a result, caching the profile under the row's own user id. */
-function settle({ data, error, status }: Outcome): RequestResult<Profile> {
+/** Turns a single-row answer into a result, caching the profile under the row's own user id unless told not to. */
+function settle({ data, error, status }: Outcome, cache = true): RequestResult<Profile> {
   if (error !== null) {
     return { ok: false, kind: toRequestErrorKind(error, status) };
   }
@@ -108,13 +116,17 @@ function settle({ data, error, status }: Outcome): RequestResult<Profile> {
   if (data === null || profile === null) {
     return { ok: false, kind: 'unknown' };
   }
-  kvSet(cacheKey(data.user_id), JSON.stringify(profile));
+  if (cache) writeCachedProfile(data.user_id, profile);
   return { ok: true, value: profile };
 }
 
-export async function fetchProfile(client: Client = supabase): Promise<RequestResult<Profile>> {
+/**
+ * `cache: false` leaves the cache alone, for the app's provider: it may drop the answer (a read that a
+ * newer local change overtook) and caches only what it shows.
+ */
+export async function fetchProfile(client: Client = supabase, options: { cache?: boolean } = {}): Promise<RequestResult<Profile>> {
   try {
-    return settle(await client.from('profiles').select('*').single());
+    return settle(await client.from('profiles').select('*').single(), options.cache ?? true);
   } catch (error) {
     return { ok: false, kind: toThrownErrorKind(error) };
   }
@@ -134,18 +146,22 @@ function toColumns(changes: Partial<EditableProfile>): TablesUpdate<'profiles'> 
   return columns;
 }
 
+/**
+ * Never caches: answers to overlapping writes can arrive out of order, so only the caller knows which
+ * fields are still current, and the cache follows what the app shows (`AuthProvider`).
+ */
 export async function updateProfile(
   changes: Partial<EditableProfile>,
   client: Client = supabase,
 ): Promise<RequestResult<Profile>> {
   try {
-    return settle(await client.from('profiles').update(toColumns(changes)).not('user_id', 'is', null).select('*').single());
+    return settle(await client.from('profiles').update(toColumns(changes)).not('user_id', 'is', null).select('*').single(), false);
   } catch (error) {
     return { ok: false, kind: toThrownErrorKind(error) };
   }
 }
 
-/** Runs a consent RPC, then refetches so the caller gets the stamped timestamps. */
+/** Runs a consent RPC, then refetches so the caller gets the stamped timestamps; like a write, it never caches. */
 async function callThenFetch(
   client: Client,
   call: () => PromiseLike<{ error: { code?: string; message?: string } | null; status: number }>,
@@ -158,7 +174,7 @@ async function callThenFetch(
   } catch (error) {
     return { ok: false, kind: toThrownErrorKind(error) };
   }
-  return fetchProfile(client);
+  return fetchProfile(client, { cache: false });
 }
 
 /** The consent timestamps are set only by this function (never by a client write). */

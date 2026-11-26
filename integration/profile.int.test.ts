@@ -48,7 +48,7 @@ test('a new account has a profile with no consent yet, and the fetch caches it',
       aiConsentAnsweredAt: null,
       aiEnabled: false,
       onboardingCompletedAt: null,
-      theme: 'day',
+      theme: 'system',
     },
   });
   await expect(readCachedProfile(id)).resolves.toEqual(result.ok ? result.value : null);
@@ -119,17 +119,19 @@ test("user A cannot read B's profile, and a hand-edited write of the consent col
 
   const { data: others } = await a.client.from('profiles').update({ theme: 'dim' }).eq('user_id', b.id).select();
   expect(others).toEqual([]);
-  expect(await fetchProfile(b.client)).toMatchObject({ ok: true, value: { theme: 'day' } });
+  expect(await fetchProfile(b.client)).toMatchObject({ ok: true, value: { theme: 'system' } });
 });
 
 test("a signed-out client gets no profile and the cache keeps each user's own", async () => {
   const a = await signedInUser('profile-cache-a');
   const b = await signedInUser('profile-cache-b');
   await updateProfile({ theme: 'dim' }, a.client);
+  // A write leaves the cache to the app; the read fills it.
+  await fetchProfile(a.client);
   await fetchProfile(b.client);
 
   expect((await fetchProfile(anonClient())).ok).toBe(false);
 
   await expect(readCachedProfile(a.id)).resolves.toMatchObject({ theme: 'dim' });
-  await expect(readCachedProfile(b.id)).resolves.toMatchObject({ theme: 'day' });
+  await expect(readCachedProfile(b.id)).resolves.toMatchObject({ theme: 'system' });
 });

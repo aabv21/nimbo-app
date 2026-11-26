@@ -83,14 +83,24 @@ test('a cached value of another shape reads as no profile', async () => {
   await expect(readCachedProfile('u1')).resolves.toBeNull();
 });
 
-test('updateProfile sends only the given fields, in column names, and caches the answer', async () => {
+test('updateProfile sends only the given fields, in column names, and leaves the cache alone', async () => {
   const { client, update } = fakeClient({ data: { ...ROW, theme: 'day' }, error: null, status: 200 });
 
   const result = await updateProfile({ theme: 'dim' }, client);
 
   expect(update).toHaveBeenCalledWith({ theme: 'dim' });
   expect(result).toEqual({ ok: true, value: { ...PROFILE, theme: 'day' } });
-  expect(JSON.parse(kvGet('profile.u1') ?? 'null')).toMatchObject({ theme: 'day' });
+  // A late answer to an older write must not overwrite what the app shows.
+  expect(kvGet('profile.u1')).toBeNull();
+});
+
+test('the consent calls refetch the row without caching it', async () => {
+  const { client } = fakeClient(OK);
+
+  await expect(acceptTerms(client)).resolves.toEqual({ ok: true, value: PROFILE });
+  await expect(setAiConsent(true, client)).resolves.toEqual({ ok: true, value: PROFILE });
+
+  expect(kvGet('profile.u1')).toBeNull();
 });
 
 test('updateProfile maps every editable field to its column', async () => {
@@ -171,6 +181,12 @@ test('a rejected value is the invalid kind', async () => {
   const { client } = fakeClient({ data: null, error: { code: '23514', message: 'check' }, status: 400 });
 
   await expect(updateProfile({ notifyDailyCap: 2 }, client)).resolves.toEqual({ ok: false, kind: 'invalid' });
+});
+
+test.each(['system', 'day', 'dark', 'dim'] as const)('the %s appearance preference reads back', async (theme) => {
+  const { client } = fakeClient({ data: { ...ROW, theme }, error: null, status: 200 });
+
+  await expect(fetchProfile(client)).resolves.toEqual({ ok: true, value: { ...PROFILE, theme } });
 });
 
 test('a row of an unexpected shape is an unknown failure, not a crash', async () => {
