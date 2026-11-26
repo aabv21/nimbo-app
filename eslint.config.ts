@@ -22,4 +22,13 @@ export default defineConfig(
     files: ['scripts/**/*.ts', 'integration/**/*.ts'],
     rules: { 'security/detect-non-literal-fs-filename': 'off' },
   },
+  {
+    // jest.mock() factories are hoisted above imports, so they can only reach `require`.
+    files: ['jest.setup.ts'],
+    rules: {
+      '@typescript-eslint/no-require-imports': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-return': 'off',
+    },
+  },
 );

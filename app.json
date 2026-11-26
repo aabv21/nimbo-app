@@ -14,7 +14,7 @@
     "android": {
       "package": "com.aabv21.tregua",
       "adaptiveIcon": {
-        "backgroundColor": "#7c3aed",
+        "backgroundColor": "#5f7a70",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"

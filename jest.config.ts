@@ -4,7 +4,9 @@ import type { Config } from 'jest';
 
 const require = createRequire(import.meta.url);
 
-// `app` runs under jest-expo's React Native environment; later tasks add the plain-Node projects.
+// `app` runs under jest-expo's React Native environment; the plain-Node projects stay out of
+// jest-expo because its preset's lazy globals (`fetch`, `structuredClone`, ...) break a file's own
+// `@jest-environment node` docblock at teardown.
 const config: Config = {
   projects: [
     {
@@ -24,6 +26,17 @@ const config: Config = {
         // resolver supports `.mjs` via babel.
         '^lucide-react-native$': require.resolve('lucide-react-native'),
       },
+    },
+    {
+      // `scripts/` has no babel/TS transform of its own (no `.js`/`.mjs` sources, run with
+      // Node's native type stripping). Jest 30's native ESM loader (Node 24.9+'s synchronous
+      // `require(esm)`) loads these files directly: `extensionsToTreatAsEsm` marks `.ts` as ESM,
+      // Node strips the types, and no CJS/transform path is involved.
+      displayName: 'scripts',
+      testEnvironment: 'node',
+      testMatch: ['<rootDir>/scripts/**/*.test.ts'],
+      extensionsToTreatAsEsm: ['.ts'],
+      transform: {},
     },
   ],
 };

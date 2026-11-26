@@ -85,7 +85,7 @@ Docs for agents: `https://docs.expo.dev/llms.txt`
 
 ## Branches and pull requests
 
-- `main` holds released code and is the default branch; `develop` is the integration branch. Both take changes only through a pull request with CI green, and repository rulesets block direct pushes, force pushes, and deletion.
+- `main` holds released code and is the default branch; `develop` is the integration branch. Both take changes only through a pull request with CI green; direct pushes, force pushes and deletion are not allowed. The repository rulesets that enforce this are switched on when the repository becomes public (they need a paid plan while it is private), so until then the rule is kept by discipline.
 - Work on a short-lived branch from `develop` (`feat/…`, `fix/…`, `docs/…`, `chore/…`) and open the pull request into `develop`, titled in Conventional Commits form. It's squash-merged, so the title becomes the commit.
 - A release is a pull request from `develop` into `main` titled `release: vX.Y.Z`, merged with a merge commit.
 - Commits use the GitHub `noreply` address, never a personal email: set `git config user.email` to it in this clone. No AI attribution or co-author trailers in commits or pull requests.

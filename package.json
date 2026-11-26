@@ -56,7 +56,7 @@
     "ios": "expo run:ios",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "test": "NODE_OPTIONS=--experimental-vm-modules jest --selectProjects app",
+    "test": "NODE_OPTIONS=--experimental-vm-modules jest --selectProjects app scripts",
     "check:expo": "expo install --check",
     "check:supply-chain": "node scripts/check-supply-chain.ts"
   }
