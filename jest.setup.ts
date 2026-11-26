@@ -1,6 +1,6 @@
 import { Dimensions } from 'react-native';
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return -- jest.mock()'s factory can only reference globals (incl. `require`), not a module-scoped import; see https://jestjs.io/docs/jest-object#jestmockmodulename-factory-options
+// jest.mock()'s factory can only reference globals (incl. `require`), not a module-scoped import: https://jestjs.io/docs/jest-object#jestmockmodulename-factory-options
 jest.mock('react-native-safe-area-context', () => require('react-native-safe-area-context/jest/mock').default);
 jest.mock('expo-localization', () => ({
   getLocales: () => [{ languageTag: 'en-US', languageCode: 'en', regionCode: 'US', currencyCode: 'USD' }],
@@ -20,6 +20,22 @@ jest.mock('expo-haptics', () => ({
   NotificationFeedbackType: { Success: 'success', Warning: 'warning', Error: 'error' },
 }));
 
+jest.mock('react-native-reanimated', () => require('./src/test/reanimatedMock'));
+// The glass and blur views render as plain views; a suite flips `isLiquidGlassAvailable` to reach the iOS 26 branch.
+jest.mock('expo-glass-effect', () => {
+  const { View } = jest.requireActual<typeof import('react-native')>('react-native');
+  return {
+    GlassView: View,
+    GlassContainer: View,
+    isLiquidGlassAvailable: jest.fn(() => false),
+    isGlassEffectAPIAvailable: jest.fn(() => true),
+  };
+});
+jest.mock('expo-blur', () => {
+  const { View } = jest.requireActual<typeof import('react-native')>('react-native');
+  return { BlurView: View, BlurTargetView: View };
+});
+
 // `expo-sqlite/kv-store` wraps a native SQLite database; under Jest there is no native module to
 // back it, so replace it with a plain in-memory map that implements the same synchronous methods.
 jest.mock('expo-sqlite/kv-store', () => {
@@ -34,7 +50,6 @@ jest.mock('expo-sqlite/kv-store', () => {
       removeItemSync: (key: string): void => {
         store.delete(key);
       },
-      getAllKeysSync: (): string[] => [...store.keys()],
     },
   };
 });
