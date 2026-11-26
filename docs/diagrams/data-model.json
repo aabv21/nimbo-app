@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Nimbo Data Model",
+    "locale": "en",
+    "output": "docs/diagrams/data-model.html",
+    "quality_profile": "showcase"
+  },
+  "layout": { "mode": "grid", "cols": 4, "cellW": 170, "cellH": 64, "gapX": 90, "gapY": 80, "origin": [40, 80] },
+  "components": [
+    { "id": "users", "type": "database", "label": "auth.users", "sublabel": "managed by Supabase Auth", "row": 0, "col": 0 },
+    { "id": "trig", "type": "backend", "label": "handle_new_user()", "sublabel": "after insert trigger", "row": 0, "col": 1 },
+    { "id": "profiles", "type": "database", "label": "public.profiles", "sublabel": "user_id PK, settings, consent", "row": 0, "col": 2, "tag": "RLS" },
+    { "id": "terms", "type": "security", "label": "accept_terms()", "sublabel": "security definer", "row": 1, "col": 1 },
+    { "id": "consent", "type": "security", "label": "set_ai_consent()", "sublabel": "security definer", "row": 1, "col": 3 },
+    { "id": "app", "type": "frontend", "label": "Nimbo app", "sublabel": "role authenticated", "row": 2, "col": 2 }
+  ],
+  "connections": [
+    { "id": "users-trig", "from": "users", "to": "trig", "label": "new user" },
+    { "id": "trig-profiles", "from": "trig", "to": "profiles", "label": "inserts row", "variant": "emphasis" },
+    { "id": "app-profiles", "from": "app", "to": "profiles", "label": "select, update 12 columns", "fromSide": "top", "toSide": "bottom" },
+    { "id": "app-terms", "from": "app", "to": "terms", "fromSide": "left", "toSide": "bottom" },
+    { "id": "app-consent", "from": "app", "to": "consent", "fromSide": "right", "toSide": "bottom" },
+    { "id": "terms-profiles", "from": "terms", "to": "profiles", "label": "stamps terms", "variant": "security", "fromSide": "top", "toSide": "left" },
+    { "id": "consent-profiles", "from": "consent", "to": "profiles", "label": "stamps consent", "variant": "security", "fromSide": "top", "toSide": "right" }
+  ],
+  "cards": [
+    { "dot": "emerald", "title": "Ownership", "items": ["One row per auth user, deleted with it", "Select and update are limited to the caller's own row"] },
+    { "dot": "rose", "title": "Consent", "items": ["Terms and AI consent timestamps have no column grant", "Only the two RPCs write them, with the server clock"] },
+    { "dot": "amber", "title": "Writers", "items": ["The signup trigger is the only inserter", "No client insert or delete policy exists"] }
+  ]
+}

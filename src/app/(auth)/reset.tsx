@@ -14,7 +14,6 @@ import { Screen } from '../../ui/Screen';
 import { fonts, type } from '../../ui/theme';
 import { useTheme } from '../../ui/themeContext';
 import { TextField } from '../../ui/TextField';
-import { toHref } from '../../auth/routes';
 
 const CODE_LENGTH = 6;
 const MIN_PASSWORD_LENGTH = 8;
@@ -73,7 +72,7 @@ export default function Reset(): React.JSX.Element {
           label={t('common.back')}
           onPress={() => {
             if (router.canGoBack()) router.back();
-            else router.replace(toHref('/sign-in'));
+            else router.replace('/sign-in');
           }}
         />
         <Text accessibilityRole="header" style={[styles.title, { color: color.text }]}>{t('auth.reset.title')}</Text>

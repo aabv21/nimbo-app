@@ -1,4 +1,3 @@
-import { router } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -12,14 +11,13 @@ import { Notice } from '../../ui/Notice';
 import { Screen } from '../../ui/Screen';
 import { fonts, space, type } from '../../ui/theme';
 import { useTheme } from '../../ui/themeContext';
-import { toHref } from '../../auth/routes';
 
 const POINTS: readonly MessageKey[] = ['boundary.records', 'boundary.patterns', 'boundary.urgent', 'boundary.doctor'];
 
 export default function Boundary(): React.JSX.Element {
   const { t } = useI18n();
   const { color } = useTheme();
-  const { refreshProfile } = useAuth();
+  const { patchProfile } = useAuth();
   const [adult, setAdult] = useState(false);
   const [understood, setUnderstood] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -34,8 +32,8 @@ export default function Boundary(): React.JSX.Element {
         setFailed(true);
         return;
       }
-      await refreshProfile();
-      router.replace(toHref('/welcome/ai-consent'));
+      // The refetched row is the answer: once it shows, the root layout's gate moves the user on.
+      patchProfile({ adultConfirmedAt: result.value.adultConfirmedAt, boundaryAcceptedAt: result.value.boundaryAcceptedAt });
     } finally {
       setSaving(false);
     }

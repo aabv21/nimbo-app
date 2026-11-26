@@ -1,5 +1,4 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import { router } from 'expo-router';
 
 import AiConsent from '../app/welcome/ai-consent';
 import { translate } from '../i18n';
@@ -9,14 +8,13 @@ import { READY_PROFILE, currentAuth, resetAuth } from '../test/authMock';
 
 jest.mock('../auth/AuthProvider', () => require('../test/authMock'));
 jest.mock('../profile/profileRepository', () => ({ acceptTerms: jest.fn(), setAiConsent: jest.fn() }));
-jest.mock('expo-router', () => ({ router: { push: jest.fn(), replace: jest.fn(), back: jest.fn(), canGoBack: jest.fn(() => false) } }));
 
 const t = (key: MessageKey): string => translate('en', key);
 const mockedSet = jest.mocked(setAiConsent);
 
 beforeEach(() => {
   jest.clearAllMocks();
-  resetAuth();
+  resetAuth({ profile: { ...READY_PROFILE, aiConsentAnsweredAt: null, aiEnabled: false } });
   mockedSet.mockResolvedValue({ ok: true, value: READY_PROFILE });
 });
 
@@ -29,22 +27,23 @@ test('the screen names the processors and what is and is not sent', async () => 
   expect(screen.getByText(t('consent.optional'))).toBeOnTheScreen();
 });
 
-test('turning the companion on records true and goes to Today', async () => {
+test('turning the companion on records true and shows the answer without another read', async () => {
   await render(<AiConsent />);
   await fireEvent.press(screen.getByRole('button', { name: t('consent.accept') }));
   await waitFor(() => {
-    expect(router.replace).toHaveBeenCalledWith('/today');
+    expect(currentAuth().patchProfile).toHaveBeenCalledWith({ aiEnabled: true, aiConsentAnsweredAt: READY_PROFILE.aiConsentAnsweredAt });
   });
   expect(mockedSet).toHaveBeenCalledTimes(1);
   expect(mockedSet).toHaveBeenCalledWith(true);
-  expect(currentAuth().refreshProfile).toHaveBeenCalledTimes(1);
+  expect(currentAuth().refreshProfile).not.toHaveBeenCalled();
 });
 
 test('declining records false and the app stays fully usable', async () => {
+  mockedSet.mockResolvedValue({ ok: true, value: { ...READY_PROFILE, aiEnabled: false } });
   await render(<AiConsent />);
   await fireEvent.press(screen.getByRole('button', { name: t('consent.decline') }));
   await waitFor(() => {
-    expect(router.replace).toHaveBeenCalledWith('/today');
+    expect(currentAuth().patchProfile).toHaveBeenCalledWith({ aiEnabled: false, aiConsentAnsweredAt: READY_PROFILE.aiConsentAnsweredAt });
   });
   expect(mockedSet).toHaveBeenCalledTimes(1);
   expect(mockedSet).toHaveBeenCalledWith(false);
@@ -55,5 +54,5 @@ test('a failed save shows the error and does not navigate', async () => {
   await render(<AiConsent />);
   await fireEvent.press(screen.getByRole('button', { name: t('consent.decline') }));
   expect(await screen.findByText(t('consent.error'))).toBeOnTheScreen();
-  expect(router.replace).not.toHaveBeenCalled();
+  expect(currentAuth().patchProfile).not.toHaveBeenCalled();
 });

@@ -1,4 +1,3 @@
-import { router } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -11,7 +10,6 @@ import { Notice } from '../../ui/Notice';
 import { Screen } from '../../ui/Screen';
 import { fonts, radius, space, type } from '../../ui/theme';
 import { useTheme } from '../../ui/themeContext';
-import { toHref } from '../../auth/routes';
 
 const SECTIONS: readonly (readonly [title: MessageKey, body: MessageKey])[] = [
   ['consent.sent.title', 'consent.sent.body'],
@@ -22,7 +20,7 @@ const SECTIONS: readonly (readonly [title: MessageKey, body: MessageKey])[] = [
 export default function AiConsent(): React.JSX.Element {
   const { t } = useI18n();
   const { color } = useTheme();
-  const { refreshProfile } = useAuth();
+  const { patchProfile } = useAuth();
   const [saving, setSaving] = useState<boolean | undefined>(undefined);
   const [failed, setFailed] = useState(false);
 
@@ -35,8 +33,8 @@ export default function AiConsent(): React.JSX.Element {
         setFailed(true);
         return;
       }
-      await refreshProfile();
-      router.replace(toHref('/today'));
+      // Only the consent fields, as in Profile; once they show, the root layout's gate opens the tabs.
+      patchProfile({ aiEnabled: result.value.aiEnabled, aiConsentAnsweredAt: result.value.aiConsentAnsweredAt });
     } finally {
       setSaving(undefined);
     }

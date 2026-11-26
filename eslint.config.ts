@@ -46,7 +46,7 @@ export default defineConfig(
     files: [
       'jest.setup.ts',
       'src/ui/__tests__/ThemeProvider.test.tsx',
-      'src/__tests__/{boundary,ai-consent,smoke,profile}.test.tsx',
+      'src/__tests__/{boundary,ai-consent,consent-gate,smoke,profile}.test.tsx',
       'src/profile/__tests__/{useTimezoneSync,useProfileChange}.test.ts',
     ],
     rules: {

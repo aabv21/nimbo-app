@@ -30,8 +30,3 @@ export function kvSet(key: string, value: string): void {
 export function kvRemove(key: string): void {
   Storage.removeItemSync(key);
 }
-
-/** Every key in the store. */
-export function kvKeys(): string[] {
-  return Storage.getAllKeysSync();
-}

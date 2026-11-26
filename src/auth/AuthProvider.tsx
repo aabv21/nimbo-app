@@ -58,7 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }): React.JSX.E
     let result: Awaited<ReturnType<typeof fetchProfile>>;
     for (;;) {
       const changes = changesRef.current;
-      result = await fetchProfile(supabase, { cache: false });
+      result = await fetchProfile(supabase);
       if (currentUserIdRef.current !== userId) {
         return;
       }

@@ -7,42 +7,72 @@ import { Literata_600SemiBold } from '@expo-google-fonts/literata/600SemiBold';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
-import { StyleSheet, Text } from 'react-native';
+import { useEffect, useState } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { AuthProvider, useAuth } from '../auth/AuthProvider';
+import { authErrorMessage } from '../auth/errors';
 import { nextRoute } from '../auth/gate';
+import { useSignOut } from '../auth/useSignOut';
 import { useI18n } from '../i18n';
 import { I18nProvider } from '../i18n/I18nProvider';
 import { Button } from '../ui/Button';
+import { Notice } from '../ui/Notice';
 import { Screen } from '../ui/Screen';
-import { fonts, type } from '../ui/theme';
+import { fonts, space, type } from '../ui/theme';
 import { ThemeProvider } from '../ui/ThemeProvider';
 import { useTheme } from '../ui/themeContext';
 
 // The splash stays until the fonts are in, so no screen paints in the system font first.
 void SplashScreen.preventAutoHideAsync();
 
-
-/** Shown in place of the stack while the session or the profile is unknown; there is no route for it. */
+/**
+ * Shown in place of the stack while the session or the profile is unknown; there is no route for it.
+ * A signed-in user whose profile cannot be read (offline with no cache, or no row) can retry or sign out.
+ */
 function LoadingView(): React.JSX.Element {
   const { status, refreshProfile } = useAuth();
   const { t } = useI18n();
   const { color } = useTheme();
+  const signOut = useSignOut();
+  const [retrying, setRetrying] = useState(false);
+
+  const retry = async (): Promise<void> => {
+    setRetrying(true);
+    try {
+      await refreshProfile();
+    } finally {
+      setRetrying(false);
+    }
+  };
+
   return (
     <Screen scroll={false} contentStyle={styles.center}>
       <Text accessibilityRole="progressbar" style={[styles.loading, { color: color.textMuted }]}>
         {t('common.loading')}
       </Text>
-      {/* A signed-in user with no readable profile (offline, no cache) can retry instead of waiting for a token refresh. */}
       {status === 'signedIn' ? (
-        <Button
-          variant="secondary"
-          label={t('error.retry')}
-          onPress={() => {
-            void refreshProfile();
-          }}
-        />
+        <View style={styles.actions}>
+          {signOut.error === undefined ? null : <Notice tone="danger" title={t(authErrorMessage(signOut.error))} />}
+          <Button
+            variant="secondary"
+            label={t('error.retry')}
+            loading={retrying}
+            loadingLabel={t('common.loading')}
+            disabled={signOut.signingOut}
+            onPress={() => {
+              void retry();
+            }}
+          />
+          <Button
+            variant="secondary"
+            label={t('profile.signOut')}
+            loading={signOut.signingOut}
+            loadingLabel={t('common.loading')}
+            disabled={retrying}
+            onPress={signOut.signOut}
+          />
+        </View>
       ) : null}
     </Screen>
   );
@@ -79,6 +109,7 @@ function GatedStack(): React.JSX.Element {
 const styles = StyleSheet.create({
   center: { alignItems: 'center', justifyContent: 'center' },
   loading: { fontFamily: fonts.body, fontSize: type.body },
+  actions: { alignSelf: 'stretch', gap: space[2] },
 });
 
 export default function RootLayout(): React.JSX.Element | null {

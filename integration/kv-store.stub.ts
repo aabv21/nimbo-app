@@ -10,5 +10,4 @@ export default {
   removeItemSync: (key: string): void => {
     store.delete(key);
   },
-  getAllKeysSync: (): string[] => [...store.keys()],
 };

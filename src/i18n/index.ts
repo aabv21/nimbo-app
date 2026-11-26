@@ -1,13 +1,13 @@
 import { getLocales } from 'expo-localization';
 import { useMemo } from 'react';
 
-import type { Locale } from '../../supabase/functions/_shared/condition/types.ts';
+import type { Locale } from '../condition';
 import { en } from './en';
 import { es } from './es';
 import { preferenceToLocale, useLocalePreference } from './I18nProvider';
 import { pt } from './pt';
 
-export type { Locale } from '../../supabase/functions/_shared/condition/types.ts';
+export type { Locale } from '../condition';
 export type MessageKey = keyof typeof en;
 type Params = Readonly<Record<string, string | number>>;
 

@@ -10,4 +10,4 @@ export {
   signOut,
   signUpWithEmail,
 } from './emailAuth';
-export { signInWithApple, signInWithGoogle } from './socialAuth';
+export { isGoogleSignInConfigured, signInWithApple, signInWithGoogle } from './socialAuth';

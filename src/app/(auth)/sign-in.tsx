@@ -17,7 +17,6 @@ import { fonts, space, type } from '../../ui/theme';
 import { useTheme } from '../../ui/themeContext';
 import { TextField } from '../../ui/TextField';
 import { TextLink } from '../../ui/TextLink';
-import { toHref } from '../../auth/routes';
 
 export default function SignIn(): React.JSX.Element {
   const { t } = useI18n();
@@ -47,7 +46,7 @@ export default function SignIn(): React.JSX.Element {
       if (result.error === 'auth.error.emailNotConfirmed') {
         // Signed up but never entered the code: finish that step instead of showing a generic error.
         setPendingEmail(trimmed);
-        router.push(toHref({ pathname: '/confirm-email', params: { email: trimmed } }));
+        router.push({ pathname: '/confirm-email', params: { email: trimmed } });
       }
       setError(result.error);
     } finally {
@@ -58,12 +57,15 @@ export default function SignIn(): React.JSX.Element {
   return (
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <Screen>
-        <BackButton
-          label={t('common.back')}
-          onPress={() => {
-            if (router.canGoBack()) router.back();
-          }}
-        />
+        {/* The landing screen of a signed-out launch has nowhere to go back to. */}
+        {router.canGoBack() ? (
+          <BackButton
+            label={t('common.back')}
+            onPress={() => {
+              router.back();
+            }}
+          />
+        ) : null}
         <Text accessibilityRole="header" style={[styles.title, { color: color.text }]}>{t('auth.signIn.title')}</Text>
         <TextField
           label={t('auth.signIn.email')}
@@ -123,17 +125,16 @@ export default function SignIn(): React.JSX.Element {
         <TextLink
           label={t('auth.signIn.forgot')}
           onPress={() => {
-            router.push(toHref('/reset'));
+            router.push('/reset');
           }}
         />
-        <Text style={[styles.or, { color: color.textMuted }]}>{t('auth.or')}</Text>
         <SocialButtons onError={setError} />
         <View style={styles.footer}>
           <Text style={[styles.muted, { color: color.textMuted }]}>{t('auth.signIn.noAccount')}</Text>
           <TextLink
             label={t('auth.signUp.submit')}
             onPress={() => {
-              router.replace(toHref('/sign-up'));
+              router.replace('/sign-up');
             }}
           />
         </View>
@@ -146,7 +147,6 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   title: { fontFamily: fonts.display, fontSize: type.display, lineHeight: 35 },
   passwordGroup: { gap: 0 },
-  or: { textAlign: 'center', fontFamily: fonts.body, fontSize: type.label },
   footer: { flexDirection: 'row', alignItems: 'center', gap: space[1], flexWrap: 'wrap' },
   muted: { fontFamily: fonts.body, fontSize: type.label },
 });

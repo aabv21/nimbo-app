@@ -11,6 +11,7 @@ jest.mock('../auth/authService', () => ({
   signInWithApple: jest.fn(),
   signInWithGoogle: jest.fn(),
   resendSignUpCode: jest.fn(),
+  isGoogleSignInConfigured: jest.fn(() => false),
 }));
 jest.mock('expo-router', () => ({ router: { push: jest.fn(), replace: jest.fn(), back: jest.fn(), canGoBack: jest.fn(() => false) } }));
 
@@ -25,11 +26,20 @@ async function submit(email = 'ana@example.com', password = 'correct horse'): Pr
 
 beforeEach(() => {
   jest.clearAllMocks();
+  jest.mocked(router.canGoBack).mockReturnValue(false);
 });
 
-test('the screen shows the sign-in title', async () => {
+test('the screen shows the sign-in title and, as the first screen, no Back', async () => {
   await render(<SignIn />);
   expect(screen.getByRole('header', { name: t('auth.signIn.title') })).toBeOnTheScreen();
+  expect(screen.queryByRole('button', { name: t('common.back') })).not.toBeOnTheScreen();
+});
+
+test('reached from another screen, Back returns to it', async () => {
+  jest.mocked(router.canGoBack).mockReturnValue(true);
+  await render(<SignIn />);
+  await fireEvent.press(screen.getByRole('button', { name: t('common.back') }));
+  expect(router.back).toHaveBeenCalledTimes(1);
 });
 
 test('an unconfirmed email goes to the code screen and offers a new code', async () => {

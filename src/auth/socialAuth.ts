@@ -42,17 +42,31 @@ function isConfiguredClientId(value: string | undefined): value is string {
 }
 
 /**
- * Configures once, on first use; a missing id is a setup problem, warned in dev, not a user error.
- * OAuth client ids aren't secrets. `EXPO_PUBLIC_*` is inlined at build time only for literal member
- * expressions, so they're read directly rather than through a helper taking the key name.
+ * The Google OAuth client ids, or null while either is unset. They aren't secrets. `EXPO_PUBLIC_*` is
+ * inlined at build time only for literal member expressions, so they're read directly rather than
+ * through a helper taking the key name.
  */
+function googleClientIds(): { webClientId: string; iosClientId: string } | null {
+  const webClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
+  const iosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
+  if (!isConfiguredClientId(webClientId) || !isConfiguredClientId(iosClientId)) {
+    return null;
+  }
+  return { webClientId, iosClientId };
+}
+
+/** Whether this build can offer Sign in with Google; without the client ids the button is not shown. */
+export function isGoogleSignInConfigured(): boolean {
+  return googleClientIds() !== null;
+}
+
+/** Configures once, on first use; a missing id is a setup problem, warned in dev, not a user error. */
 function ensureGoogleConfigured(): boolean {
   if (googleConfigured) {
     return true;
   }
-  const webClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
-  const iosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
-  if (!isConfiguredClientId(webClientId) || !isConfiguredClientId(iosClientId)) {
+  const ids = googleClientIds();
+  if (ids === null) {
     if (__DEV__) {
       console.warn(
         'Sign in with Google is not configured: set EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID and EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID.',
@@ -60,7 +74,7 @@ function ensureGoogleConfigured(): boolean {
     }
     return false;
   }
-  GoogleSignin.configure({ webClientId, iosClientId });
+  GoogleSignin.configure(ids);
   googleConfigured = true;
   return true;
 }

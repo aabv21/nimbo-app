@@ -1,13 +1,14 @@
 // profileRepository against the running local stack: the consent round trip, who can read or write
-// which profile, and the offline cache the repository fills.
+// which profile, and the offline cache the app's provider fills.
 
 import { signInWithEmail } from '../src/auth/emailAuth';
 import {
   acceptTerms,
   fetchProfile,
-  readCachedProfile,
+  readCachedProfileSync,
   setAiConsent,
   updateProfile,
+  writeCachedProfile,
 } from '../src/profile/profileRepository';
 import { anonClient, createUser, deleteUser, loadIntegrationEnv, uniqueEmail } from './helpers';
 
@@ -35,7 +36,7 @@ afterAll(async () => {
   await Promise.all(users.map((id) => deleteUser(id)));
 });
 
-test('a new account has a profile with no consent yet, and the fetch caches it', async () => {
+test('a new account has a profile with no consent yet, and the fetch leaves the cache alone', async () => {
   const { id, client } = await signedInUser('profile-new');
 
   const result = await fetchProfile(client);
@@ -51,7 +52,7 @@ test('a new account has a profile with no consent yet, and the fetch caches it',
       theme: 'system',
     },
   });
-  await expect(readCachedProfile(id)).resolves.toEqual(result.ok ? result.value : null);
+  expect(readCachedProfileSync(id)).toBeNull();
 });
 
 test('acceptTerms then setAiConsent(false) round-trip through the RPCs', async () => {
@@ -126,12 +127,14 @@ test("a signed-out client gets no profile and the cache keeps each user's own", 
   const a = await signedInUser('profile-cache-a');
   const b = await signedInUser('profile-cache-b');
   await updateProfile({ theme: 'dim' }, a.client);
-  // A write leaves the cache to the app; the read fills it.
-  await fetchProfile(a.client);
-  await fetchProfile(b.client);
+  // The repository never caches; the app's provider does, so write what each user's read returned.
+  for (const user of [a, b]) {
+    const read = await fetchProfile(user.client);
+    if (read.ok) writeCachedProfile(user.id, read.value);
+  }
 
   expect((await fetchProfile(anonClient())).ok).toBe(false);
 
-  await expect(readCachedProfile(a.id)).resolves.toMatchObject({ theme: 'dim' });
-  await expect(readCachedProfile(b.id)).resolves.toMatchObject({ theme: 'system' });
+  expect(readCachedProfileSync(a.id)).toMatchObject({ theme: 'dim' });
+  expect(readCachedProfileSync(b.id)).toMatchObject({ theme: 'system' });
 });

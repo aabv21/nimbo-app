@@ -1,5 +1,4 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import { router } from 'expo-router';
 
 import Boundary from '../app/welcome/boundary';
 import { translate } from '../i18n';
@@ -9,7 +8,6 @@ import { READY_PROFILE, currentAuth, resetAuth } from '../test/authMock';
 
 jest.mock('../auth/AuthProvider', () => require('../test/authMock'));
 jest.mock('../profile/profileRepository', () => ({ acceptTerms: jest.fn(), setAiConsent: jest.fn() }));
-jest.mock('expo-router', () => ({ router: { push: jest.fn(), replace: jest.fn(), back: jest.fn(), canGoBack: jest.fn(() => false) } }));
 
 const t = (key: MessageKey): string => translate('en', key);
 const mockedAccept = jest.mocked(acceptTerms);
@@ -32,18 +30,21 @@ test('continue stays disabled until both statements are checked', async () => {
   expect(mockedAccept).not.toHaveBeenCalled();
 });
 
-test('accepting calls acceptTerms once, refreshes the profile and moves on', async () => {
-  mockedAccept.mockResolvedValue({ ok: true, value: READY_PROFILE });
+test('accepting calls acceptTerms once and shows the stamped consent fields without another read', async () => {
+  mockedAccept.mockResolvedValue({ ok: true, value: { ...READY_PROFILE, aiConsentAnsweredAt: null } });
   await render(<Boundary />);
   await fireEvent.press(screen.getByRole('checkbox', { name: t('boundary.age') }));
   await fireEvent.press(screen.getByRole('checkbox', { name: t('boundary.notMedical') }));
   await fireEvent.press(screen.getByRole('button', { name: t('boundary.continue') }));
 
   await waitFor(() => {
-    expect(router.replace).toHaveBeenCalledWith('/welcome/ai-consent');
+    expect(currentAuth().patchProfile).toHaveBeenCalledWith({
+      adultConfirmedAt: READY_PROFILE.adultConfirmedAt,
+      boundaryAcceptedAt: READY_PROFILE.boundaryAcceptedAt,
+    });
   });
   expect(mockedAccept).toHaveBeenCalledTimes(1);
-  expect(currentAuth().refreshProfile).toHaveBeenCalledTimes(1);
+  expect(currentAuth().refreshProfile).not.toHaveBeenCalled();
 });
 
 test('a failed call shows the error and keeps the user on the screen', async () => {
@@ -54,6 +55,6 @@ test('a failed call shows the error and keeps the user on the screen', async () 
   await fireEvent.press(screen.getByRole('button', { name: t('boundary.continue') }));
 
   expect(await screen.findByText(t('boundary.error'))).toBeOnTheScreen();
-  expect(router.replace).not.toHaveBeenCalled();
+  expect(currentAuth().patchProfile).not.toHaveBeenCalled();
   expect(screen.getByRole('button', { name: t('boundary.continue') })).toBeEnabled();
 });

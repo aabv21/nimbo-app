@@ -1,0 +1,212 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Nimbo Launch and Gate Flow",
+    "locale": "en",
+    "output": "docs/diagrams/gate-flow.html",
+    "quality_profile": "showcase"
+  },
+  "lanes": [
+    {
+      "id": "start",
+      "label": "Launch"
+    },
+    {
+      "id": "gate",
+      "label": "Gate"
+    },
+    {
+      "id": "entry",
+      "label": "Waiting and sign-in"
+    },
+    {
+      "id": "consent",
+      "label": "Consent screens"
+    },
+    {
+      "id": "app",
+      "label": "App"
+    }
+  ],
+  "phases": [
+    {
+      "id": "decide",
+      "label": "Decide",
+      "fromCol": 0,
+      "toCol": 2
+    },
+    {
+      "id": "route",
+      "label": "Register one route group",
+      "fromCol": 3,
+      "toCol": 5,
+      "variant": "emphasis"
+    }
+  ],
+  "groups": [],
+  "mainPath": [
+    "launch",
+    "session",
+    "gate",
+    "boundary",
+    "ai",
+    "tabs"
+  ],
+  "nodes": [
+    {
+      "id": "launch",
+      "lane": "start",
+      "col": 0,
+      "type": "frontend",
+      "label": "App launch",
+      "sublabel": "fonts, then providers",
+      "width": 140
+    },
+    {
+      "id": "session",
+      "lane": "start",
+      "col": 1,
+      "type": "database",
+      "label": "Stored session",
+      "sublabel": "and cached profile",
+      "width": 140
+    },
+    {
+      "id": "gate",
+      "lane": "gate",
+      "col": 2,
+      "type": "security",
+      "label": "nextRoute(auth)",
+      "sublabel": "pure function",
+      "tag": "one answer",
+      "width": 140
+    },
+    {
+      "id": "loading",
+      "lane": "entry",
+      "col": 3,
+      "type": "backend",
+      "label": "Loading view",
+      "sublabel": "retry when signed in",
+      "width": 140
+    },
+    {
+      "id": "signin",
+      "lane": "entry",
+      "col": 4,
+      "type": "backend",
+      "label": "Sign-in group",
+      "sublabel": "(auth) routes",
+      "width": 140
+    },
+    {
+      "id": "boundary",
+      "lane": "consent",
+      "col": 3,
+      "type": "backend",
+      "label": "Boundary",
+      "sublabel": "accept_terms",
+      "width": 140
+    },
+    {
+      "id": "ai",
+      "lane": "consent",
+      "col": 4,
+      "type": "backend",
+      "label": "AI consent",
+      "sublabel": "set_ai_consent",
+      "width": 140
+    },
+    {
+      "id": "tabs",
+      "lane": "app",
+      "col": 5,
+      "type": "frontend",
+      "label": "Tabs",
+      "sublabel": "Companion if AI on",
+      "width": 140
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "launch",
+      "to": "session",
+      "variant": "emphasis"
+    },
+    {
+      "id": "e2",
+      "from": "session",
+      "to": "gate",
+      "variant": "emphasis"
+    },
+    {
+      "id": "e3",
+      "from": "gate",
+      "to": "loading",
+      "label": "unknown",
+      "variant": "dashed"
+    },
+    {
+      "id": "e4",
+      "from": "gate",
+      "to": "signin",
+      "label": "signed out"
+    },
+    {
+      "id": "e5",
+      "from": "gate",
+      "to": "boundary",
+      "label": "terms missing",
+      "variant": "emphasis"
+    },
+    {
+      "id": "e6",
+      "from": "boundary",
+      "to": "ai",
+      "label": "both accepted",
+      "variant": "emphasis"
+    },
+    {
+      "id": "e7",
+      "from": "ai",
+      "to": "tabs",
+      "label": "answered",
+      "variant": "emphasis"
+    },
+    {
+      "id": "e8",
+      "from": "gate",
+      "to": "tabs",
+      "label": "all answered",
+      "variant": "dashed"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Registration",
+      "items": [
+        "Stack.Protected registers only the due group",
+        "A deep link to another screen never mounts it"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Unknown",
+      "items": [
+        "No profile read yet stays on loading",
+        "An unread profile is not an unanswered consent"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Answers",
+      "items": [
+        "Declining AI still reaches the tabs, minus Companion",
+        "Both consent steps write through RPCs only"
+      ]
+    }
+  ]
+}

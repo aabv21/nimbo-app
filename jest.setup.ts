@@ -50,7 +50,6 @@ jest.mock('expo-sqlite/kv-store', () => {
       removeItemSync: (key: string): void => {
         store.delete(key);
       },
-      getAllKeysSync: (): string[] => [...store.keys()],
     },
   };
 });

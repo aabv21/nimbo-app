@@ -56,7 +56,6 @@ export function easingFor(level: MotionLevel): (typeof easing)[keyof typeof easi
 
 /** Pass a duration token as the spring's perceptual `duration`; 0.85 shows no visible bounce. */
 export const spring = { dampingRatio: 0.85 } as const;
-export const sheetSpring = { dampingRatio: 0.9 } as const;
 
 /** Reduced when the OS setting or the in-app switch is on. */
 export function useMotion(): MotionPreset {

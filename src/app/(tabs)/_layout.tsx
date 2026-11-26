@@ -2,20 +2,18 @@ import { BlurTargetView } from 'expo-blur';
 import { TabSlot, defaultTabsSlotRender, useTabTrigger, useTabsWithTriggers } from 'expo-router/ui';
 import type { TabsSlotRenderOptions } from 'expo-router/ui';
 import { CalendarDays, House, MessageCircle, UserRound } from 'lucide-react-native';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import type { ComponentRef, ComponentType, ReactNode, RefObject } from 'react';
+import { useMemo, useRef, useState } from 'react';
+import type { ComponentRef, ComponentType, RefObject } from 'react';
 import { StyleSheet, View } from 'react-native';
-import Animated, { ReduceMotion, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import { useAuth } from '../../auth/AuthProvider';
-import { toHref } from '../../auth/routes';
 import { useI18n } from '../../i18n';
 import { visibleTabs } from '../../profile/tabs';
 import type { TabName } from '../../profile/tabs';
 import { useTimezoneSync } from '../../profile/useTimezoneSync';
 import type { IconProps } from '../../ui/Button';
-import { easingFor, useMotion } from '../../ui/motion';
 import { TabBar } from '../../ui/TabBar';
+import { TabScene } from '../../ui/TabScene';
 import { useTheme } from '../../ui/themeContext';
 
 const ICONS: ReadonlyMap<TabName, ComponentType<IconProps>> = new Map<TabName, ComponentType<IconProps>>([
@@ -28,34 +26,15 @@ const ICONS: ReadonlyMap<TabName, ComponentType<IconProps>> = new Map<TabName, C
 type BlurTarget = ComponentRef<typeof View>;
 type ScreenTrigger = Parameters<typeof useTabsWithTriggers>[0]['triggers'][number];
 
-/** The new tab's content rises in (fades only, at reduced motion); tabs are peers, so nothing slides sideways. */
-function TabScene({ focused, still, children }: { focused: boolean; still: boolean; children: ReactNode }): React.JSX.Element {
-  const motion = useMotion();
-  const shown = useSharedValue(still ? 1 : 0);
-  const rise = motion.level === 'full' ? 12 : motion.level === 'subtle' ? 8 : 0;
-  const style = useAnimatedStyle(() => ({
-    opacity: shown.get(),
-    transform: [{ translateY: (1 - shown.get()) * rise }],
-  }));
-  const first = useRef(still);
-
-  useEffect(() => {
-    if (first.current) {
-      first.current = false;
-      return;
-    }
-    if (!focused) return;
-    shown.set(0);
-    shown.set(withTiming(1, { duration: motion.duration.base, easing: easingFor(motion.level), reduceMotion: ReduceMotion.Never }));
-  }, [focused, shown, motion.duration.base, motion.level]);
-
-  return <Animated.View style={[styles.fill, style]}>{children}</Animated.View>;
-}
-
-/** Wraps each screen in a `TabScene`; the tab the shell opens on appears as it is, since only a change of tab animates. */
-function sceneRenderer(initialRouteKey: string | undefined): typeof defaultTabsSlotRender {
-  return (descriptor, options: TabsSlotRenderOptions) =>
-    defaultTabsSlotRender(
+/**
+ * Wraps each screen in a `TabScene`; the tab the shell opens on appears as it is, since only a change of
+ * tab animates. A deep link to a hidden tab is briefly in the state before the tabs drop it, so a route
+ * with no trigger renders nothing: the account-state gate stays in this layout, not in the screen.
+ */
+function sceneRenderer(initialRouteKey: string | undefined, tabs: readonly TabName[]): typeof defaultTabsSlotRender {
+  return (descriptor, options: TabsSlotRenderOptions) => {
+    if (!isTabName(descriptor.route.name, tabs)) return null;
+    return defaultTabsSlotRender(
       {
         ...descriptor,
         render: () => (
@@ -66,6 +45,7 @@ function sceneRenderer(initialRouteKey: string | undefined): typeof defaultTabsS
       },
       options,
     );
+  };
 }
 
 function ShellTabBar({ tabs, current, blurTarget }: { tabs: readonly TabName[]; current: TabName; blurTarget: RefObject<BlurTarget | null> }): React.JSX.Element {
@@ -101,7 +81,7 @@ export default function TabsLayout(): React.JSX.Element {
 
   const tabs = visibleTabs({ aiEnabled: profile?.aiEnabled === true });
   const triggers = useMemo<ScreenTrigger[]>(
-    () => tabs.map((name) => ({ type: 'internal', name, href: toHref(`/${name}`) })),
+    () => tabs.map((name) => ({ type: 'internal', name, href: `/${name}` })),
     [tabs],
   );
   const { state, NavigationContent } = useTabsWithTriggers({ triggers });
@@ -113,7 +93,7 @@ export default function TabsLayout(): React.JSX.Element {
     <NavigationContent>
       <View style={[styles.fill, { backgroundColor: color.bg }]}>
         <BlurTargetView ref={blurTarget} style={styles.fill}>
-          <TabSlot renderFn={sceneRenderer(initialRouteKey)} />
+          <TabSlot renderFn={sceneRenderer(initialRouteKey, tabs)} />
         </BlurTargetView>
         <ShellTabBar tabs={tabs} current={current} blurTarget={blurTarget} />
       </View>

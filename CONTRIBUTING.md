@@ -14,11 +14,11 @@ guardrails, the conventions, the documentation map and the Definition of done.
 - **Quality**: `pnpm check:supply-chain`, `pnpm run typecheck`, `pnpm run lint`, `pnpm test` and `expo-doctor` (without its SDK-version check, which `pnpm check:expo` covers).
 - **Security**: gitleaks over the full history and `pnpm audit --audit-level=high`.
 - **Actions**: actionlint and zizmor over the workflows.
-- **Database**: starts the lean local stack, rebuilds the database from the migrations, runs the pgTAP tests, and fails when `src/lib/database.types.ts` differs from the migrations.
+- **Database**: starts the lean local stack, rebuilds the database from the migrations, runs the pgTAP tests, writes `.env.local` (`pnpm env:local`) and runs the integration suite (`pnpm test:int`), and fails when `src/lib/database.types.ts` differs from the migrations.
 
-`codeql.yml` analyzes the code once the repository is public. Every job runs with read-only `contents` permission unless it needs more, and every action is pinned to a commit SHA. `release.yml` tags and publishes a merged `release: vX.Y.Z` pull request into `main`.
+`codeql.yml` analyzes the code. Every job runs with read-only `contents` permission unless it needs more, and every action is pinned to a commit SHA. `release.yml` tags and publishes a merged `release: vX.Y.Z` pull request into `main`.
 
-Releases are pull requests from `develop` into `main` titled `release: vX.Y.Z` and merged with a merge commit. Report security issues privately, as [`SECURITY.md`](SECURITY.md) describes. Branch rulesets and private vulnerability reporting are switched on when the repository becomes public; until then the pull request flow above is followed by discipline.
+Releases are pull requests from `develop` into `main` titled `release: vX.Y.Z` and merged with a merge commit. Report security issues privately, as [`SECURITY.md`](SECURITY.md) describes. Rulesets on `main`, `develop` and `v*` tags enforce the flow above and require the Quality, Security, Actions, Database and Analyze checks.
 
 ## Supply-chain hardening
 

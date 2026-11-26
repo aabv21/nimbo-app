@@ -165,8 +165,8 @@ test('sign-out clears the profile from memory but keeps the cache for an offline
   });
 
   expect(result.current).toMatchObject({ status: 'signedOut', userId: null, profile: null });
-  const { readCachedProfile } = await import('../../profile/profileRepository');
-  await expect(readCachedProfile('u1')).resolves.toEqual(PROFILE);
+  const { readCachedProfileSync } = await import('../../profile/profileRepository');
+  expect(readCachedProfileSync('u1')).toEqual(PROFILE);
 });
 
 test("a different user signing in never sees the previous user's cached profile", async () => {

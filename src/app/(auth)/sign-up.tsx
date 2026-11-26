@@ -17,7 +17,6 @@ import { fonts, space, type } from '../../ui/theme';
 import { useTheme } from '../../ui/themeContext';
 import { TextField } from '../../ui/TextField';
 import { TextLink } from '../../ui/TextLink';
-import { toHref } from '../../auth/routes';
 
 const MIN_PASSWORD_LENGTH = 8;
 
@@ -47,7 +46,7 @@ export default function SignUp(): React.JSX.Element {
       if (!result.ok) {
         setError(result.error);
       } else if (result.needsConfirmation) {
-        router.push(toHref({ pathname: '/confirm-email', params: { email: trimmed, sent: '1' } }));
+        router.push({ pathname: '/confirm-email', params: { email: trimmed, sent: '1' } });
       }
       // Without confirmation the session arrives through `AuthProvider` and the root layout moves on.
     } finally {
@@ -61,7 +60,7 @@ export default function SignUp(): React.JSX.Element {
         <BackButton
           label={t('common.back')}
           onPress={() => {
-            router.replace(toHref('/sign-in'));
+            router.replace('/sign-in');
           }}
         />
         <Text accessibilityRole="header" style={[styles.title, { color: color.text }]}>{t('auth.signUp.title')}</Text>
@@ -106,14 +105,13 @@ export default function SignUp(): React.JSX.Element {
           loading={submitting}
           loadingLabel={t('common.loading')}
         />
-        <Text style={[styles.or, { color: color.textMuted }]}>{t('auth.or')}</Text>
         <SocialButtons onError={setError} />
         <View style={styles.footer}>
           <Text style={[styles.muted, { color: color.textMuted }]}>{t('auth.signUp.haveAccount')}</Text>
           <TextLink
             label={t('auth.signIn.title')}
             onPress={() => {
-              router.replace(toHref('/sign-in'));
+              router.replace('/sign-in');
             }}
           />
         </View>
@@ -125,7 +123,6 @@ export default function SignUp(): React.JSX.Element {
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   title: { fontFamily: fonts.display, fontSize: type.display, lineHeight: 35 },
-  or: { textAlign: 'center', fontFamily: fonts.body, fontSize: type.label },
   footer: { flexDirection: 'row', alignItems: 'center', gap: space[1], flexWrap: 'wrap' },
   muted: { fontFamily: fonts.body, fontSize: type.label },
 });

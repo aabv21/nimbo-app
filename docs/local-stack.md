@@ -16,8 +16,8 @@ The backend runs locally as Supabase in Docker, driven only through the `supabas
 
 ## Ports
 
-`supabase/config.toml` uses `project_id = "nimbo-app"` and every port is 100 above the sibling
-Dressing Room stack's, so both stacks can run at once:
+`supabase/config.toml` uses `project_id = "nimbo-app"` and every port sits in the 54520–54529
+range, clear of the Supabase CLI defaults (54320–54329), so it can run beside another local stack:
 
 | Service | Port | Address |
 | --- | --- | --- |

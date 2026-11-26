@@ -1,7 +1,8 @@
+import { act } from '@testing-library/react-native';
 import { fireEvent, renderRouter, screen } from 'expo-router/testing-library';
 
+import { signOut } from '../auth/authService';
 import { translate } from '../i18n';
-import { act } from '@testing-library/react-native';
 import { READY_PROFILE, resetAuth, setAuth } from '../test/authMock';
 
 jest.mock('../auth/AuthProvider', () => require('../test/authMock'));
@@ -15,9 +16,11 @@ jest.mock('../auth/authService', () => ({
   signInWithApple: jest.fn(),
   signInWithGoogle: jest.fn(),
   resendSignUpCode: jest.fn(),
+  signOut: jest.fn(() => Promise.resolve({ ok: true })),
+  isGoogleSignInConfigured: jest.fn(() => false),
 }));
-// Stand-ins for the two screens a pending user must never reach; they count renders and show their name.
-const mockRenders = { today: 0, aiConsent: 0 };
+// Stand-ins for the screens a user must not reach in some states; they count renders and show their name.
+const mockRenders = { today: 0, aiConsent: 0, companion: 0 };
 jest.mock('../app/(tabs)/today', () => {
   const { Text } = jest.requireActual<typeof import('react-native')>('react-native');
   return {
@@ -25,6 +28,16 @@ jest.mock('../app/(tabs)/today', () => {
     default: () => {
       mockRenders.today += 1;
       return <Text>Today screen</Text>;
+    },
+  };
+});
+jest.mock('../app/(tabs)/companion', () => {
+  const { Text } = jest.requireActual<typeof import('react-native')>('react-native');
+  return {
+    __esModule: true,
+    default: () => {
+      mockRenders.companion += 1;
+      return <Text>Companion screen</Text>;
     },
   };
 });
@@ -64,18 +77,50 @@ test('signed in without the boundary answered, the layout holds the user on the 
 });
 
 test('signed in with an unreadable profile shows the loading view with a retry, never a consent screen', async () => {
-  const auth = resetAuth({ profile: null });
+  let finishRead = (): void => undefined;
+  const auth = resetAuth({
+    profile: null,
+    refreshProfile: jest.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finishRead = resolve;
+        }),
+    ),
+  });
   await renderRouter('./src/app', { initialUrl: '/' });
-  expect(await screen.findByText(translate('en', 'common.loading'))).toBeOnTheScreen();
+  expect(await screen.findByRole('progressbar')).toBeOnTheScreen();
   expect(screen.queryByRole('header', { name: translate('en', 'boundary.title') })).not.toBeOnTheScreen();
+
   await fireEvent.press(screen.getByRole('button', { name: translate('en', 'error.retry') }));
   expect(auth.refreshProfile).toHaveBeenCalledTimes(1);
+  // Busy while the read is out, so a second tap cannot stack reads; usable again once it settles.
+  expect(screen.getByRole('button', { name: translate('en', 'common.loading') })).toBeDisabled();
+  await act(async () => {
+    finishRead();
+    await Promise.resolve();
+  });
+  expect(screen.getByRole('button', { name: translate('en', 'error.retry') })).toBeEnabled();
+});
+
+test('a profile that can never be read still lets the user sign out', async () => {
+  resetAuth({ profile: null });
+  await renderRouter('./src/app', { initialUrl: '/' });
+  await fireEvent.press(await screen.findByRole('button', { name: translate('en', 'profile.signOut') }));
+  expect(signOut).toHaveBeenCalledTimes(1);
+});
+
+test('while the session itself is unknown, the loading view offers no actions', async () => {
+  resetAuth({ status: 'loading', userId: null, profile: null });
+  await renderRouter('./src/app', { initialUrl: '/' });
+  expect(await screen.findByRole('progressbar')).toBeOnTheScreen();
+  expect(screen.queryByRole('button')).not.toBeOnTheScreen();
 });
 
 const PENDING = { adultConfirmedAt: null, boundaryAcceptedAt: null, aiConsentAnsweredAt: null };
 beforeEach(() => {
   mockRenders.today = 0;
   mockRenders.aiConsent = 0;
+  mockRenders.companion = 0;
 });
 
 const boundaryTitle = (): string => translate('en', 'boundary.title');
@@ -141,11 +186,19 @@ test('with the AI declined, the Nimbo tab is gone and the other three work', asy
   expect(screen.getByRole('tab', { name: 'History' })).toBeSelected();
 });
 
-test('a deep link to the companion with the AI off lands on Today', async () => {
+// The headless tabs register only the routes with a trigger, so no screen-level redirect is needed.
+test('a deep link to the companion with the AI off lands on Today and never mounts it', async () => {
   resetAuth({ profile: { ...READY_PROFILE, aiEnabled: false } });
   await renderRouter('./src/app', { initialUrl: '/companion' });
   expect(await screen.findByText('Today screen')).toBeOnTheScreen();
-  expect(screen.queryByText(translate('en', 'companion.empty.title'))).not.toBeOnTheScreen();
+  expect(mockRenders.companion).toBe(0);
+});
+
+test('a deep link to the companion with the AI on opens it', async () => {
+  resetAuth();
+  await renderRouter('./src/app', { initialUrl: '/companion' });
+  expect(await screen.findByText('Companion screen')).toBeOnTheScreen();
+  expect(screen.getByRole('tab', { name: 'Nimbo' })).toBeSelected();
 });
 
 test('turning the AI on adds the Nimbo tab', async () => {

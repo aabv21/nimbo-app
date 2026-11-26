@@ -14,7 +14,6 @@ import { CodeBoxes } from '../../ui/CodeBoxes';
 import { fonts, space, type } from '../../ui/theme';
 import { useTheme } from '../../ui/themeContext';
 import { TextLink } from '../../ui/TextLink';
-import { toHref } from '../../auth/routes';
 
 const CODE_LENGTH = 6;
 const RESEND_COOLDOWN_SECONDS = 30;
@@ -29,11 +28,13 @@ export default function ConfirmEmail(): React.JSX.Element {
   const params = useLocalSearchParams<{ email?: string; sent?: string }>();
   const email = params.email ?? '';
   // Arriving from sign-up, a code is already on its way; from sign-in, none was sent yet.
-  const [cooldown, setCooldown] = useState(params.sent === '1' ? RESEND_COOLDOWN_SECONDS : 0);
+  const [sent, setSent] = useState(params.sent === '1');
+  const [cooldown, setCooldown] = useState(sent ? RESEND_COOLDOWN_SECONDS : 0);
   const [code, setCode] = useState('');
   const [error, setError] = useState<AuthErrorKey | undefined>(undefined);
   const [resent, setResent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [resending, setResending] = useState(false);
 
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -64,12 +65,19 @@ export default function ConfirmEmail(): React.JSX.Element {
 
   const resend = async (): Promise<void> => {
     setError(undefined);
-    const result = await resendSignUpCode(email);
-    if (result.ok) {
-      setResent(true);
-      setCooldown(RESEND_COOLDOWN_SECONDS);
-    } else {
-      setError(result.error);
+    setResending(true);
+    try {
+      const result = await resendSignUpCode(email);
+      if (result.ok) {
+        // The first code of a sign-in arrival is no "new" code: the body now says one was sent.
+        setResent(sent);
+        setSent(true);
+        setCooldown(RESEND_COOLDOWN_SECONDS);
+      } else {
+        setError(result.error);
+      }
+    } finally {
+      setResending(false);
     }
   };
 
@@ -80,11 +88,21 @@ export default function ConfirmEmail(): React.JSX.Element {
           label={t('common.back')}
           onPress={() => {
             if (router.canGoBack()) router.back();
-            else router.replace(toHref('/sign-in'));
+            else router.replace('/sign-in');
           }}
         />
         <Text accessibilityRole="header" style={[styles.title, { color: color.text }]}>{t('auth.confirm.title')}</Text>
-        <Text style={[styles.body, { color: color.text }]}>{t('auth.confirm.body', { email })}</Text>
+        <Text style={[styles.body, { color: color.text }]}>{t(sent ? 'auth.confirm.body' : 'auth.confirm.bodyUnsent', { email })}</Text>
+        {sent ? null : (
+          <Button
+            label={t('auth.confirm.resend')}
+            loading={resending}
+            loadingLabel={t('common.loading')}
+            onPress={() => {
+              void resend();
+            }}
+          />
+        )}
         <CodeBoxes
           label={t('auth.confirm.code')}
           value={code}
@@ -97,6 +115,7 @@ export default function ConfirmEmail(): React.JSX.Element {
         {error === undefined ? null : <Notice tone="danger" title={t(authErrorMessage(error))} />}
         {resent ? <Text style={[styles.body, { color: color.textMuted }]}>{t('auth.confirm.resent')}</Text> : null}
         <Button
+          variant={sent ? 'primary' : 'secondary'}
           label={t('auth.confirm.submit')}
           onPress={() => {
             void verify();
@@ -104,20 +123,22 @@ export default function ConfirmEmail(): React.JSX.Element {
           loading={submitting}
           loadingLabel={t('common.loading')}
         />
-        <TextLink
-          label={cooldown > 0 ? t('auth.confirm.resendIn', { time: clock(cooldown) }) : t('auth.confirm.resend')}
-          disabled={cooldown > 0}
-          onPress={() => {
-            void resend();
-          }}
-        />
+        {sent ? (
+          <TextLink
+            label={cooldown > 0 ? t('auth.confirm.resendIn', { time: clock(cooldown) }) : t('auth.confirm.resend')}
+            disabled={cooldown > 0 || resending}
+            onPress={() => {
+              void resend();
+            }}
+          />
+        ) : null}
         {/* With confirmations on, signing up an already-confirmed email sends no code, so say where to go. */}
         <View style={styles.footer}>
           <Text style={[styles.muted, { color: color.textMuted }]}>{t('auth.signUp.haveAccount')}</Text>
           <TextLink
             label={t('auth.signIn.title')}
             onPress={() => {
-              router.replace(toHref('/sign-in'));
+              router.replace('/sign-in');
             }}
           />
         </View>

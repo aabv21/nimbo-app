@@ -2,7 +2,8 @@ jest.mock('../../lib/supabase', () => ({ supabase: {} }));
 
 import type { Client } from '../../auth/emailAuth';
 import { kvGet, kvRemove } from '../../lib/kv';
-import { acceptTerms, fetchProfile, readCachedProfile, setAiConsent, updateProfile } from '../profileRepository';
+import type { Profile } from '../profileRepository';
+import { acceptTerms, fetchProfile, readCachedProfileSync, setAiConsent, updateProfile, writeCachedProfile } from '../profileRepository';
 
 const ROW = {
   user_id: 'u1',
@@ -25,7 +26,7 @@ const ROW = {
   created_at: '2026-11-01T09:00:00Z',
 };
 
-const PROFILE = {
+const PROFILE: Profile = {
   language: 'es',
   timezone: 'America/Bogota',
   theme: 'dim',
@@ -60,27 +61,33 @@ beforeEach(() => {
   kvRemove('profile.u2');
 });
 
-test('fetchProfile maps the columns to the Profile fields and caches them under the user id', async () => {
+test('fetchProfile maps the columns to the Profile fields and never writes the cache', async () => {
   const { client } = fakeClient(OK);
 
   const result = await fetchProfile(client);
 
   expect(result).toEqual({ ok: true, value: PROFILE });
-  expect(JSON.parse(kvGet('profile.u1') ?? 'null')).toEqual(PROFILE);
+  expect(kvGet('profile.u1')).toBeNull();
 });
 
-test('readCachedProfile returns what the last fetch stored, and null for another user', async () => {
-  await fetchProfile(fakeClient(OK).client);
+test('readCachedProfileSync returns what writeCachedProfile stored, and null for another user', () => {
+  writeCachedProfile('u1', PROFILE);
 
-  await expect(readCachedProfile('u1')).resolves.toEqual(PROFILE);
-  await expect(readCachedProfile('u2')).resolves.toBeNull();
+  expect(readCachedProfileSync('u1')).toEqual(PROFILE);
+  expect(readCachedProfileSync('u2')).toBeNull();
+});
+
+test('a theme or language newer than this build reads as Automatic and the phone language', async () => {
+  const { client } = fakeClient({ data: { ...ROW, theme: 'sepia', language: 'fr' }, error: null, status: 200 });
+
+  await expect(fetchProfile(client)).resolves.toEqual({ ok: true, value: { ...PROFILE, theme: 'system', language: null } });
 });
 
 test('a cached value of another shape reads as no profile', async () => {
   const { kvSet } = await import('../../lib/kv');
   kvSet('profile.u1', JSON.stringify({ theme: 'neon' }));
 
-  await expect(readCachedProfile('u1')).resolves.toBeNull();
+  expect(readCachedProfileSync('u1')).toBeNull();
 });
 
 test('updateProfile sends only the given fields, in column names, and leaves the cache alone', async () => {
@@ -157,12 +164,12 @@ test('a failed RPC returns its error and does not refetch', async () => {
 });
 
 test('a network failure returns the network kind and leaves the cache untouched', async () => {
-  await fetchProfile(fakeClient(OK).client);
+  writeCachedProfile('u1', PROFILE);
 
   const result = await fetchProfile(fakeClient(OFFLINE).client);
 
   expect(result).toEqual({ ok: false, kind: 'network' });
-  await expect(readCachedProfile('u1')).resolves.toEqual(PROFILE);
+  expect(readCachedProfileSync('u1')).toEqual(PROFILE);
 });
 
 test('a thrown fetch TypeError is a network failure too', async () => {

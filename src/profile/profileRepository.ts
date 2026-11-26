@@ -50,13 +50,16 @@ function isNullableString(value: unknown): value is string | null {
   return value === null || typeof value === 'string';
 }
 
+const THEMES: readonly ThemePreference[] = ['system', 'day', 'dark', 'dim'];
+const LANGUAGES: readonly Locale[] = ['en', 'es', 'pt'];
+
 function isProfile(value: unknown): value is Profile {
   if (typeof value !== 'object' || value === null) return false;
   const v = value as Record<string, unknown>;
   return (
-    (v['language'] === null || isOneOf(v['language'], ['en', 'es', 'pt'])) &&
+    (v['language'] === null || isOneOf(v['language'], LANGUAGES)) &&
     isNullableString(v['timezone']) &&
-    isOneOf(v['theme'], ['system', 'day', 'dark', 'dim']) &&
+    isOneOf(v['theme'], THEMES) &&
     typeof v['reduceMotion'] === 'boolean' &&
     typeof v['notifyStart'] === 'string' &&
     typeof v['notifyEnd'] === 'string' &&
@@ -70,12 +73,18 @@ function isProfile(value: unknown): value is Profile {
   );
 }
 
-/** The row's app-facing fields; null when the row is not shaped like a profile. */
+/**
+ * The row's app-facing fields; null when the row is not shaped like a profile. A theme or language
+ * added to the schema after this build reads as Automatic or the phone's language, so a newer enum
+ * value can never lock an older app out of its own profile.
+ */
 function toProfile(row: Row): Profile | null {
+  const theme: unknown = row.theme;
+  const language: unknown = row.language;
   const profile = {
-    language: row.language,
+    language: isOneOf(language, LANGUAGES) ? language : null,
     timezone: row.timezone,
-    theme: row.theme,
+    theme: isOneOf(theme, THEMES) ? theme : 'system',
     reduceMotion: row.reduce_motion,
     notifyStart: row.notify_start,
     notifyEnd: row.notify_end,
@@ -90,7 +99,7 @@ function toProfile(row: Row): Profile | null {
   return isProfile(profile) ? profile : null;
 }
 
-/** The cached profile of `userId`, read synchronously so a first render can use it. */
+/** The cached profile of `userId` (never another user's), read synchronously so a first render can use it. */
 export function readCachedProfileSync(userId: string): Profile | null {
   return kvGetJson(cacheKey(userId), isProfile);
 }
@@ -100,15 +109,10 @@ export function writeCachedProfile(userId: string, profile: Profile): void {
   kvSet(cacheKey(userId), JSON.stringify(profile));
 }
 
-/** What the last successful fetch stored for `userId`; never another user's. */
-export function readCachedProfile(userId: string): Promise<Profile | null> {
-  return Promise.resolve(readCachedProfileSync(userId));
-}
-
 type Outcome = { data: Row | null; error: { code?: string; message?: string } | null; status: number };
 
-/** Turns a single-row answer into a result, caching the profile under the row's own user id unless told not to. */
-function settle({ data, error, status }: Outcome, cache = true): RequestResult<Profile> {
+/** Turns a single-row answer into a result. */
+function settle({ data, error, status }: Outcome): RequestResult<Profile> {
   if (error !== null) {
     return { ok: false, kind: toRequestErrorKind(error, status) };
   }
@@ -116,17 +120,13 @@ function settle({ data, error, status }: Outcome, cache = true): RequestResult<P
   if (data === null || profile === null) {
     return { ok: false, kind: 'unknown' };
   }
-  if (cache) writeCachedProfile(data.user_id, profile);
   return { ok: true, value: profile };
 }
 
-/**
- * `cache: false` leaves the cache alone, for the app's provider: it may drop the answer (a read that a
- * newer local change overtook) and caches only what it shows.
- */
-export async function fetchProfile(client: Client = supabase, options: { cache?: boolean } = {}): Promise<RequestResult<Profile>> {
+/** Never caches: the provider may drop an answer a newer local change overtook, so it caches only what it shows. */
+export async function fetchProfile(client: Client = supabase): Promise<RequestResult<Profile>> {
   try {
-    return settle(await client.from('profiles').select('*').single(), options.cache ?? true);
+    return settle(await client.from('profiles').select('*').single());
   } catch (error) {
     return { ok: false, kind: toThrownErrorKind(error) };
   }
@@ -155,7 +155,7 @@ export async function updateProfile(
   client: Client = supabase,
 ): Promise<RequestResult<Profile>> {
   try {
-    return settle(await client.from('profiles').update(toColumns(changes)).not('user_id', 'is', null).select('*').single(), false);
+    return settle(await client.from('profiles').update(toColumns(changes)).not('user_id', 'is', null).select('*').single());
   } catch (error) {
     return { ok: false, kind: toThrownErrorKind(error) };
   }
@@ -174,7 +174,7 @@ async function callThenFetch(
   } catch (error) {
     return { ok: false, kind: toThrownErrorKind(error) };
   }
-  return fetchProfile(client, { cache: false });
+  return fetchProfile(client);
 }
 
 /** The consent timestamps are set only by this function (never by a client write). */

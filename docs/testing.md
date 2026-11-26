@@ -2,7 +2,7 @@
 
 Five suites: four Jest projects (`app`, `scripts`, `functions`, `integration`) and one pgTAP suite.
 `pnpm test` runs the three that need no Docker. `pnpm test:int` and `pnpm db:test` need the local
-Supabase stack ([`local-stack.md`](local-stack.md)).
+Supabase stack ([`local-stack.md`](local-stack.md)). The modules under test are described in [`app.md`](app.md) and the flows in [`architecture.md`](architecture.md).
 
 | Suite | Command | Needs the stack | CI |
 | --- | --- | --- | --- |
@@ -41,21 +41,26 @@ What the suites cover:
   - `nonce`: the Apple nonce is 32 random bytes and its hash is the SHA-256 of the raw value.
   - `signOutOffline`: against a real supabase-js client with a failing fetch, an expired stored session still signs out and leaves nothing in storage.
   - `useSignOut`: the pending state and a failure's message key.
+  - `SocialButtons`: no Google button without both client ids, Apple only on iPhone, and nothing at all (not even the "or") on Android without Google.
   - `AuthProvider`: with a stored session and a cached profile the first render is signed in and never waits for the network; a failed read keeps the cached profile and one with no cache still settles; a different user never sees another's cached profile; sign-out clears memory but keeps the cache; a slow read for a signed-out user is dropped; a recovery session is not a sign-in; a read that a local change overtook is dropped (not shown or cached) and read again; the email and `patchProfile`.
 - `src/ui/__tests__/`:
   - `theme`: every theme meets the contrast floor (text 4.5:1, marks 3:1), Dim stays under its luminance caps, Day and Dark have no pure white, Dark reads at 10:1 or more on a background that is not pure black, and `resolveTheme` maps each preference, phone scheme and crisis flag.
   - `motion`: the durations per level (Day and Dark full, Dim 1.5 times slower, reduced motion a 150 ms fade).
   - `ThemeProvider`: Automatic follows the phone, a fixed choice ignores it, signed out follows the phone, crisis mode forces Dim and gives the choice back, and the in-app or OS reduce-motion setting makes every motion a fade.
   - `Button`: 48 pt minimum, a label that wraps, the disabled state reported to assistive technology.
+  - `TabScene`: the first tab appears without an entrance, a tab rises in each time it gains focus, and switching to Dim or Reduce motion while a tab is focused does not replay its entrance.
   - `TabBar`: the bar is opaque until the OS answers whether to reduce transparency, reduce transparency renders no glass or blur view, iOS 26 renders the system glass, otherwise a blur; tabs report their selected state.
 - `src/profile/__tests__/`:
-  - `profileRepository`: the snake_case to `Profile` mapping, the cache under `profile.<userId>` and `null` for another user, an update sending only the given columns, the consent RPC arguments, writes and the consent refetch never touching the cache (the provider caches what it shows), and a network failure leaving the cache untouched.
+  - `profileRepository`: the snake_case to `Profile` mapping (a theme or language newer than the build reads as Automatic or the phone's language), the cache under `profile.<userId>` and `null` for another user, an update sending only the given columns, the consent RPC arguments, writes and the consent refetch never touching the cache (the provider caches what it shows), and a network failure leaving the cache untouched.
   - `tabs`: the companion tab exists only with the AI on.
   - `useProfileChange`: a change shows at once and a failure puts it back; an older write answering (or failing) after a newer one never undoes the newer value.
   - `profileCache`: the real provider, `useProfileChange` and repository with a faked client: an older write answering after a newer one leaves the screen and the cache on the newer value.
   - `useTimezoneSync`: a device zone that differs from the profile is saved once (on mount or resume), an equal one never, and a failed save is tried again.
 - `src/__tests__/`: tests that span routes.
-  - `smoke`: the root layout's gates, and the tab shell: four tabs with the AI on, three without it, a deep link to the companion with the AI off landing on Today, and the Nimbo tab appearing when the AI is turned on.
+  - `smoke`: the root layout's gates; the loading view's Try again (busy while the read is out) and Sign out once signed in, and no actions while the session is unknown; and the tab shell: four tabs with the AI on, three without it, a deep link to the companion opening it with the AI on and, with the AI off, landing on Today without ever mounting it, and the Nimbo tab appearing when the AI is turned on.
+  - `consent-gate`: the real consent screens under the root layout: a saved boundary moves on to the AI question and a saved AI answer opens the tabs through the gate alone, with no second profile read; a failed save keeps the user on the screen with the error.
+  - `boundary`, `ai-consent`: each screen's checks and the consent fields it shows from the saved answer; a failed save shows the error and changes nothing.
+  - `sign-in`, `confirm-email`: sign-in's Back only when there is a screen to return to and the unconfirmed-email path; the code screen arriving from sign-in (no code claimed sent, sending one first) and from sign-up (cooldown), and code entry.
   - `profile`: language, appearance (applied at once, put back on a failed save), reduce motion, the AI switch's confirmation and consent text, and sign-out.
 
 `src/test/authMock.ts` stands in for `AuthProvider` in screen suites:

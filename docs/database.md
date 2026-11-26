@@ -3,7 +3,7 @@
 The backend is Supabase (Postgres 17), run locally through the `db:*` scripts ([`local-stack.md`](local-stack.md)).
 This document covers what the migrations create: `public.profiles`, its policies and grants, the
 signup trigger, and the consent RPCs. Schema changes are new migration files in
-`supabase/migrations/`; a merged migration is never edited.
+`supabase/migrations/`; a merged migration is never edited. The diagram [`diagrams/data-model.svg`](diagrams/data-model.svg) shows how the pieces relate, and [`architecture.md`](architecture.md#the-consent-model) explains why consent is RPC-only.
 
 ## `public.profiles`
 

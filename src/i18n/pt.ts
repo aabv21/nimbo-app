@@ -12,10 +12,7 @@ export const pt: Record<keyof typeof en, string> = {
   'common.cancel': 'Cancelar',
   'common.back': 'Voltar',
   'common.loading': 'Carregando',
-  'common.next': 'Próximo',
-  'common.save': 'Salvar',
   'common.saving': 'Salvando…',
-  'common.close': 'Fechar',
   'common.confirm': 'Confirmar',
 
   'error.network': 'Sem conexão. Verifique sua internet e tente de novo.',
@@ -47,6 +44,7 @@ export const pt: Record<keyof typeof en, string> = {
 
   'auth.confirm.title': 'Confira seu e-mail',
   'auth.confirm.body': 'Enviamos um código de 6 dígitos para {email}.',
+  'auth.confirm.bodyUnsent': 'Envie um novo código para {email} para confirmá-lo.',
   'auth.confirm.code': 'Código',
   'auth.confirm.submit': 'Verificar',
   'auth.confirm.resend': 'Enviar um novo código',

@@ -1,9 +1,6 @@
-import { Redirect } from 'expo-router';
 import { Lock } from 'lucide-react-native';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { useAuth } from '../../auth/AuthProvider';
-import { toHref } from '../../auth/routes';
 import { useI18n } from '../../i18n';
 import { Screen } from '../../ui/Screen';
 import { useTabBarInset } from '../../ui/TabBar';
@@ -14,13 +11,7 @@ import { useTheme } from '../../ui/themeContext';
 export default function Companion(): React.JSX.Element {
   const { t } = useI18n();
   const { color } = useTheme();
-  const { profile } = useAuth();
   const bottomInset = useTabBarInset();
-
-  // A deep link with the AI off lands on Today: the tab is hidden, so its screen must not show either.
-  if (profile?.aiEnabled !== true) {
-    return <Redirect href={toHref('/today')} />;
-  }
 
   return (
     <Screen bottomInset={bottomInset}>

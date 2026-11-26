@@ -10,10 +10,7 @@ export const en = {
   'common.cancel': 'Cancel',
   'common.back': 'Back',
   'common.loading': 'Loading',
-  'common.next': 'Next',
-  'common.save': 'Save',
   'common.saving': 'Saving…',
-  'common.close': 'Close',
   'common.confirm': 'Confirm',
 
   'error.network': 'No connection. Check your internet and try again.',
@@ -45,6 +42,7 @@ export const en = {
 
   'auth.confirm.title': 'Check your email',
   'auth.confirm.body': 'We sent a 6-digit code to {email}.',
+  'auth.confirm.bodyUnsent': 'Send a new code to {email} to confirm it.',
   'auth.confirm.code': 'Code',
   'auth.confirm.submit': 'Verify',
   'auth.confirm.resend': 'Send a new code',

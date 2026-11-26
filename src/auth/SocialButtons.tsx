@@ -1,16 +1,22 @@
 import { useState } from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 
 import { useI18n } from '../i18n';
 import { Button } from '../ui/Button';
-import { space } from '../ui/theme';
-import { signInWithApple, signInWithGoogle } from './authService';
+import { fonts, space, type } from '../ui/theme';
+import { useTheme } from '../ui/themeContext';
+import { isGoogleSignInConfigured, signInWithApple, signInWithGoogle } from './authService';
 import type { Result } from './authService';
 import type { AuthErrorKey } from './errors';
 
-/** Google everywhere, Apple on iPhone; a session from either is picked up by `AuthProvider`. */
-export function SocialButtons({ onError }: { onError: (error: AuthErrorKey) => void }): React.JSX.Element {
+/**
+ * Google wherever the build has its client ids, Apple on iPhone (every iOS version the app supports
+ * has it); a session from either is picked up by `AuthProvider`. With neither, it renders nothing,
+ * not even the "or" above them.
+ */
+export function SocialButtons({ onError }: { onError: (error: AuthErrorKey) => void }): React.JSX.Element | null {
   const { t } = useI18n();
+  const { color } = useTheme();
   const [busy, setBusy] = useState(false);
 
   const run = async (signIn: () => Promise<Result>): Promise<void> => {
@@ -24,17 +30,24 @@ export function SocialButtons({ onError }: { onError: (error: AuthErrorKey) => v
     }
   };
 
+  const google = isGoogleSignInConfigured();
+  const apple = Platform.OS === 'ios';
+  if (!google && !apple) return null;
+
   return (
     <View style={styles.group}>
-      <Button
-        variant="secondary"
-        label={t('auth.signIn.google')}
-        disabled={busy}
-        onPress={() => {
-          void run(() => signInWithGoogle());
-        }}
-      />
-      {Platform.OS === 'ios' ? (
+      <Text style={[styles.or, { color: color.textMuted }]}>{t('auth.or')}</Text>
+      {google ? (
+        <Button
+          variant="secondary"
+          label={t('auth.signIn.google')}
+          disabled={busy}
+          onPress={() => {
+            void run(() => signInWithGoogle());
+          }}
+        />
+      ) : null}
+      {apple ? (
         <Button
           variant="secondary"
           label={t('auth.signIn.apple')}
@@ -48,4 +61,7 @@ export function SocialButtons({ onError }: { onError: (error: AuthErrorKey) => v
   );
 }
 
-const styles = StyleSheet.create({ group: { gap: space[2] } });
+const styles = StyleSheet.create({
+  group: { gap: space[2] },
+  or: { textAlign: 'center', fontFamily: fonts.body, fontSize: type.label },
+});
