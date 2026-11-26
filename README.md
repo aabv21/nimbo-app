@@ -28,8 +28,11 @@ pnpm start
 | `pnpm ios` / `pnpm android` | Build the app with `expo run:*` and open it |
 | `pnpm typecheck` | `tsc --noEmit` |
 | `pnpm lint` | `eslint .` |
-| `pnpm test` | The Jest `app` project |
+| `pnpm test` | The Jest `app`, `scripts` and `functions` projects |
+| `pnpm test:int` | The Jest `integration` project, against the running local stack (see `docs/testing.md`) |
 | `pnpm check:expo` | Compare packages with the SDK's expected versions (informational) |
+| `pnpm db:start` / `pnpm db:stop` | Start and stop the local Supabase stack (see `docs/local-stack.md`) |
+| `pnpm db:reset` / `pnpm db:test` / `pnpm db:types` | Rebuild the database, run the pgTAP tests, regenerate the DB types |
 | `pnpm check:supply-chain` | Fail if `pnpm-workspace.yaml` loses its supply-chain settings |
 
 See [`AGENTS.md`](AGENTS.md) for the guardrails and [`CONTRIBUTING.md`](CONTRIBUTING.md) for the pull request flow.

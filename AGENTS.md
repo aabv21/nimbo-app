@@ -22,13 +22,17 @@ Docs for agents: `https://docs.expo.dev/llms.txt`
 
 - `pnpm install`: install dependencies. `pnpm expo install <package>`: add a package with native code (SDK-compatible version); `pnpm add` only for pure-JS tooling.
 - `pnpm start`: the dev server. `pnpm ios` / `pnpm android`: build the app with `expo run:*` and open it.
-- `pnpm typecheck` (`tsc --noEmit`), `pnpm lint` (`eslint .`), `pnpm test` (the `app` Jest project): the gate.
+- `pnpm typecheck` (`tsc --noEmit`), `pnpm lint` (`eslint .`), `pnpm test` (the `app`, `scripts` and `functions` Jest projects): the gate.
+- `pnpm test:int`: the `integration` Jest project (auth and the profile against the running local stack; start it with `pnpm db:start && pnpm env:local`, stop it after). Not part of the gate ([`docs/testing.md`](docs/testing.md)).
 - `pnpm check:supply-chain`, `pnpm check:expo`: supply-chain checks ([`CONTRIBUTING.md`](CONTRIBUTING.md#supply-chain-hardening)).
+- `pnpm db:start`, `pnpm db:stop`: the local Supabase stack (Docker must be running); `pnpm db:reset` rebuilds it from the migrations, `pnpm db:test` runs the pgTAP suite, `pnpm db:types` regenerates `src/lib/database.types.ts`, `pnpm env:local` writes `.env.local` ([`docs/local-stack.md`](docs/local-stack.md)).
 
 ## Where things live
 
 - `src/app/`: Expo Router routes only. `src/__tests__/`: tests that span routes.
+- `src/auth/`, `src/profile/`: sign-in, the session and the cached profile. `src/lib/`: the Supabase client, kv store and request helpers. `src/test/`: shared test mocks. `integration/`: tests against the local stack.
 - `scripts/`: repo tooling in TypeScript, run with Node's type stripping.
+- `supabase/`: `config.toml`, `migrations/`, pgTAP `tests/`, the auth email `templates/` and the Edge Function code (`functions/`).
 - `assets/images/`: the provisional icon and splash images.
 - `.github/`: the pull request and issue templates.
 
@@ -39,6 +43,8 @@ Docs for agents: `https://docs.expo.dev/llms.txt`
 - pnpm only (never npm, yarn or bun), and never weaken `pnpm-workspace.yaml`'s supply-chain settings ([`CONTRIBUTING.md`](CONTRIBUTING.md#supply-chain-hardening)).
 - Change `pnpm-lock.yaml` only through a local `pnpm install` or `pnpm update`, never by hand.
 - `EXPO_PUBLIC_*` is inlined into the bundle, so no secrets: only the Supabase URL, the anon key and the Google OAuth client ids. The service-role key never goes in `src/`.
+- A schema change is a new migration (never edit a merged one), then `pnpm db:types` and a pgTAP test. Follow the new-table checklist in [`docs/database.md`](docs/database.md#new-table-checklist): RLS, column grants, and `security definer` functions with `search_path = ''`.
+- Consent columns change only through `accept_terms` and `set_ai_consent`; a client never writes them.
 - `app.json` never gains `ios.buildNumber` or `android.versionCode`.
 - No health text in logs.
 
@@ -65,6 +71,8 @@ Docs for agents: `https://docs.expo.dev/llms.txt`
 |---|---|
 | Any change | `pnpm typecheck && pnpm lint && pnpm test` |
 | A dependency | the gate, plus `pnpm check:supply-chain` |
+| A migration or `supabase/config.toml` | the gate, plus `pnpm db:reset && pnpm db:test && pnpm db:types` |
+| Auth, the Supabase client or a repository | the gate, plus `pnpm test:int` |
 | A native config or plugin | `pnpm expo prebuild --clean` to check it, then a rebuild |
 
 ## Docs to update with each kind of change
@@ -73,6 +81,9 @@ Docs for agents: `https://docs.expo.dev/llms.txt`
 |---|---|
 | What the app does or its status | [`README.md`](README.md) |
 | A command or guardrail | this file |
+| A test suite, a mock or what CI runs | [`docs/testing.md`](docs/testing.md) |
+| The schema, a policy, a grant or an RPC | [`docs/database.md`](docs/database.md) |
+| A port, a stack command or auth email config | [`docs/local-stack.md`](docs/local-stack.md) |
 | The pull request flow or supply-chain settings | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
 
 ## Documentation map
@@ -82,6 +93,9 @@ Docs for agents: `https://docs.expo.dev/llms.txt`
 | [`README.md`](README.md) | What the app is, its status, the quick start, the commands |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | The pull request flow, supply-chain hardening |
 | [`SECURITY.md`](SECURITY.md) | How to report a vulnerability |
+| [`docs/database.md`](docs/database.md) | The profiles table, its RLS and grants, the consent RPCs, the new-table checklist |
+| [`docs/local-stack.md`](docs/local-stack.md) | The local Supabase stack: commands, ports, auth email |
+| [`docs/testing.md`](docs/testing.md) | Each test suite, how to run it, what CI runs |
 
 ## Branches and pull requests
 

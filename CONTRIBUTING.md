@@ -9,11 +9,12 @@ guardrails, the conventions, the documentation map and the Definition of done.
 
 ## CI
 
-`.github/workflows/ci.yml` runs three jobs on every pull request and on pushes to `main` and `develop`:
+`.github/workflows/ci.yml` runs four jobs on every pull request and on pushes to `main` and `develop`:
 
 - **Quality**: `pnpm check:supply-chain`, `pnpm run typecheck`, `pnpm run lint`, `pnpm test` and `expo-doctor` (without its SDK-version check, which `pnpm check:expo` covers).
 - **Security**: gitleaks over the full history and `pnpm audit --audit-level=high`.
 - **Actions**: actionlint and zizmor over the workflows.
+- **Database**: starts the lean local stack, rebuilds the database from the migrations, runs the pgTAP tests, and fails when `src/lib/database.types.ts` differs from the migrations.
 
 `codeql.yml` analyzes the code once the repository is public. Every job runs with read-only `contents` permission unless it needs more, and every action is pinned to a commit SHA. `release.yml` tags and publishes a merged `release: vX.Y.Z` pull request into `main`.
 

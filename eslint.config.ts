@@ -28,6 +28,14 @@ export default defineConfig(
     rules: { 'security/detect-object-injection': 'off' },
   },
   {
+    // These tests read jest.fn() mocks off a mocked client and load a fresh module per test with require().
+    files: ['src/auth/__tests__/authService.test.ts', 'src/lib/__tests__/supabase.test.ts'],
+    rules: {
+      '@typescript-eslint/unbound-method': 'off',
+      '@typescript-eslint/no-require-imports': 'off',
+    },
+  },
+  {
     // jest.mock() factories are hoisted above imports, so they can only reach `require`.
     files: ['jest.setup.ts'],
     rules: {

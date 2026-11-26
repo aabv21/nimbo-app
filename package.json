@@ -57,7 +57,15 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "NODE_OPTIONS=--experimental-vm-modules jest --selectProjects app scripts functions",
+    "test:int": "NODE_OPTIONS=--experimental-vm-modules jest --selectProjects integration --runInBand",
     "check:expo": "expo install --check",
-    "check:supply-chain": "node scripts/check-supply-chain.ts"
+    "check:supply-chain": "node scripts/check-supply-chain.ts",
+    "db:start": "supabase start",
+    "db:start:ci": "supabase start -x studio,realtime,vector,logflare,imgproxy",
+    "db:stop": "supabase stop",
+    "db:reset": "supabase db reset",
+    "db:test": "supabase test db",
+    "db:types": "supabase gen types typescript --local > src/lib/database.types.ts",
+    "env:local": "node scripts/env-local.ts"
   }
 }

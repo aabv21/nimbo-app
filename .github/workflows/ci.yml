@@ -70,3 +70,34 @@ jobs:
           zizmor --format=plain .
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  database:
+    name: Database
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # The stack's ports (54520–54529, see supabase/config.toml) sit inside Linux's ephemeral range,
+      # so an outgoing connection could take one before the stack listens (EADDRINUSE).
+      - name: Reserve the stack ports
+        run: sudo sysctl -w net.ipv4.ip_local_reserved_ports=54520-54529
+      # Lean stack: no Studio, Realtime, analytics or image proxy. Mailpit stays: test:int reads codes from it.
+      - run: pnpm db:start:ci
+      - run: pnpm db:reset
+      - run: pnpm db:test
+      - run: pnpm env:local
+      - run: pnpm test:int
+      - name: Generated types match the migrations
+        run: |
+          pnpm db:types
+          git diff --exit-code src/lib/database.types.ts
+      - run: pnpm db:stop
+        if: always()
