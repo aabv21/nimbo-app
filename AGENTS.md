@@ -4,7 +4,7 @@ Guidance for anyone, human or AI, working in this repository.
 
 ## Project
 
-Tregua is a migraine companion for iPhone and Android, built as a portfolio demo with Expo (SDK 58) and Supabase. Locales are `en` (source), `es` and `pt`; themes are `day` and `dim`; tabs are `today`, `companion`, `history` and `profile`.
+Nimbo is a migraine companion for iPhone and Android, built as a portfolio demo with Expo (SDK 58) and Supabase. Locales are `en` (source), `es` and `pt`; themes are `day` and `dim`; tabs are `today`, `companion`, `history` and `profile`.
 It is not a medical device: it never diagnoses or prescribes. Status: foundation, only the Expo scaffold exists. What it does: [`README.md`](README.md).
 
 ## Expo has changed — do not trust your training data
@@ -49,7 +49,7 @@ Docs for agents: `https://docs.expo.dev/llms.txt`
 - TypeScript strict plus `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noImplicitOverride`, `verbatimModuleSyntax`, `erasableSyntaxOnly`, `allowImportingTsExtensions`, with `noEmit`: no build step, no `.js`/`.mjs` sources.
 - Lint: typescript-eslint `strictTypeChecked`, `eslint-plugin-security` and `eslint-plugin-react-hooks` (not `eslint-config-expo`; see [`CONTRIBUTING.md`](CONTRIBUTING.md#supply-chain-hardening)).
 - Navigation is Expo Router: routes in `src/app/`, `Link`, `router` and `useLocalSearchParams` from `expo-router`.
-- App identity: display name "Tregua", slug `tregua-app`, scheme `tregua`, bundle id and package `com.aabv21.tregua`.
+- App identity: display name "Nimbo", slug `nimbo-app`, scheme `nimbo`, bundle id and package `com.aabv21.nimbo`.
 - Appearance follows the system (`userInterfaceStyle: "automatic"`). Controls are 48 pt tall minimum with 44 pt hit targets; no `#ffffff` in a theme; no decorative looping animation.
 - Comments:
   1. Say why, not what.

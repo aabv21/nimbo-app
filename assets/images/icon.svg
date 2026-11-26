@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
-  <!-- Provisional app icon: a light "T" on muted green-grey; the PNGs here are flat renders of it. -->
+  <!-- Provisional app icon: a light "N" on muted green-grey; the PNGs here are flat renders of it. -->
   <rect width="1024" height="1024" fill="#5f7a70"/>
-  <path fill="#e8efe9" d="M256 256H768V358H614V768H410V358H256Z"/>
+  <path fill="#e8efe9" d="M256 256H358L666 586V256H768V768H666L358 438V768H256Z"/>
 </svg>

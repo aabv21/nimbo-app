@@ -1,10 +1,10 @@
-# Tregua
+# Nimbo
 
 **Demo** · status: foundation
 
 A migraine companion for iPhone and Android: log attacks, spot your patterns and get calm guidance, in English, Spanish or Portuguese. Built with Expo and Supabase as a portfolio demo.
 
-Tregua is not a medical device. It does not diagnose, prescribe or replace a clinician; it helps you keep a record to share with one.
+Nimbo is not a medical device. It does not diagnose, prescribe or replace a clinician; it helps you keep a record to share with one.
 
 ## What works now
 

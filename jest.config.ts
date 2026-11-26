@@ -38,6 +38,16 @@ const config: Config = {
       extensionsToTreatAsEsm: ['.ts'],
       transform: {},
     },
+    {
+      // Supabase Edge Function logic under `supabase/functions/`: runtime-neutral TypeScript with
+      // explicit `.ts` imports, loaded by Node's native type stripping like `scripts`. Only each
+      // function's `index.ts` (never imported by a test) touches Deno.
+      displayName: 'functions',
+      testEnvironment: 'node',
+      testMatch: ['<rootDir>/supabase/functions/**/*.test.ts'],
+      extensionsToTreatAsEsm: ['.ts'],
+      transform: {},
+    },
   ],
 };
 

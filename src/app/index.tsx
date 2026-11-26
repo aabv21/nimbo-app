@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 export default function Index() {
   return (
     <View style={styles.screen}>
-      <Text style={styles.title}>Tregua</Text>
+      <Text style={styles.title}>Nimbo</Text>
     </View>
   );
 }

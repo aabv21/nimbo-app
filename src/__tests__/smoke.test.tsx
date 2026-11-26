@@ -3,5 +3,5 @@ import Index from '../app/index';
 
 test('the root route renders the app name', async () => {
   await render(<Index />);
-  expect(screen.getByText('Tregua')).toBeOnTheScreen();
+  expect(screen.getByText('Nimbo')).toBeOnTheScreen();
 });

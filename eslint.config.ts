@@ -23,6 +23,11 @@ export default defineConfig(
     rules: { 'security/detect-non-literal-fs-filename': 'off' },
   },
   {
+    // Tests index the pack and the catalogs by a locale or catalog name from a fixed tuple.
+    files: ['supabase/functions/**/__tests__/*.ts', 'src/i18n/__tests__/*.ts'],
+    rules: { 'security/detect-object-injection': 'off' },
+  },
+  {
     // jest.mock() factories are hoisted above imports, so they can only reach `require`.
     files: ['jest.setup.ts'],
     rules: {
