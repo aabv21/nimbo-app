@@ -41,6 +41,7 @@ import { nextRoute } from '../gate';
 import type { Profile } from '../../profile/profileRepository';
 import { currentUrgentCare, showUrgentCare } from '../../redflags/urgentCare';
 import { AuthProvider, useAuth } from '../AuthProvider';
+import { currentUserId, setCurrentUserId } from '../currentUser';
 
 const PROFILE: Profile = {
   language: 'en',
@@ -84,6 +85,24 @@ test('offline with a stored session and a cached profile, the first render is si
   expect(result.current.status).toBe('signedIn');
   expect(result.current.userId).toBe('u1');
   expect(result.current.profile).toEqual(PROFILE);
+});
+
+test('at a cold start the stored user is the current user before any auth event, so work settling early is kept', async () => {
+  setCurrentUserId(null);
+  mockReadStoredSession.mockReturnValue({ userId: 'u1', email: null });
+  await renderHook(() => useAuth(), { wrapper });
+  expect(authStateCallback).toBeDefined();
+  expect(currentUserId()).toBe('u1');
+});
+
+test('with no stored session the current user stays null until a sign-in', async () => {
+  setCurrentUserId('stale');
+  await renderHook(() => useAuth(), { wrapper });
+  expect(currentUserId()).toBeNull();
+  await act(() => {
+    authStateCallback?.('SIGNED_IN', { user: { id: 'u2' } });
+  });
+  expect(currentUserId()).toBe('u2');
 });
 
 test('supabase-js reporting no session for an expired token keeps the stored user signed in', async () => {

@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, Text } from 'react-native';
 import Animated from 'react-native-reanimated';
 
-import { controlHeight, fonts, space, type } from './theme';
+import { controlHeight, crisisControlHeight, fonts, space, type } from './theme';
 import { useTheme, useTones } from './themeContext';
 import { usePressFeedback } from './usePressFeedback';
 
@@ -13,10 +13,12 @@ interface TextLinkProps {
   align?: 'start' | 'center';
   /** A stable English id for the Maestro flows; never copy. */
   testID?: string;
+  /** `crisis` is 56 pt tall, like every crisis-mode control. */
+  size?: 'regular' | 'crisis';
 }
 
 /** A quiet in-text action (forgot password, switch screen): 48 pt tall, labelled as a button. */
-export function TextLink({ label, onPress, disabled = false, align = 'start', testID }: TextLinkProps): React.JSX.Element {
+export function TextLink({ label, onPress, disabled = false, align = 'start', testID, size = 'regular' }: TextLinkProps): React.JSX.Element {
   const { color } = useTheme();
   const tones = useTones();
   const { scaleStyle, pressedStyle, onPressIn, onPressOut } = usePressFeedback();
@@ -31,7 +33,7 @@ export function TextLink({ label, onPress, disabled = false, align = 'start', te
         onPress={onPress}
         onPressIn={onPressIn}
         onPressOut={onPressOut}
-        style={styles.link}
+        style={[styles.link, size === 'crisis' && styles.crisis]}
       >
         <Animated.View pointerEvents="none" style={[styles.pressed, { backgroundColor: tones.pressSecondary }, pressedStyle]} />
         <Text style={[styles.label, { color: disabled ? color.textMuted : color.accentText }]}>{label}</Text>
@@ -45,6 +47,7 @@ const styles = StyleSheet.create({
   center: { alignSelf: 'center' },
   // A little side room, so the pressed tone reads as a shape around the words rather than a highlight.
   link: { minHeight: controlHeight, justifyContent: 'center', paddingHorizontal: space[1], marginHorizontal: -space[1], borderRadius: 8, overflow: 'hidden' },
+  crisis: { minHeight: crisisControlHeight },
   pressed: { ...StyleSheet.absoluteFill, opacity: 0 },
   label: { fontFamily: fonts.bodyBold, fontSize: type.label, lineHeight: 20 },
 });

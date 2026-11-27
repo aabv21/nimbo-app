@@ -5,9 +5,9 @@ create or edit them by hand. Native behavior lives in `app.json` and its config 
 
 ## Permissions
 
-Nimbo uses the network, notifications for preventive reminders, and an optional approximate location for
-weather. There is no camera, microphone or contacts access yet. A later wave that adds a permission must list it
-here with the reason and the plugin that adds it.
+Nimbo uses the network, notifications for preventive reminders, an optional approximate location for weather, and
+the microphone with speech recognition for dictation. There is no camera or contacts access. A later wave that adds a
+permission must list it here with the reason and the plugin that adds it.
 
 - **Approximate location (`expo-location`):** asked once, on the last onboarding step and only when the user taps
   "Allow approximate area"; never at launch. The app reads one lowest-accuracy fix, rounds it to one decimal (about
@@ -31,6 +31,29 @@ here with the reason and the plugin that adds it.
   question. Android 12 and later need `SCHEDULE_EXACT_ALARM` for exact times and Android 14 denies it by default; Nimbo
   does not request it, so a reminder may arrive a few minutes late (a reminder is not an alarm). iOS asks for alert and
   sound, never a badge.
+- **Microphone and speech recognition (`expo-speech-recognition`):** dictation to Nimbo, in the Companion tab's mic
+  and crisis mode's "Tell me" ([`app.md`](app.md#voice-srcvoice)). Both are hold-to-talk: the app asks on the first
+  press (never at launch), and the microphone is open only while the finger is down. The plugin adds:
+  - iOS: `NSMicrophoneUsageDescription` ("Nimbo uses the microphone only while you hold the mic, to dictate a message
+    to Nimbo or tell it about an attack.") and `NSSpeechRecognitionUsageDescription` ("Nimbo turns what you dictate
+    into text, on this phone, so you can send it to Nimbo or save it in an attack's notes."). Recognition always runs
+    on the device (`requiresOnDeviceRecognition: true`), so the audio never leaves the phone; a phone that cannot
+    recognize on the device (`supportsOnDeviceRecognition()` false) shows no mic at all.
+  - Android: `RECORD_AUDIO`, and a `<queries>` entry for Google's recognition service
+    (`com.google.android.googlequicksearchbox`) so the app can reach it. Android uses the phone's default recognizer,
+    offline when the language pack for the dictation language is installed (`getSupportedLocales`), otherwise the
+    recognizer's own online service. Without the offline pack, Android sends the dictated audio to Google's speech
+    recognizer, so Google is a processor of dictated audio and must be named in the privacy policy
+    ([`owner-runbook.md`](owner-runbook.md)).
+  - On both platforms Nimbo never stores or uploads audio itself: no recording is persisted
+    (`recordingOptions.persist` stays off), and only the transcript, as text, reaches the app.
+  - Both prompt strings are English only, like the location one.
+  - With the AI off, the mic and "Tell me" are hidden, so the prompt never appears.
+- **Text to speech (`expo-speech`):** "Read aloud" on a crisis-mode reply. It needs no permission and no config
+  plugin. On iOS, recognition switches the app's audio session to `playAndRecord`, and `expo-speech` speaks through
+  the app's session (`useApplicationAudioSession` defaults to true), so after a dictation "Read aloud" may play even
+  while the ring switch is on silent; before any dictation it follows the switch. This is on the device-check list;
+  the user turns the volume down or does not tap the button.
 - **Keep awake (`expo-keep-awake`):** crisis mode keeps the screen on while it is open (`useKeepAwake`) and lets it
   sleep again when it closes. It needs no permission and no config plugin.
 - **Date-time picker (`@react-native-community/datetimepicker`):** the attack editor's time fields. It needs no permission; its
@@ -61,6 +84,7 @@ here with the reason and the plugin that adds it.
     local preventive reminders.
   - `@react-native-community/datetimepicker`, for the attack editor's start and end times.
   - `expo-location`, with the coarse-only options above, for the onboarding location step.
+  - `expo-speech-recognition`, with the microphone and speech-recognition usage strings above, for dictation.
 - **Android permissions:** `blockedPermissions` removes `ACCESS_FINE_LOCATION`.
 - **Experiments:** `typedRoutes` and `reactCompiler`.
 - **Android:** a monochrome adaptive icon, `predictiveBackGestureEnabled: false`, and
@@ -79,4 +103,5 @@ in [`owner-runbook.md`](owner-runbook.md).
 ## Changing native config
 
 Edit `app.json` or add a plugin, run `pnpm expo prebuild --clean` to check it, then rebuild with
-`pnpm ios` or `pnpm android`. Add a native dependency with `pnpm expo install`.
+`pnpm ios` or `pnpm android`. Add a native dependency with `pnpm expo install`. To check what the plugins write without
+generating `ios/` and `android/`, `pnpm expo config --type introspect` prints the resulting `Info.plist` and manifest.

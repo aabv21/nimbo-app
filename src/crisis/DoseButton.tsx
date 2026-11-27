@@ -28,9 +28,11 @@ interface DoseButtonProps {
   /** The minute clock the whole screen shares. */
   now: Date;
   timeZone: string;
+  /** "What helped before" repeats a medication from Doses, so its Maestro ids differ: `dose-helped-log`, `dose-helped-change`. */
+  inPlan?: boolean;
 }
 
-export function DoseButton({ userId, episodeId, medication, now, timeZone }: DoseButtonProps): React.JSX.Element {
+export function DoseButton({ userId, episodeId, medication, now, timeZone, inPlan = false }: DoseButtonProps): React.JSX.Element {
   const { t, locale } = useI18n();
   const { color } = useTheme();
   const motion = useMotion();
@@ -132,7 +134,7 @@ export function DoseButton({ userId, episodeId, medication, now, timeZone }: Dos
       {undoable && !editing ? (
         <View style={styles.actions}>
           <Button
-            testID="dose-change"
+            testID={`dose-${inPlan ? 'helped-' : ''}change`}
             variant="secondary"
             size="crisis"
             label={t('common.change')}
@@ -149,7 +151,7 @@ export function DoseButton({ userId, episodeId, medication, now, timeZone }: Dos
 
       {editing && undoable ? null : (
         <Button
-          testID="dose-log"
+          testID={`dose-${inPlan ? 'helped-' : ''}log`}
           variant="secondary"
           size="crisis"
           icon={Pill}

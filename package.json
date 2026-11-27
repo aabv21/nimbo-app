@@ -28,6 +28,8 @@
     "expo-network": "~58.0.4",
     "expo-notifications": "~58.1.9",
     "expo-router": "~58.0.29",
+    "expo-speech": "~58.0.4",
+    "expo-speech-recognition": "~58.0.1",
     "expo-splash-screen": "~58.0.12",
     "expo-sqlite": "~58.0.15",
     "expo-status-bar": "~58.0.4",

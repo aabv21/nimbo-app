@@ -7,7 +7,7 @@ import { showUrgentCare } from './urgentCare';
 const EXCERPT_MAX = 160;
 
 /** The first sentence that hit, so a long message shows the part that matters; cut to fit the screen. */
-function excerptOf(text: string): string {
+export function excerptOf(text: string): string {
   const sentences = (text.match(/[^.!?…\n]+[.!?…]*/g) ?? []).map((sentence) => sentence.trim());
   const hit = sentences.find((sentence) => matchRedFlagsAnyLocale(sentence, packs.migraine).length > 0) ?? text.trim();
   return hit.length > EXCERPT_MAX ? `${hit.slice(0, EXCERPT_MAX - 1).trimEnd()}…` : hit;

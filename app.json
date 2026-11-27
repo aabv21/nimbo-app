@@ -48,6 +48,13 @@
           "motionUsagePermission": false,
           "isIosReducedAccuracyByDefault": true
         }
+      ],
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Nimbo uses the microphone only while you hold the mic, to dictate a message to Nimbo or tell it about an attack.",
+          "speechRecognitionPermission": "Nimbo turns what you dictate into text, on this phone, so you can send it to Nimbo or save it in an attack's notes."
+        }
       ]
     ],
     "experiments": {

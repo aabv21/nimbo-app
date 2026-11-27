@@ -3,6 +3,7 @@
 import { useSyncExternalStore } from 'react';
 
 import type { AuthContextValue } from '../auth/AuthProvider';
+import { setCurrentUserId } from '../auth/currentUser';
 import type { Profile } from '../profile/profileRepository';
 
 export const READY_PROFILE: Profile = {
@@ -29,6 +30,7 @@ const listeners = new Set<() => void>();
 
 export function setAuth(patch: Partial<AuthContextValue>): void {
   state = { ...state, ...patch };
+  setCurrentUserId(state.userId);
   for (const listener of listeners) listener();
 }
 
@@ -45,6 +47,7 @@ export function resetAuth(patch: Partial<AuthContextValue> = {}): AuthContextVal
     }),
     ...patch,
   };
+  setCurrentUserId(state.userId);
   for (const listener of listeners) listener();
   return state;
 }

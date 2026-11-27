@@ -7,6 +7,7 @@ import { readStoredSession, startAuthAutoRefresh, supabase } from '../lib/supaba
 import { fetchProfile, readCachedProfileSync, writeCachedProfile } from '../profile/profileRepository';
 import type { Profile } from '../profile/profileRepository';
 import { clearUrgentCare } from '../redflags/urgentCare';
+import { setCurrentUserId } from './currentUser';
 
 export type AuthStatus = 'loading' | 'signedOut' | 'signedIn';
 
@@ -61,7 +62,12 @@ function withQueuedOnboarding(userId: string, fetched: Profile, shown: Profile |
 }
 
 export function AuthProvider({ children }: { children: ReactNode }): React.JSX.Element {
-  const [state, setState] = useState<State>(initialState);
+  const [state, setState] = useState<State>(() => {
+    const initial = initialState();
+    // Seeded now, not at the first auth event: a reply that settles before it would otherwise be dropped as another user's.
+    setCurrentUserId(initial.userId);
+    return initial;
+  });
   // Drops a slow read that resolves after a sign-out or an account switch.
   const currentUserIdRef = useRef<string | null>(state.userId);
   const failedReadRef = useRef(false);
@@ -107,6 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }): React.JSX.E
 
       if (nextUserId === null) {
         currentUserIdRef.current = null;
+        setCurrentUserId(null);
         failedReadRef.current = false;
         // A pending urgent-care request holds what the user wrote; it never outlives their session.
         clearUrgentCare();
@@ -123,6 +130,7 @@ export function AuthProvider({ children }: { children: ReactNode }): React.JSX.E
 
       const userChanged = currentUserIdRef.current !== nextUserId;
       currentUserIdRef.current = nextUserId;
+      setCurrentUserId(nextUserId);
       if (userChanged) {
         clearUrgentCare();
         const cached = readCachedProfileSync(nextUserId);

@@ -152,6 +152,12 @@ export function readOpenEpisode(userId: string): Episode | null {
   return row === null ? null : toEpisode(row);
 }
 
+/** One of the user's attacks, read now (inside a caller's transaction too); null when it is not on this phone. */
+export function readEpisode(userId: string, id: EpisodeId): Episode | null {
+  const row = localDb().getFirstSync<EpisodeRow>(`SELECT ${COLUMNS} FROM episodes WHERE id = ? AND user_id = ?;`, [id, userId]);
+  return row === null ? null : toEpisode(row);
+}
+
 /**
  * Synchronous: the mirror row and the `log_episode` operation are committed before it returns, so a kill
  * right after the tap loses nothing. An open attack is returned instead of starting a second one.
@@ -326,10 +332,7 @@ export function useEpisodes(userId: string): readonly Episode[] {
 
 /** One of the user's attacks; null when it is not on this phone. */
 export function useEpisode(userId: string, id: EpisodeId): Episode | null {
-  const read = useCallback(() => {
-    const row = localDb().getFirstSync<EpisodeRow>(`SELECT ${COLUMNS} FROM episodes WHERE id = ? AND user_id = ?;`, [id, userId]);
-    return row === null ? null : toEpisode(row);
-  }, [userId, id]);
+  const read = useCallback(() => readEpisode(userId, id), [userId, id]);
   return useLocalQuery(['episodes'], read);
 }
 

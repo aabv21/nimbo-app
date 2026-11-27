@@ -16,7 +16,9 @@ import { DoseButton } from '../crisis/DoseButton';
 import { EndedView, EndSheet, minutesBetween } from '../crisis/EndAttack';
 import { HeadMap } from '../crisis/HeadMap';
 import { IntensityScale } from '../crisis/IntensityScale';
+import { TellMeDock, TellMePanel, useTellMe } from '../crisis/TellMe';
 import { useMinuteClock } from '../crisis/useMinuteClock';
+import { WhatHelped } from '../crisis/WhatHelped';
 import { endEpisode, updateEpisode, useEpisode } from '../episodes/episodeStore';
 import { formatClock, formatDuration } from '../i18n/format';
 import { isMessageKey, useI18n } from '../i18n';
@@ -82,6 +84,7 @@ function CrisisMode({ forceDim }: { forceDim: (on: boolean) => void }): React.JS
   const [asking, setAsking] = useState(false);
   const [ended, setEnded] = useState(false);
   const [leaving, setLeaving] = useState(false);
+  const tell = useTellMe(id);
   const opacity = useSharedValue(1);
   const fadeStyle = useAnimatedStyle(() => ({ opacity: opacity.get() }));
   // Refs, not state: the system back can fire again before a render, and the fade's end must leave only once.
@@ -120,6 +123,7 @@ function CrisisMode({ forceDim }: { forceDim: (on: boolean) => void }): React.JS
     onBack.current = () => {
       if (mapOpen) setMapOpen(false);
       else if (asking) setAsking(false);
+      else if (tell.pending !== null) tell.dismiss();
       else close();
     };
   });
@@ -161,8 +165,10 @@ function CrisisMode({ forceDim }: { forceDim: (on: boolean) => void }): React.JS
   let content: React.JSX.Element;
   if (episode === null) {
     // Deleted on another phone, or a stale link: nothing to log against.
+    // Deleted while "Tell me" was out, the panel still says the words could not be saved.
     content = (
       <View style={styles.dockOnly}>
+        <TellMePanel tell={tell} userId={user} />
         <Button variant="secondary" size="crisis" label={t('common.close')} disabled={leaving} onPress={close} />
       </View>
     );
@@ -173,6 +179,7 @@ function CrisisMode({ forceDim }: { forceDim: (on: boolean) => void }): React.JS
         episode={episode}
         doses={episodeDoses}
         medicationName={medicationName}
+        debrief={profile?.aiEnabled === true}
         onFill={() => {
                 router.replace(`/episode/${id}/edit`);
         }}
@@ -252,76 +259,90 @@ function CrisisMode({ forceDim }: { forceDim: (on: boolean) => void }): React.JS
             </View>
           </View>
 
-          <IntensityScale
-            value={episode.intensity}
-            onChange={(intensity) => {
-              updateEpisode(user, id, { intensity });
-            }}
-          />
+          <TellMePanel tell={tell} userId={user} />
 
-          <View style={styles.section}>
-            <Text accessibilityRole="header" style={[styles.sectionTitle, { color: color.text }]}>
-              {t('crisis.symptoms.title')}
-            </Text>
-            <View style={styles.chips}>
-              {packs.migraine.symptoms.map((item) => (
-                <Chip
-                  key={item.key}
-                  label={labelOf(t, 'symptoms', item.key)}
-                  checked={episode.symptoms.includes(item.key)}
-                  onPress={() => {
-                    toggleSymptom(item.key);
-                  }}
-                />
-              ))}
-            </View>
-            {profile?.aiEnabled === false ? <Text style={[styles.caption, { color: color.textMuted }]}>{t('crisis.ai_off')}</Text> : null}
-          </View>
+          {/* A waiting draft has the screen to itself until it is confirmed or put aside. */}
+          {tell.pending !== null ? null : (
+            <>
+              <IntensityScale
+                value={episode.intensity}
+                onChange={(intensity) => {
+                  updateEpisode(user, id, { intensity });
+                }}
+              />
 
-          {acute.length === 0 ? null : (
-            <View style={styles.section}>
-              <Text accessibilityRole="header" style={[styles.sectionTitle, { color: color.text }]}>
-                {t('crisis.doses.title')}
-              </Text>
-              {acute.map((medication) => (
-                <DoseButton key={medication.id} userId={user} episodeId={id} medication={medication} now={now} timeZone={TIME_ZONE} />
-              ))}
-            </View>
-          )}
-
-          <View style={styles.section}>
-            <Text accessibilityRole="header" style={[styles.sectionTitle, { color: color.text }]}>
-              {t('crisis.where.title')}
-            </Text>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`${t('crisis.where.open')}, ${marked === '' ? t('common.optional') : marked}`}
-              onPress={() => {
-                setMapOpen(true);
-              }}
-              style={[styles.row, { borderColor: color.border }]}
-            >
-              <MapPin size={24} color={color.text} />
-              <View style={styles.fill}>
-                <Text style={[styles.rowTitle, { color: color.text }]}>{t('crisis.where.open')}</Text>
-                <Text style={[styles.small, { color: color.textMuted }]}>{marked === '' ? t('common.optional') : marked}</Text>
+              <View style={styles.section}>
+                <Text accessibilityRole="header" style={[styles.sectionTitle, { color: color.text }]}>
+                  {t('crisis.symptoms.title')}
+                </Text>
+                <View style={styles.chips}>
+                  {packs.migraine.symptoms.map((item) => (
+                    <Chip
+                      key={item.key}
+                      label={labelOf(t, 'symptoms', item.key)}
+                      checked={episode.symptoms.includes(item.key)}
+                      onPress={() => {
+                        toggleSymptom(item.key);
+                      }}
+                    />
+                  ))}
+                </View>
+                {profile?.aiEnabled === false ? <Text style={[styles.caption, { color: color.textMuted }]}>{t('crisis.ai_off')}</Text> : null}
               </View>
-              <ChevronRight size={24} color={color.textMuted} />
-            </Pressable>
-          </View>
+
+              {acute.length === 0 ? null : (
+                <View style={styles.section}>
+                  <Text accessibilityRole="header" style={[styles.sectionTitle, { color: color.text }]}>
+                    {t('crisis.doses.title')}
+                  </Text>
+                  {acute.map((medication) => (
+                    <DoseButton key={medication.id} userId={user} episodeId={id} medication={medication} now={now} timeZone={TIME_ZONE} />
+                  ))}
+                </View>
+              )}
+
+              <WhatHelped episodeId={id} />
+
+              <View style={styles.section}>
+                <Text accessibilityRole="header" style={[styles.sectionTitle, { color: color.text }]}>
+                  {t('crisis.where.title')}
+                </Text>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`${t('crisis.where.open')}, ${marked === '' ? t('common.optional') : marked}`}
+                  onPress={() => {
+                    setMapOpen(true);
+                  }}
+                  style={[styles.row, { borderColor: color.border }]}
+                >
+                  <MapPin size={24} color={color.text} />
+                  <View style={styles.fill}>
+                    <Text style={[styles.rowTitle, { color: color.text }]}>{t('crisis.where.open')}</Text>
+                    <Text style={[styles.small, { color: color.textMuted }]}>{marked === '' ? t('common.optional') : marked}</Text>
+                  </View>
+                  <ChevronRight size={24} color={color.textMuted} />
+                </Pressable>
+              </View>
+            </>
+          )}
         </ScrollView>
 
         <View style={[styles.dock, { borderTopColor: color.border }]}>
-          <Button
-            testID="crisis-over"
-            variant="secondary"
-            size="crisis"
-            icon={CircleCheck}
-            label={t('crisis.over')}
-            disabled={leaving}
-            onPress={() => {
-              setAsking(true);
-            }}
+          <TellMeDock
+            tell={tell}
+            over={
+              <Button
+                testID="crisis-over"
+                variant="secondary"
+                size="crisis"
+                icon={CircleCheck}
+                label={t('crisis.over')}
+                disabled={leaving}
+                onPress={() => {
+                  setAsking(true);
+                }}
+              />
+            }
           />
         </View>
 
@@ -413,5 +434,5 @@ const styles = StyleSheet.create({
   },
   rowTitle: { fontFamily: fonts.bodyBold, fontSize: type.body, lineHeight: 22 },
   dock: { marginHorizontal: -space[3], paddingHorizontal: space[3], paddingTop: space[3], borderTopWidth: StyleSheet.hairlineWidth },
-  dockOnly: { flex: 1, justifyContent: 'flex-end' },
+  dockOnly: { flex: 1, justifyContent: 'flex-end', gap: space[3] },
 });

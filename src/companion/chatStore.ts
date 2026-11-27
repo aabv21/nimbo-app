@@ -6,7 +6,8 @@ import { localDb, notifyChanged } from '../lib/local/db';
 import { useLocalQuery } from '../lib/local/useLocalQuery';
 import type { Draft, Evidence, Guard, Mode, ReplacedReason } from './contract';
 
-export type ChatStatus = 'sent' | 'unsent' | 'answered' | 'replaced' | 'red_flag';
+/** `noted`: refused on the way from crisis mode and saved in the attack's notes instead, so it is never retried. */
+export type ChatStatus = 'sent' | 'unsent' | 'answered' | 'replaced' | 'red_flag' | 'noted';
 
 /** Assistant lines the app writes itself, stored as keys so they follow the UI language: `companion.redflag.after`, `debrief.done`. */
 export type ChatTemplate = 'redflag_after' | 'debrief_done';
@@ -23,6 +24,8 @@ export interface ChatPayload {
 export interface ChatMessage {
   id: number;
   role: 'user' | 'assistant';
+  /** How the user's words came in; an answer carries its question's, so its drafts are saved with the right source. */
+  input: 'text' | 'voice';
   /** Empty for a `template` line. */
   text: string;
   template: ChatTemplate | null;
@@ -42,6 +45,7 @@ export const CHAT_KEEP = 200;
 interface ChatRow {
   id: number;
   role: ChatMessage['role'];
+  input: ChatMessage['input'];
   text: string;
   template: ChatTemplate | null;
   created_at: number;
@@ -54,6 +58,7 @@ function toMessage(row: ChatRow): ChatMessage {
   return {
     id: row.id,
     role: row.role,
+    input: row.input,
     text: row.text,
     template: row.template,
     createdAt: row.created_at,
@@ -73,10 +78,11 @@ function announce(): void {
 /** Stores the message and returns its id; the table's trigger deletes the user's messages past `CHAT_KEEP`. */
 export function appendMessage(userId: string, message: Omit<ChatMessage, 'id'>): number {
   const { lastInsertRowId } = localDb().runSync(
-    'INSERT INTO chat_messages (user_id, role, text, template, created_at, status, mode, payload) VALUES (?, ?, ?, ?, ?, ?, ?, ?);',
+    'INSERT INTO chat_messages (user_id, role, input, text, template, created_at, status, mode, payload) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);',
     [
       userId,
       message.role,
+      message.input,
       message.text,
       message.template,
       message.createdAt,
@@ -107,18 +113,28 @@ export function updateMessage(userId: string, id: number, change: Partial<Pick<C
   announce();
 }
 
-/** The user's last `CHAT_KEEP` messages, oldest first. */
-export function useChat(userId: string): readonly ChatMessage[] {
-  const read = useCallback(
-    () =>
-      localDb()
-        .getAllSync<ChatRow>(
-          'SELECT id, role, text, template, created_at, status, mode, payload FROM chat_messages WHERE user_id = ? ORDER BY id DESC LIMIT ?;',
-          [userId, CHAT_KEEP],
-        )
-        .map(toMessage)
-        .reverse(),
-    [userId],
+/** One of the user's messages, read now (inside a caller's transaction too); null for a missing or foreign id. */
+export function readMessage(userId: string, id: number): ChatMessage | null {
+  const row = localDb().getFirstSync<ChatRow>(
+    'SELECT id, role, input, text, template, created_at, status, mode, payload FROM chat_messages WHERE id = ? AND user_id = ?;',
+    [id, userId],
   );
+  return row === null ? null : toMessage(row);
+}
+
+/** The user's last `CHAT_KEEP` messages, oldest first, read now: a request is built from this, not from a render. */
+export function readChat(userId: string): ChatMessage[] {
+  return localDb()
+    .getAllSync<ChatRow>(
+      'SELECT id, role, input, text, template, created_at, status, mode, payload FROM chat_messages WHERE user_id = ? ORDER BY id DESC LIMIT ?;',
+      [userId, CHAT_KEEP],
+    )
+    .map(toMessage)
+    .reverse();
+}
+
+/** `readChat`, re-read whenever the chat changes. */
+export function useChat(userId: string): readonly ChatMessage[] {
+  const read = useCallback(() => readChat(userId), [userId]);
   return useLocalQuery(['chat_messages'], read);
 }

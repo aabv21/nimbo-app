@@ -43,6 +43,11 @@ export default defineConfig(
     rules: { 'security/detect-object-injection': 'off' },
   },
   {
+    // These index a record by a locale or a dictation problem, both fixed unions.
+    files: ['src/voice/{dictation,speech}.ts', 'src/companion/Composer.tsx'],
+    rules: { 'security/detect-object-injection': 'off' },
+  },
+  {
     // A date field's accessible name is its label plus its value, so the test matches it by the catalog label.
     files: ['src/__tests__/episode.test.tsx'],
     rules: { 'security/detect-non-literal-regexp': 'off' },
@@ -72,11 +77,12 @@ export default defineConfig(
       'jest.setup.ts',
       'src/ui/__tests__/ThemeProvider.test.tsx',
       'src/__tests__/{boundary,ai-consent,consent-gate,smoke,profile}.test.tsx',
-      'src/__tests__/{cabinet,crisis,checkin,history,episode,onboarding,today,sign-out}.test.tsx',
+      'src/__tests__/{cabinet,crisis,checkin,history,episode,onboarding,today,sign-out,companion}.test.tsx',
       'src/cabinet/__tests__/*.test.{ts,tsx}',
       'src/checkin/__tests__/*.test.{ts,tsx}',
       'src/episodes/__tests__/*.test.{ts,tsx}',
       'src/companion/__tests__/*.test.{ts,tsx}',
+      'src/crisis/__tests__/{TellMe,WhatHelped}.test.tsx',
       'src/redflags/__tests__/*.test.tsx',
       'src/premium/__tests__/*.test.tsx',
       'src/profile/__tests__/{useTimezoneSync,useProfileChange,profileRepository}.test.ts',

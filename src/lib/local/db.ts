@@ -6,7 +6,7 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 export type LocalTable = 'episodes' | 'medications' | 'doses' | 'checkins' | 'outbox' | 'chat_messages';
 
 /** `PRAGMA user_version`: each step below runs once, in order, on a phone below it. */
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 // Mirror columns are the server's (see supabase/migrations); arrays are JSON text, booleans 0 or 1.
 // `dirty` is 1 while an outbox operation for the row is unsent, so a pull never overwrites it.
@@ -92,7 +92,8 @@ export const SCHEMA_V1 = `
 `;
 
 // The debrief columns, and the companion chat: health text kept only on this phone, never queued or synced.
-const SCHEMA_V2 = `
+// Exported for the migration test, which builds a version 2 phone.
+export const SCHEMA_V2 = `
   ALTER TABLE episodes ADD COLUMN helped TEXT NOT NULL DEFAULT '[]';
   ALTER TABLE episodes ADD COLUMN did_not_help TEXT NOT NULL DEFAULT '[]';
   ALTER TABLE episodes ADD COLUMN debriefed_at TEXT;
@@ -117,6 +118,12 @@ const SCHEMA_V2 = `
   END;
 `;
 
+// Whether a chat message was dictated, so Retry after a restart spends a dictation unit again and its drafts are saved
+// with the voice source; messages from before read as typed.
+const SCHEMA_V3 = `
+  ALTER TABLE chat_messages ADD COLUMN input TEXT NOT NULL DEFAULT 'text' CHECK (input IN ('text', 'voice'));
+`;
+
 let db: SQLiteDatabase | null = null;
 
 function migrate(database: SQLiteDatabase): void {
@@ -127,6 +134,7 @@ function migrate(database: SQLiteDatabase): void {
   database.withTransactionSync(() => {
     if (version < 1) database.execSync(SCHEMA_V1);
     if (version < 2) database.execSync(SCHEMA_V2);
+    if (version < 3) database.execSync(SCHEMA_V3);
     database.execSync(`PRAGMA user_version = ${String(SCHEMA_VERSION)};`);
   });
 }

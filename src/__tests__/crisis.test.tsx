@@ -26,7 +26,9 @@ jest.mock('../auth/AuthProvider', () => require('../test/authMock'));
 jest.mock('expo-router', () => ({
   router: { push: jest.fn(), replace: jest.fn(), back: jest.fn(), canGoBack: jest.fn(() => true) },
   useLocalSearchParams: jest.fn(),
+  useIsFocused: () => true,
 }));
+jest.mock('../lib/supabase', () => ({ supabase: {} }));
 
 const t = (key: MessageKey, params?: Params): string => translate('en', key, params);
 const STARTED = new Date('2026-11-26T18:40:00Z');
@@ -214,7 +216,8 @@ test('"It’s over" asks first, then ends the attack and shows what was saved', 
   expect(screen.getByText(t('crisis.ended.duration'))).toBeOnTheScreen();
   expect(screen.getByText(formatDuration(85))).toBeOnTheScreen();
   expect(screen.getByText(t('today.attack.dose_v', { med: 'Ibuprofen 400 mg', time: formatClock(NOW, 'en') }))).toBeOnTheScreen();
-  expect(screen.queryByText(/Tomorrow morning/)).toBeNull();
+  // The AI is on, so the debrief is announced for tomorrow.
+  expect(screen.getByText(t('crisis.ended.debrief'))).toBeOnTheScreen();
 
   await fireEvent.press(screen.getByRole('button', { name: t('crisis.ended.fill') }));
   expect(router.replace).toHaveBeenCalledWith(`/episode/${episodeId}/edit`);
@@ -355,8 +358,23 @@ describe('the Android back button', () => {
   });
 });
 
-test('without the AI this wave, "Tell me" and "What helped before" are absent', async () => {
+test('the ended view leaves out the debrief line with the AI off', async () => {
+  resetAuth({ profile: { ...READY_PROFILE, aiEnabled: false } });
   await open();
-  expect(screen.queryByText('Tell me')).toBeNull();
-  expect(screen.queryByText('What helped before')).toBeNull();
+  await fireEvent.press(screen.getByRole('button', { name: t('crisis.over') }));
+  await fireEvent.press(screen.getByRole('button', { name: t('crisis.over.confirm') }));
+  expect(screen.getByRole('header', { name: t('crisis.ended.title') })).toBeOnTheScreen();
+  expect(screen.queryByText(t('crisis.ended.debrief'))).toBeNull();
+});
+
+test('with the AI on, "Tell me" is in the dock; with no debriefs yet, "What helped before" is absent', async () => {
+  await open();
+  expect(screen.getByRole('button', { name: t('crisis.tell') })).toBeOnTheScreen();
+  expect(screen.queryByText(t('crisis.helped.title'))).toBeNull();
+});
+
+test('with the AI off, "Tell me" is absent', async () => {
+  resetAuth({ profile: { ...READY_PROFILE, aiEnabled: false } });
+  await open();
+  expect(screen.queryByRole('button', { name: t('crisis.tell') })).toBeNull();
 });

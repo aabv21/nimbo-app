@@ -143,7 +143,7 @@ loses nothing. The modules are in [`app.md`](app.md#local-store-outbox-and-sync-
 
 - **Mirrors.** `nimbo.db` holds `episodes`, `medications`, `doses` and `checkins` with the server's
   columns, each row with its `user_id` and a `dirty` flag. Every screen reads from here, filtered by the
-  signed-in user, never from the network. The schema is versioned (`PRAGMA user_version`, now 2); an update
+  signed-in user, never from the network. The schema is versioned (`PRAGMA user_version`, now 3); an update
   runs the steps a phone is missing in one transaction, keeping its rows and its unsent calls.
 - **The companion chat.** `chat_messages` holds the conversation as health text kept only on this phone: it
   is never queued or synced, and only its last 200 messages per user are kept.
@@ -199,6 +199,18 @@ refused on the phone before anything is written. The server is looser on purpose
 24 hours ahead as now, so a phone clock running fast never turns a write into a permanent failure (and every
 later write to that record into `P0002`); it refuses only a time further ahead or before 2000. With the AI off,
 crisis mode is complete: everything is logged with taps.
+
+With the AI on, "Tell me" is a mic held in the dock. Recognition runs on the phone on iOS (and on Android when the
+language pack is installed). When the offline pack is not installed, Android sends the audio to Google's speech
+recognizer, so Google is a processor of dictated audio and the privacy policy must name it; Nimbo itself never stores
+or uploads audio, only the transcript as text. The transcript passes the phone's red-flag check before anything else. The companion
+then answers in crisis mode with at most two sentences, which can be read aloud, and a draft that Confirm saves. When
+the companion cannot answer (offline, down, or today's dictation or message quota used up), the words are appended to
+the attack's notes instead, within the 2,000-character limit, and the screen says whether they were saved whole, cut to
+fit, or not at all (notes full, or the attack gone); a message refused on the way is marked as saved in the notes, so the
+Companion tab offers no Retry that would repeat it. "What helped
+before" ranks the user's own debriefed reliefs and medications in code over the phone's records, so it works with the
+AI off and offline too.
 
 ## Red flags and urgent care
 

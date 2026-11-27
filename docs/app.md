@@ -41,6 +41,9 @@ Expo Router routes: every file is a screen and `_layout.tsx` files define naviga
 - `AuthProvider.tsx`: the session status, user id, email and the profile. Starts from the stored
   session and cached profile, listens to Supabase auth events, reads the profile, and is the only
   writer of the profile cache. `useAuth()` exposes `refreshProfile` and `patchProfile`.
+- `currentUser.ts`: `currentUserId()`, the account `AuthProvider` last reported, for work that settles after its screen
+  has gone (a late companion answer checks it is still for the signed-in user). It is seeded from the stored session
+  when the provider mounts, so a cold start does not read null until the first auth event.
 - `gate.ts`: `nextRoute`, the pure gate.
 - `authService.ts` re-exports the whole auth surface; `emailAuth.ts` (sign up, sign in, code confirm,
   resend, reset, sign out) has no native imports so the integration tests can load it;
@@ -107,11 +110,12 @@ Hermes has no `Intl.PluralRules`), falling back to `.other`, and fills `{n}` wit
 Health data is local-first: a screen writes the phone's copy and queues the RPC call in one SQLite
 transaction, shows the change at once, and the outbox sends it when it can.
 
-- `local/db.ts`: `localDb()` opens `nimbo.db` on first use and migrates it by `PRAGMA user_version`, now 2: version 1
+- `local/db.ts`: `localDb()` opens `nimbo.db` on first use and migrates it by `PRAGMA user_version`, now 3: version 1
   (`SCHEMA_V1`) creates the mirror tables `episodes`, `medications`, `doses` and `checkins`, with the server's columns
   (arrays as JSON text, booleans as 0 or 1), each row with its `user_id` and a `dirty` flag, and the `outbox`; version 2
   (`SCHEMA_V2`) adds the debrief columns (`episodes.helped`, `did_not_help` as JSON text defaulting to `'[]'`,
-  `debriefed_at`, and `doses.helped` as 0, 1 or null) and the `chat_messages` table. Every step a phone is missing runs in
+  `debriefed_at`, and `doses.helped` as 0, 1 or null) and the `chat_messages` table; version 3 adds
+  `chat_messages.input` (`text` or `voice`, `text` for older rows). Every step a phone is missing runs in
   one transaction, so a version 1 phone keeps its rows and its unsent outbox. A shipped step is frozen; a change is a new one.
   `notifyChanged(tables)` tells readers a committed write changed those tables. `purgeUser(userId)`
   deletes a user's mirror rows except those still waiting to be sent (dirty, or with an unsent or failed
@@ -185,8 +189,78 @@ the attacks behind it (`episodeIds`) as evidence.
 - `chatStore.ts`: the chat on this phone only (`chat_messages`), never queued or synced, and removed by the sign-out purge.
   `appendMessage(userId, message)` stores a message in one statement, and the table's `chat_messages_keep` trigger keeps the user's last `CHAT_KEEP` (200); `updateMessage` changes a
   message's `status` or `payload` (drafts, evidence, the guard result and the record ids made on Confirm); `useChat`
-  reads the last 200, oldest first. Assistant lines the app writes itself are stored as a `template` key with empty text,
-  so they follow the UI language. Its writes open no transaction of their own, so a store transaction can include them.
+  reads the last 200, oldest first (`readChat` and `readMessage` read the same without a hook, inside a transaction too).
+  Assistant lines the app writes itself are stored as a `template` key with empty text, so they follow the UI language.
+  Each message stores its `input` (`text` or `voice`, a column since local schema version 3); an answer carries its
+  question's, so Retry after a restart still sends a dictated message as voice and its drafts are saved with the voice
+  source. Its writes open no transaction of their own, so a store transaction can include them.
+- `companionClient.ts`: `historyForRequest(chat)` sends back only answered turns (never a red-flag, unsent or replaced
+  exchange, nor a template line), the newest 12 within 4,000 characters, each cut to 500, starting with a user turn.
+  `askCompanion(request)` calls the `companion` function (45 s deadline from `fetchWithTimeout`) and never throws: a body
+  that fails `isCompanionResponse` is `unknown`, 429 is `over_quota` with the `quota` and `limit` its body names, 403
+  `ai_off`, any 5xx or a relay error `unavailable`, another 4xx `unknown`, and a failed or aborted fetch `network`.
+- `useCompanion.ts`: `useCompanion(mode, { episodeId? })` runs a conversation. `send(text, input)` returns the stored
+  message's id (null for a red flag or empty text) and runs
+  `useRedFlagCheck` first, whatever else is going on: a hit stores the message as `red_flag` and sends nothing. One
+  request is in flight app-wide, so a message sent meanwhile, or while the companion quota is used up, is stored as
+  `unsent` with Retry rather than dropped. Otherwise the message is stored as `sent` and asked with the device's day
+  (`companionDay()`) and the UI locale. A server red flag opens urgent care with the same excerpt a phone hit shows
+  (`excerptOf`) and stores the `redflag_after` line; a replaced reply is stored with empty text, its reason and any
+  drafts, and the question is marked `replaced` too so neither goes back to the model. A failure marks the message
+  `unsent` with Retry, which resends a dictated message as voice (as text once dictation is used up today, since the
+  words are already text) and is disabled over the quota; `unavailable` shows the down state until the app returns to the
+  foreground or the network comes back (`useOnResume`), `ai_off` refetches the profile (the tab then disappears), and a
+  429 stores the limit under kv `companion.quota.<kind>.<userId>.<day>`: `companion` closes the input for the day
+  (`overQuotaToday`), `dictation` only turns the mic off (`dictationOver`). A message left `sent` by a killed app shows
+  as unsent on the next mount, and an answer that arrives once another account is signed in (`currentUserId()` from
+  `src/auth/currentUser.ts`) or after a sign-out purged the chat is dropped, urgent care included. `confirm(messageId, ref)` makes the record id (and the
+  dose ids) on the first tap, with the `voice` source when the message was dictated (`chat` otherwise), and, in one `withTransactionSync`, stamps `payload.confirmed[ref]` and runs `applyDraft`, so a
+  second tap, a remount or a kill can never leave the stamp without its records or the reverse; a store `RangeError`
+  rolls both back and returns `'invalid'`. `replaceDraft` saves the Edit sheet's changes to an unconfirmed draft.
+- `applyDraft.ts`: the only path from a draft to records, inside the caller's transaction. A new attack is
+  `logEpisodeTx` with the record id, then `saveDebriefTx` when it names what helped or did not, then `logDoseTx` per dose;
+  a change to an attack adds the named tags to those already logged (a draft never erases) and moves the start, sets the
+  end and the intensity in one `updateEpisodeTx` patch (so the pair is checked together), then merges the debrief; a dose is `logDoseTx` with the record id; a check-in is
+  `saveCheckinTx` with only the answers said.
+- `safeFacts.ts`: the facts a replaced dose answer may still show: the latest acute dose of the 24 h before the reply
+  whose medication has an interval, with that interval in hours.
+- The tab (`src/app/(tabs)/companion.tsx`) has Today's start (or return to) an attack in its top bar, and its parts: `MessageList` (an inverted `FlatList` with day dividers; new
+  items rise in and nothing else moves, and the typing line mounts only after 300 ms), `EvidenceChips` and
+  `EvidenceSheet` (the attacks behind a number from the local mirror, each opening `/episode/<id>`, or the doses behind
+  an overuse count), `DraftCard` (the draft field by field, "You didn't say" for a missing core field, the cabinet's dose
+  text with its attribution, and `draft.error` when Confirm was refused), `DraftEditor` (a sheet that edits the draft,
+  never a record), `Composer` (grows with its text, 500 characters, with the hold-to-dictate mic: a transcript fills the
+  field and waits for Send, which then spends a dictation unit and a companion unit; a transcript holding a red flag is
+  sent at once, so urgent care opens and nothing reaches the companion; with `dictationOver` only the mic is disabled,
+  with `voice.quota` as its hint and as a visible line under the row; a dictation problem shows above the field) and `CompanionStates` (the suggestions, and the
+  offline, unavailable and over-quota notes with the manual dose and check-in). A replaced reply renders the safe
+  template for its reason, and a degraded one carries the urgent-care footer.
+
+## Voice (`src/voice/`)
+
+Dictation and spoken replies, copied from the Dressing Room demo's pattern and changed to press-and-hold.
+
+- `dictation.ts`: `useDictation(onHeard)` over `expo-speech-recognition`, with `start` (press in), `finish` (release:
+  the recognizer's final segments, joined, go to `onHeard`) and `cancel` (aborted; `onHeard` never runs). One
+  module-level session owns the recognizer, and an aborted session's late `end` is counted and ignored. The microphone
+  permission is asked on the first press. iOS always recognizes on the device (`requiresOnDeviceRecognition: true`);
+  Android uses the phone's default recognizer, offline when `getSupportedLocales` lists the language as installed (else
+  the audio goes to Google's recognizer). `dictationAvailable()` is false with no recognizer, or on iOS without
+  on-device recognition, and then no mic shows anywhere.
+  Recognition is `continuous`, so a pause never ends it before the finger lifts. `recognitionLanguage(locale, tags)`
+  picks the device's own regional variant of the app language (`es-CO`), else `en-US`, `es-MX` or `pt-BR`. A refused
+  permission is `denied`, a recognizer error `failed`, and a session that heard nothing, or a tap released before the
+  recognizer started, `noMatch` (`voice.denied`, `voice.failed`, `voice.no_match`).
+- `HoldToTalk.tsx`: the held mic, on the responder system: press in starts, release finishes, and a slide up of 48 pt
+  (`CANCEL_DISTANCE`) or a lost touch cancels. `size` `crisis` is the 56 pt dock button with its hint under the label,
+  and while held it reads `crisis.listening.held` with `crisis.listening.cancel` above it; `regular` is the 48 pt mic in
+  the Companion input row. A screen reader's activate starts it, and a second one finishes. Nothing renders on a phone
+  with no recognizer.
+- `speech.ts`: `pickVoice(voices, locale)` prefers `en-US`, Latin American Spanish (`es-MX`, `es-US`, `es-419`) and
+  `pt-BR`, an enhanced voice first; `useSpeaker(text, { autoPlay })` reads one utterance at a time app-wide and stops on
+  blur or unmount; `autoPlay` never speaks while a mic listens (`setMicListening`), and dictation calls `stopSpeaking`
+  so the recognizer never hears the app. `ListenButton.tsx` is the `crisis.read_aloud` toggle, hidden when the phone has
+  no voice in the app language; `size` `crisis` makes it 56 pt.
 
 ## Red flags (`src/redflags/`, `src/app/urgent-care.tsx`)
 
@@ -204,7 +278,7 @@ catch, and the ordinary attack descriptions it must not, under each locale and u
 - `src/redflags/useRedFlagCheck.ts`: `useRedFlagCheck()` gives `(text, source) => boolean`. It matches all
   three languages whatever the app's language, since people write in the language they think in and a
   miss costs more than a rare false hit. On a hit it opens urgent care with the sentence that hit (160
-  characters at most).
+  characters at most); `excerptOf` is exported so a red flag the companion function finds shows the same excerpt.
 - `src/redflags/urgentCare.ts`: `showUrgentCare(request)` keeps the request in memory and pushes
   `/urgent-care`, so no health text travels in a route param; `currentUrgentCare()` reads it back and
   `clearUrgentCare()` drops it. The screen reads it once and clears it when it unmounts, and
@@ -259,6 +333,7 @@ Medications and doses live in the local mirrors and reach the server through the
   The patch also takes the debrief: `helped`, `didNotHelp` and `debriefed` (`true` stamps `debriefedAt` once, as the server
   does, and `false` clears it). `logEpisode(userId, id, input)` logs a whole attack told to the companion with an id made
   beforehand (an id already on the phone is a no-op); an open attack while another is open is a `RangeError`.
+  `readEpisode(userId, id)` reads one attack without a hook, inside a transaction too.
   `saveDebrief(userId, episodeId, answers)` writes the reliefs, adds the answered triggers to those logged, sets
   `debriefed` and whether each dose helped, all in one transaction. `deleteEpisode`
   unlinks the attack's doses as the server's `on delete set null` does. `useEpisodes` (newest first), `useEpisode`,
@@ -282,8 +357,27 @@ Medications and doses live in the local mirrors and reach the server through the
   the fade's end leaves once (a ref guards it), with `router.back()`, or `router.replace('/today')` when there is
   nothing to go back to.
   Confirming an end never throws: a refused time, the default "now" included, shows the sheet's inline error. With the
-  AI off, a line under the symptoms says everything is logged with taps.
-  "Tell me", "What helped before" and the debrief line need the companion and are not built yet.
+  AI off, a line under the symptoms says everything is logged with taps, "Tell me" is absent, and the ended view leaves
+  out `crisis.ended.debrief`.
+- `crisis/TellMe.tsx`: "Tell me", the held mic in the dock beside "It's over" (`useTellMe`, `TellMePanel` under the
+  timer, `TellMeDock`). A transcript goes through `useRedFlagCheck` first: a hit opens urgent care once and nothing is
+  sent or saved. Then, when the companion can answer, it is sent in `crisis` mode as `voice` with the attack's id, and
+  the reply shows with `ListenButton`; the reply's first unconfirmed draft takes the screen and the dock (Edit and
+  Confirm, through `DraftEditor` and `useCompanion`'s `confirm`) until it is confirmed or put aside ("Not now", or
+  Android's back), and stays in the Companion tab unconfirmed. Offline, unavailable, over either quota, or refused on
+  the way, the transcript is appended to the attack's notes through `updateEpisode` instead (`appendToNotes`: the notes,
+  a newline, then the transcript, cut to `NOTES_MAX_LENGTH` and never through an emoji). The line says what happened:
+  `crisis.tell.saved_note`, `crisis.tell.saved_cut` when only the start fit, `crisis.tell.notes_full` with no room
+  (nothing written), `crisis.tell.gone` when the attack is no longer on the phone, or `error.generic` for any other
+  store refusal. A message refused on the way is then marked `noted` in the chat, so the Companion tab shows
+  `companion.in_notes` and no Retry. While held, the line under "Listening" is `crisis.listening.release` on the
+  companion's path and `crisis.listening.release_notes` on the notes path. "Read aloud" and "Not now" are 56 pt.
+  "Tell me" shows only with the AI on and `dictationAvailable()`; otherwise "It's over" has the whole dock.
+- `crisis/WhatHelped.tsx`: "What helped before", the top three `crisisPlan` entries from the phone's debriefed attacks
+  and doses (archived medications left out), with "Helped n of m times". A relief's "Doing it now" toggles the key in
+  the attack's `reliefs`; a medication's action is its `DoseButton`, with the Maestro ids `dose-helped-log` and
+  `dose-helped-change` (`inPlan`) so it never shares `dose-log` with the Doses section. Hidden when the plan is empty; it is code over
+  local data, so it shows with the AI off and offline.
 
 ## Daily check-in and preventive reminders (`src/checkin/`, `src/cabinet/reminders.ts`, `src/app/checkin.tsx`)
 
@@ -370,4 +464,5 @@ quiet invitation (`premium.title`, `premium.body`, no price) for everyone else, 
 that render the root layout, and `reanimatedMock.ts` replaces Reanimated under Jest. `sqliteNode.ts` is
 expo-sqlite's synchronous API over `node:sqlite`, and `localDbTest.ts` empties the local store and
 inserts mirror rows ([`testing.md`](testing.md)). `datetimepickerMock.ts` stands in for the native date-time picker (a view that
-keeps its props, so a test can call `onValueChange`), and `episodeSeed.ts` makes attacks through the episode store.
+keeps its props, so a test can call `onValueChange`), `episodeSeed.ts` makes attacks through the episode store, and
+`dictation.ts` drives the mocked speech recognizer (its events, a heard transcript, a press that settles).

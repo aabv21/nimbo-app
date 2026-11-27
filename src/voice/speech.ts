@@ -1,0 +1,137 @@
+// Spoken replies with expo-speech: one utterance at a time app-wide, in the app language, never over an open mic
+// (docs/app.md#voice-srcvoice).
+import * as Speech from 'expo-speech';
+import { useIsFocused } from 'expo-router';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+
+import { useI18n } from '../i18n';
+import type { Locale } from '../i18n';
+
+// The app's copy is Latin American Spanish and Brazilian Portuguese; other regions only as a fallback.
+const PREFERRED: Record<Locale, readonly string[]> = {
+  en: ['en-us'],
+  es: ['es-mx', 'es-us', 'es-419'],
+  pt: ['pt-br'],
+};
+
+function tagOf(voice: Speech.Voice): string {
+  return voice.language.replaceAll('_', '-').toLowerCase();
+}
+
+/** The best installed voice for `locale`, or null when the phone has none in that language. */
+export function pickVoice(voices: readonly Speech.Voice[], locale: Locale): Speech.Voice | null {
+  const preferred = PREFERRED[locale];
+  const rank = (voice: Speech.Voice): number => {
+    const index = preferred.indexOf(tagOf(voice));
+    const tier = index === -1 ? preferred.length : index;
+    return tier * 2 + (voice.quality === Speech.VoiceQuality.Enhanced ? 0 : 1);
+  };
+  const candidates = voices.filter((voice) => tagOf(voice).split('-')[0] === locale);
+  return candidates.reduce<Speech.Voice | null>((best, voice) => (best === null || rank(voice) < rank(best) ? voice : best), null);
+}
+
+// Who is speaking now, so another button (or this one's second tap) stops it and each button shows its own state.
+// Each utterance has its own token: a late `onStopped` from an earlier one can't turn off the one playing now.
+let speaking: { owner: symbol; utterance: symbol } | null = null;
+const listeners = new Set<() => void>();
+
+function setSpeaking(next: { owner: symbol; utterance: symbol } | null): void {
+  speaking = next;
+  for (const listener of listeners) listener();
+}
+
+// Set by dictation while a mic listens, so an `autoPlay` reply never talks over it.
+let micListening = false;
+
+export function setMicListening(listening: boolean): void {
+  micListening = listening;
+}
+
+/** Stops whatever is being read (dictation calls it, so the recognizer never hears the app). */
+export function stopSpeaking(): void {
+  if (speaking === null) return;
+  setSpeaking(null);
+  void Speech.stop();
+}
+
+function subscribe(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+type VoiceState = { status: 'unknown' } | { status: 'none' } | { status: 'ready'; voice: Speech.Voice };
+
+/**
+ * `hidden` when the phone lists voices but none in the app language; an empty list (an engine not ready yet) keeps
+ * the button. `autoPlay` reads `text` once, as soon as the voices are known, unless a mic is listening.
+ */
+export function useSpeaker(text: string, { autoPlay = false }: { autoPlay?: boolean } = {}): { hidden: boolean; speaking: boolean; toggle: () => void } {
+  const { locale } = useI18n();
+  const focused = useIsFocused();
+  const [owner] = useState(() => Symbol('speaker'));
+  const isSpeaking = useSyncExternalStore(subscribe, () => speaking?.owner === owner);
+  const [voice, setVoice] = useState<VoiceState>({ status: 'unknown' });
+  const [settled, setSettled] = useState(false);
+  const autoPlayed = useRef(false);
+
+  useEffect(() => {
+    let live = true;
+    Speech.getAvailableVoicesAsync().then(
+      (voices) => {
+        if (!live) return;
+        const picked = pickVoice(voices, locale);
+        if (picked !== null) setVoice({ status: 'ready', voice: picked });
+        else setVoice({ status: voices.length === 0 ? 'unknown' : 'none' });
+        setSettled(true);
+      },
+      () => {
+        if (live) setSettled(true);
+      },
+    );
+    return () => {
+      live = false;
+    };
+  }, [locale]);
+
+  // Leaving the screen, unmounting or new text stops this button's speech.
+  useEffect(
+    () => () => {
+      if (speaking?.owner === owner) stopSpeaking();
+    },
+    [owner, text, focused],
+  );
+
+  const toggle = useCallback(() => {
+    if (speaking?.owner === owner) {
+      stopSpeaking();
+      return;
+    }
+    // Stops whatever else is reading, so utterances never queue up.
+    void Speech.stop();
+    const utterance = Symbol('utterance');
+    setSpeaking({ owner, utterance });
+    const release = (): void => {
+      if (speaking?.utterance === utterance) setSpeaking(null);
+    };
+    // A failed utterance only turns the button back: the words stay on the screen.
+    Speech.speak(text, {
+      language: voice.status === 'ready' ? voice.voice.language.replaceAll('_', '-') : locale,
+      ...(voice.status === 'ready' ? { voice: voice.voice.identifier } : {}),
+      onDone: release,
+      onStopped: release,
+      onError: release,
+    });
+  }, [owner, text, voice, locale]);
+
+  useEffect(() => {
+    if (!autoPlay || !settled || !focused || autoPlayed.current || voice.status === 'none') return;
+    autoPlayed.current = true;
+    // Skipped, not deferred: read later, it would land in the middle of whatever comes next.
+    if (micListening) return;
+    toggle();
+  }, [autoPlay, settled, focused, voice, toggle]);
+
+  return { hidden: voice.status === 'none', speaking: isSpeaking, toggle };
+}

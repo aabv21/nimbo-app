@@ -44,6 +44,35 @@ jest.mock('expo-location', () => ({
   getLastKnownPositionAsync: jest.fn(() => Promise.resolve(null)),
 }));
 
+// expo-speech's native module is absent under Jest: an English, a Mexican Spanish and a Brazilian Portuguese voice;
+// a suite that tests speaking sets these with `jest.mocked`.
+jest.mock('expo-speech', () => ({
+  VoiceQuality: { Default: 'Default', Enhanced: 'Enhanced' },
+  getAvailableVoicesAsync: jest.fn(() =>
+    Promise.resolve([
+      { identifier: 'voice-en-us', name: 'Samantha', language: 'en-US', quality: 'Default' },
+      { identifier: 'voice-es-mx', name: 'Paulina', language: 'es-MX', quality: 'Default' },
+      { identifier: 'voice-pt-br', name: 'Luciana', language: 'pt-BR', quality: 'Default' },
+    ]),
+  ),
+  speak: jest.fn(),
+  stop: jest.fn(() => Promise.resolve()),
+}));
+// expo-speech-recognition's native module is absent under Jest: available, permission granted, no offline Android
+// language pack; `src/test/dictation.ts` emits its events.
+jest.mock('expo-speech-recognition', () => ({
+  ExpoSpeechRecognitionModule: {
+    isRecognitionAvailable: jest.fn(() => true),
+    supportsOnDeviceRecognition: jest.fn(() => true),
+    requestPermissionsAsync: jest.fn(() => Promise.resolve({ granted: true, canAskAgain: true, status: 'granted', expires: 'never' })),
+    getSupportedLocales: jest.fn(() => Promise.resolve({ locales: [], installedLocales: [] })),
+    start: jest.fn(),
+    stop: jest.fn(),
+    abort: jest.fn(),
+    addListener: jest.fn(() => ({ remove: jest.fn() })),
+  },
+}));
+
 // The date-time picker is native too; a stand-in that exposes its props.
 jest.mock('@react-native-community/datetimepicker', () => require('./src/test/datetimepickerMock'));
 jest.mock('react-native-reanimated', () => require('./src/test/reanimatedMock'));

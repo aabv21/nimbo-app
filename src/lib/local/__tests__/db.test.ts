@@ -4,10 +4,10 @@ import { localDb, notifyChanged, purgeOtherUsers, purgeUser, subscribeTables } f
 
 jest.mock('expo-sqlite', () => require('../../../test/sqliteNode'));
 
-test('opens once, at schema version 2, with every mirror table, the outbox and the chat', () => {
+test('opens once, at schema version 3, with every mirror table, the outbox and the chat', () => {
   const db = localDb();
   expect(localDb()).toBe(db);
-  expect(db.getFirstSync<{ user_version: number }>('PRAGMA user_version;')?.user_version).toBe(2);
+  expect(db.getFirstSync<{ user_version: number }>('PRAGMA user_version;')?.user_version).toBe(3);
   const tables = db
     .getAllSync<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name;")
     .map((row) => row.name);

@@ -2,7 +2,7 @@ import { act, renderHook } from '@testing-library/react-native';
 
 import { insertEpisode, clearLocalDb } from '../../test/localDbTest';
 import { SQLiteDatabase } from '../../test/sqliteNode';
-import { localDb, purgeOtherUsers, purgeUser, SCHEMA_V1 } from '../../lib/local/db';
+import { localDb, purgeOtherUsers, purgeUser, SCHEMA_V1, SCHEMA_V2 } from '../../lib/local/db';
 import { enqueue } from '../../lib/outbox/outbox';
 import { appendMessage, CHAT_KEEP, updateMessage, useChat } from '../chatStore';
 import type { ChatMessage, ChatPayload } from '../chatStore';
@@ -30,7 +30,7 @@ const PAYLOAD: ChatPayload = {
 };
 
 function message(text: string, patch: Partial<Omit<ChatMessage, 'id'>> = {}): Omit<ChatMessage, 'id'> {
-  return { role: 'user', text, template: null, createdAt: 1_000, status: 'sent', mode: 'chat', payload: null, ...patch };
+  return { role: 'user', input: 'text', text, template: null, createdAt: 1_000, status: 'sent', mode: 'chat', payload: null, ...patch };
 }
 
 function chatCount(userId: string): number {
@@ -51,8 +51,20 @@ test('a message with a payload round-trips through appendMessage and useChat', a
   await flushMicrotasks();
 
   expect(chat.result.current).toEqual([
-    { id, role: 'assistant', text: 'It helped', template: null, createdAt: 42, status: 'answered', mode: 'debrief', payload: PAYLOAD },
+    { id, role: 'assistant', input: 'text', text: 'It helped', template: null, createdAt: 42, status: 'answered', mode: 'debrief', payload: PAYLOAD },
   ]);
+});
+
+test('a dictated message keeps its input', async () => {
+  appendMessage('user-a', message('Spoken words', { input: 'voice' }));
+  const [only] = (await renderHook(() => useChat('user-a'))).result.current;
+  expect(only).toEqual(expect.objectContaining({ text: 'Spoken words', input: 'voice' }));
+});
+
+test('the table refuses an input other than text or voice', () => {
+  expect(() =>
+    localDb().runSync("INSERT INTO chat_messages (user_id, role, text, created_at, status, mode, input) VALUES ('u', 'user', 'x', 0, 'sent', 'chat', 'typed');"),
+  ).toThrow();
 });
 
 test('a template message round-trips with empty text', async () => {
@@ -133,7 +145,7 @@ describe('the purge', () => {
   });
 });
 
-test('a version 1 database with an episode and an outbox op opens as version 2 with both intact', () => {
+test('a version 1 database with an episode and an outbox op opens as the current version with both intact', () => {
   const v1 = new SQLiteDatabase();
   v1.execSync(SCHEMA_V1);
   v1.execSync('PRAGMA user_version = 1;');
@@ -153,7 +165,7 @@ test('a version 1 database with an episode and an outbox op opens as version 2 w
     const opened = db.localDb();
 
     expect(opened).toBe(v1);
-    expect(opened.getFirstSync<{ user_version: number }>('PRAGMA user_version;')?.user_version).toBe(2);
+    expect(opened.getFirstSync<{ user_version: number }>('PRAGMA user_version;')?.user_version).toBe(3);
     expect(opened.getFirstSync('SELECT triggers, helped, did_not_help, debriefed_at, dirty FROM episodes WHERE id = ?;', ['e1'])).toEqual({
       triggers: '["stress"]',
       helped: '[]',
@@ -167,6 +179,32 @@ test('a version 1 database with an episode and an outbox op opens as version 2 w
     ]);
     chat.appendMessage('user-a', message('after the upgrade'));
     expect(opened.getFirstSync('SELECT COUNT(*) AS n FROM chat_messages;')).toEqual({ n: 1 });
+    expect(opened.getFirstSync("SELECT name FROM sqlite_master WHERE type = 'trigger';")).toEqual({ name: 'chat_messages_keep' });
+  });
+});
+
+test('a version 2 database with chat rows opens as version 3: old messages read as typed, new ones keep their input', () => {
+  const v2 = new SQLiteDatabase();
+  v2.execSync(SCHEMA_V1);
+  v2.execSync(SCHEMA_V2);
+  v2.execSync('PRAGMA user_version = 2;');
+  v2.runSync(
+    "INSERT INTO chat_messages (user_id, role, text, created_at, status, mode) VALUES ('user-a', 'user', 'from before', 5, 'unsent', 'chat');",
+  );
+  v2.runSync("INSERT INTO episodes (id, user_id, started_at, helped, dirty) VALUES ('e1', 'user-a', '2026-11-26T10:00:00.000Z', '[\"sleep\"]', 1);");
+  (globalThis as { nimboNextDb?: unknown }).nimboNextDb = v2;
+
+  jest.isolateModules(() => {
+    const db = require('../../lib/local/db') as typeof import('../../lib/local/db');
+    const chat = require('../chatStore') as typeof import('../chatStore');
+    const opened = db.localDb();
+
+    expect(opened).toBe(v2);
+    expect(opened.getFirstSync<{ user_version: number }>('PRAGMA user_version;')?.user_version).toBe(3);
+    expect(chat.readChat('user-a')).toEqual([expect.objectContaining({ text: 'from before', status: 'unsent', input: 'text' })]);
+    expect(opened.getFirstSync('SELECT helped, dirty FROM episodes WHERE id = ?;', ['e1'])).toEqual({ helped: '["sleep"]', dirty: 1 });
+    const id = chat.appendMessage('user-a', message('after the upgrade', { input: 'voice' }));
+    expect(chat.readMessage('user-a', id)?.input).toBe('voice');
     expect(opened.getFirstSync("SELECT name FROM sqlite_master WHERE type = 'trigger';")).toEqual({ name: 'chat_messages_keep' });
   });
 });

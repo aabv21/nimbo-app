@@ -115,12 +115,14 @@ interface EndedViewProps {
   episode: Episode;
   doses: readonly Dose[];
   medicationName: (id: string) => string;
+  /** The AI is on, so tomorrow's debrief is announced; without it nothing will ask. */
+  debrief: boolean;
   onFill: () => void;
   onClose: () => void;
 }
 
 /** What was recorded, with nothing that celebrates. */
-export function EndedView({ episode, doses, medicationName, onFill, onClose }: EndedViewProps): React.JSX.Element {
+export function EndedView({ episode, doses, medicationName, debrief, onFill, onClose }: EndedViewProps): React.JSX.Element {
   const { t, locale } = useI18n();
   const { color } = useTheme();
   const motion = useMotion();
@@ -153,6 +155,7 @@ export function EndedView({ episode, doses, medicationName, onFill, onClose }: E
             </View>
           ))}
         </View>
+        {debrief ? <Text style={[styles.body, { color: color.text }]}>{t('crisis.ended.debrief')}</Text> : null}
       </View>
       <View style={styles.actions}>
         <Button variant="secondary" size="crisis" label={t('crisis.ended.fill')} style={styles.grow} onPress={onFill} />
