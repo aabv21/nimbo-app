@@ -32,14 +32,15 @@ environment. `jest.setup.ts` mocks what has no native module under Jest:
   transactions run. Each open is a new empty database, and a nested transaction fails as on a device.
   `src/test/localDbTest.ts` empties the store between tests and inserts mirror rows.
 - `Dimensions`: `fontScale` 1, since React Native's preset reports 2 and would render every large-text layout.
-- `react-native-reanimated`: `src/test/reanimatedMock.ts`, since Reanimated's own mock loads the worklets native module. Animations settle at once on their target; a shared value written with `.set()` reaches a style only through `useAnimatedStyle`, as on a device.
+- `react-native-reanimated`: `src/test/reanimatedMock.ts`, since Reanimated's own mock loads the worklets native module. Animations settle at once on their target, and `withTiming` calls its completion callback with `finished: true`; a shared value written with `.set()` reaches a style only through `useAnimatedStyle`, as on a device.
+- `react-native-worklets`: `scheduleOnRN` calls its function at once, since the worklets runtime is native.
 - `expo-glass-effect` and `expo-blur`: plain views; `isLiquidGlassAvailable` is a `jest.fn()` returning `false`, so a suite can reach the iOS 26 glass branch.
 
 Tests use `@testing-library/react-native` v14, where `render`, `renderHook` and `fireEvent` are async.
 
 What the suites cover:
 
-- `src/i18n/__tests__/`: the catalogs have the same keys, and the locale resolves from the device and the stored preference. `plural`: one and other in all three languages, CLDR's pt `one` for 0 and `many` for whole millions in es and pt, and a missing `.many` falling back to `.other`. `format`: `formatDuration` (0, 45 min, hours, days), `formatClock` per locale, and `parseClock` accepting `22:10` and `7:05` and rejecting `25:00`, `2210` and the empty string.
+- `src/i18n/__tests__/`: the catalogs have the same keys, every red flag's why line and every emergency region's name exist, and the locale resolves from the device and the stored preference. `plural`: one and other in all three languages, CLDR's pt `one` for 0 and `many` for whole millions in es and pt, and a missing `.many` falling back to `.other`. `format`: `formatDuration` (0, 45 min, hours, days), `formatClock` per locale, and `parseClock` accepting `22:10` and `7:05` and rejecting `25:00`, `2210` and the empty string.
 - `src/lib/local/__tests__/`: `db` (schema version 1, the five tables, `user_id` and a 0/1 `dirty` on every mirror table, change listeners per table); `useLocalQuery` (re-reads only when a listed table changes or the read function is new); `purgeUser` and `purgeOtherUsers` (a user's rows go only with an empty outbox, never another user's, and a signed-out launch purges every clean user).
 - `src/lib/outbox/__tests__/`:
   - `outbox`: `enqueue` in a transaction marks the row dirty, and a rolled-back one queues nothing. A check-in is keyed by its date. The row turns clean only when its last operation is sent. `listOutbox('B')` never returns A's operations, and `resetFailed` clears one user's failures, attempts and backoff.
@@ -57,7 +58,7 @@ What the suites cover:
   - `signOutOffline`: against a real supabase-js client with a failing fetch, an expired stored session still signs out and leaves nothing in storage.
   - `useSignOut`: the pending state and a failure's message key.
   - `SocialButtons`: no Google button without both client ids, Apple only on iPhone, and nothing at all (not even the "or") on Android without Google.
-  - `AuthProvider`: with a stored session and a cached profile the first render is signed in and never waits for the network; a failed read keeps the cached profile and one with no cache still settles; a different user never sees another's cached profile; sign-out clears memory but keeps the cache; a slow read for a signed-out user is dropped; a recovery session is not a sign-in; a read that a local change overtook is dropped (not shown or cached) and read again; the email and `patchProfile`.
+  - `AuthProvider`: with a stored session and a cached profile the first render is signed in and never waits for the network; a failed read keeps the cached profile and one with no cache still settles; a different user never sees another's cached profile; sign-out clears memory but keeps the cache; a slow read for a signed-out user is dropped; a recovery session is not a sign-in; sign-out and an account switch forget a pending urgent-care request; a read that a local change overtook is dropped (not shown or cached) and read again; the email and `patchProfile`.
 - `src/ui/__tests__/`:
   - `theme`: every theme meets the contrast floor (text 4.5:1, marks 3:1), Dim stays under its luminance caps, Day and Dark have no pure white, Dark reads at 10:1 or more on a background that is not pure black, and `resolveTheme` maps each preference, phone scheme and crisis flag.
   - `motion`: the durations per level (Day and Dark full, Dim 1.5 times slower, reduced motion a 150 ms fade).
@@ -65,6 +66,13 @@ What the suites cover:
   - `Button`: 48 pt minimum, a label that wraps, the disabled state reported to assistive technology.
   - `TabScene`: the first tab appears without an entrance, a tab rises in each time it gains focus, and switching to Dim or Reduce motion while a tab is focused does not replay its entrance.
   - `TabBar`: the bar is opaque until the OS answers whether to reduce transparency, reduce transparency renders no glass or blur view, iOS 26 renders the system glass, otherwise a blur; tabs report their selected state.
+- `src/redflags/__tests__/useRedFlagCheck`: a hit opens urgent care once with the sentence that hit and returns true, an app in Spanish catches English, plain text returns false, it works with the AI off, and a long excerpt is cut to 160 characters.
+- `src/cabinet/__tests__/` and `src/__tests__/cabinet.test.tsx`:
+  - `doseDays`: one day per class however many doses, 23:59 on 30 November counts in November and 00:01 on 1 December in December (America/Bogota, where the UTC date differs), preventive doses and unknown medications are left out, archived acute ones still count, and the days left in the month.
+  - `medicationStore` and `doseStore`: the mirror row and the queued call commit together (a failing enqueue leaves no row), 1.5 hours is 90 minutes, archived medications are hidden by default, another user's rows are never read, and `p_episode_id` is omitted rather than null.
+  - `mostUrgent`: a class limit beats a combined limit and a class warn, a combined limit beats a class warn, and everything ok gives null.
+  - `cabinet` (screens): the empty state, the grouped list with days per class, the warn notice at 8 of 10 and the limit notice with its action, the form's validation, Preventive swapping the interval for the schedule, archiving after a confirmation, and the Profile row.
+- `supabase/functions/_shared/condition/__tests__/overuse`: the warn and limit levels per class, no limit for a gepant, the combined count (ICHD-3 8.2.6: ergot, triptan, simple analgesic and opioid only, distinct dates, applies only with two or more of them; combination analgesics, gepants and others never count toward it).
 - `src/profile/__tests__/`:
   - `profileRepository`: the snake_case to `Profile` mapping (a theme or language newer than the build reads as Automatic or the phone's language), the cache under `profile.<userId>` and `null` for another user, an update sending only the given columns, the consent RPC arguments, writes and the consent refetch never touching the cache (the provider caches what it shows), and a network failure leaving the cache untouched.
   - `tabs`: the companion tab exists only with the AI on.
@@ -76,6 +84,7 @@ What the suites cover:
   - `consent-gate`: the real consent screens under the root layout: a saved boundary moves on to the AI question and a saved AI answer opens the tabs through the gate alone, with no second profile read; a failed save keeps the user on the screen with the error.
   - `boundary`, `ai-consent`: each screen's checks and the consent fields it shows from the saved answer; a failed save shows the error and changes nothing.
   - `sign-in`, `confirm-email`: sign-in's Back only when there is a screen to return to and the unconfirmed-email path; the code screen arriving from sign-in (no code claimed sent, sending one first) and from sign-up (cooldown), and code entry.
+  - `urgent-care`: the hand-off pushes `/urgent-care` with no health text in the route; leaving the screen forgets the request, so opening it again shows no excerpt; a text hit shows the excerpt, the why and company lines and fires a warning haptic; a voice hit and several flags; region BR reads "Call 192" and dials `tel:192`; an unknown or missing region shows the local-number lines and opens an empty dialer; a duration hit shows the 72-hour line and "It already ended" opens the episode editor; "I'm safe, continue" goes back; the call button is the first focusable control after the title; and in Day, Dark and Dim its label is 4.5:1 on its fill and its fill 3:1 on the background.
   - `profile`: language, appearance (applied at once, put back on a failed save), reduce motion, the AI switch's confirmation and consent text, and sign-out.
 
 `src/test/syncMock.ts` stands in for `SyncProvider` in the suites that render the root layout (`smoke`,
@@ -91,6 +100,15 @@ its `patchProfile` merges into the current profile like the provider's.
 Plain Node, no jest-expo: `scripts/**/*.test.ts` and `supabase/functions/**/*.test.ts`. Node's own
 type stripping loads the files (`extensionsToTreatAsEsm` and `transform: {}`), so these files use
 explicit `.ts` imports and no Deno or React Native API in anything a test imports.
+
+- `supabase/functions/_shared/condition/__tests__/`:
+  - `migraine`: the catalogs, the ICHD-3 overuse limits, the duration limits, and the seven red flags, frozen and in order, with `allOf` groups only on `fever_stiff_neck`.
+  - `redFlags`: every positive in `calibration/red-flags.{en,es,pt}.json` returns at least its expected flags (zero misses) and no negative hits, both with its own locale and with `matchRedFlagsAnyLocale` (the union the app uses); an English message hits under the union but not under `es`; "worse than yesterday", "peor que ayer" and "pior que ontem" never hit; a stiff neck alone never hits, and with a fever term (in any language under the union) it does; each text flag has 4 or more positives and each locale 20 or more negatives; `normalizeText` folds case, accents and punctuation; a keyword inside another word does not hit; hits come in pack order once each; each flag but `long_attack` has 3 or more keywords per locale.
+  - `emergency`: the numbers for US, MX, BR, CO, CL, AR, ES, PT, PR, HN, CU, VE and GT, a lower-case code, `null` for BO, PY, NI and an unknown or missing region, and every number digits only.
+
+The fixtures are written the way people type: capitals, missing accents, typos and slang in Latin
+American Spanish and Brazilian Portuguese, plus ordinary attack descriptions that must not hit. Add a
+message that was missed as a positive before changing a keyword list.
 
 ## `integration`
 

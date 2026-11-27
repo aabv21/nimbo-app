@@ -8,7 +8,8 @@ import { Text, View } from 'react-native';
 //   device, so a component that reads it straight into a style is caught.
 // - `useAnimatedStyle`: records the boxes its factory reads (as the Babel plugin finds a worklet's
 //   shared values) and re-renders when one changes; declare it before any effect that writes them.
-// - `withTiming`, `withSpring`, `withDelay`: settle at once on the target, as Reanimated's own mock does.
+// - `withTiming`, `withSpring`, `withDelay`: settle at once on the target, as Reanimated's own mock does;
+//   `withTiming` also calls its completion callback with `finished: true`.
 // - `interpolate`, `interpolateColor`: linear and nearest-stop, enough to assert a settled style.
 // - `FadeIn`, `FadeOut`: layout-animation builders whose modifiers chain and do nothing; the view mounts settled.
 
@@ -80,7 +81,9 @@ export function useAnimatedStyle<T>(factory: () => T): T {
   return style;
 }
 
-export function withTiming<T>(toValue: T): T {
+/** Settles at once and reports a finished run to the callback, as a device does once the duration passes. */
+export function withTiming<T>(toValue: T, _config?: unknown, callback?: (finished?: boolean) => void): T {
+  callback?.(true);
   return toValue;
 }
 

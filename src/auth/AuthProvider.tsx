@@ -5,6 +5,7 @@ import { useOnResume } from '../lib/useOnResume';
 import { readStoredSession, startAuthAutoRefresh, supabase } from '../lib/supabase';
 import { fetchProfile, readCachedProfileSync, writeCachedProfile } from '../profile/profileRepository';
 import type { Profile } from '../profile/profileRepository';
+import { clearUrgentCare } from '../redflags/urgentCare';
 
 export type AuthStatus = 'loading' | 'signedOut' | 'signedIn';
 
@@ -91,6 +92,8 @@ export function AuthProvider({ children }: { children: ReactNode }): React.JSX.E
       if (nextUserId === null) {
         currentUserIdRef.current = null;
         failedReadRef.current = false;
+        // A pending urgent-care request holds what the user wrote; it never outlives their session.
+        clearUrgentCare();
         // The kv copy stays for an offline reopen; only the in-memory profile goes.
         setState(SIGNED_OUT);
         return;
@@ -104,6 +107,7 @@ export function AuthProvider({ children }: { children: ReactNode }): React.JSX.E
       const userChanged = currentUserIdRef.current !== nextUserId;
       currentUserIdRef.current = nextUserId;
       if (userChanged) {
+        clearUrgentCare();
         const cached = readCachedProfileSync(nextUserId);
         setState({ status: cached === null ? 'loading' : 'signedIn', userId: nextUserId, email, profile: cached });
       } else if (email !== null) {

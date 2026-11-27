@@ -21,6 +21,12 @@ jest.mock('expo-haptics', () => ({
 }));
 
 jest.mock('react-native-reanimated', () => require('./src/test/reanimatedMock'));
+// The worklets runtime is native; a callback scheduled back onto the JS thread runs at once.
+jest.mock('react-native-worklets', () => ({
+  scheduleOnRN: (fn: (...args: unknown[]) => void, ...args: unknown[]) => {
+    fn(...args);
+  },
+}));
 // The glass and blur views render as plain views; a suite flips `isLiquidGlassAvailable` to reach the iOS 26 branch.
 jest.mock('expo-glass-effect', () => {
   const { View } = jest.requireActual<typeof import('react-native')>('react-native');

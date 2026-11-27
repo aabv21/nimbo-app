@@ -28,6 +28,16 @@ export default defineConfig(
     rules: { 'security/detect-object-injection': 'off' },
   },
   {
+    // Both index a record by a medication class that comes from the pack's fixed tuple.
+    files: ['supabase/functions/_shared/condition/overuse.ts', 'src/cabinet/doseDays.ts'],
+    rules: { 'security/detect-object-injection': 'off' },
+  },
+  {
+    // The red-flag tests read the calibration fixtures from a path built from a fixed locale tuple.
+    files: ['supabase/functions/**/__tests__/*.ts'],
+    rules: { 'security/detect-non-literal-fs-filename': 'off' },
+  },
+  {
     // These tests read jest.fn() mocks off a mocked client and load a fresh module per test with require().
     files: ['src/auth/__tests__/authService.test.ts', 'src/lib/__tests__/supabase.test.ts'],
     rules: {
@@ -47,6 +57,9 @@ export default defineConfig(
       'jest.setup.ts',
       'src/ui/__tests__/ThemeProvider.test.tsx',
       'src/__tests__/{boundary,ai-consent,consent-gate,smoke,profile}.test.tsx',
+      'src/__tests__/cabinet.test.tsx',
+      'src/cabinet/__tests__/*.test.ts',
+      'src/redflags/__tests__/*.test.tsx',
       'src/profile/__tests__/{useTimezoneSync,useProfileChange}.test.ts',
       'src/lib/{local,outbox,sync}/__tests__/*.test.{ts,tsx}',
     ],

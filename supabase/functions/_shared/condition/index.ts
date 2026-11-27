@@ -1,7 +1,11 @@
 import { migraine } from './migraine.ts';
 import type { CatalogItem, CatalogName, ConditionPack } from './types.ts';
 
-export type { CatalogItem, CatalogName, ConditionPack, Locale, MedicationClass } from './types.ts';
+export type { CatalogItem, CatalogName, ConditionPack, Locale, MedicationClass, RedFlag, RedFlagKey } from './types.ts';
+export { emergencyNumber, emergencyRegions } from './emergency.ts';
+export { overuseStatus } from './overuse.ts';
+export type { OveruseEntry, OveruseLevel, OveruseStatus } from './overuse.ts';
+export { matchRedFlags, matchRedFlagsAnyLocale, normalizeText } from './redFlags.ts';
 
 export const packs: Readonly<Record<'migraine', ConditionPack>> = Object.freeze({ migraine });
 

@@ -1,4 +1,4 @@
-import type { CatalogItem, CatalogName, ConditionPack } from './types.ts';
+import type { CatalogItem, CatalogName, ConditionPack, Locale, RedFlag, RedFlagKey } from './types.ts';
 
 // Every list is frozen so app code cannot mutate the shared pack.
 function items(catalog: CatalogName, keys: readonly string[]): readonly CatalogItem[] {
@@ -6,6 +6,142 @@ function items(catalog: CatalogName, keys: readonly string[]): readonly CatalogI
     keys.map((key) => Object.freeze({ key, labelKey: `condition.${catalog}.${key}` })),
   );
 }
+
+type Phrases = Readonly<Record<Locale, readonly string[]>>;
+
+function frozen(phrases: Phrases): Phrases {
+  return Object.freeze({
+    en: Object.freeze([...phrases.en]),
+    es: Object.freeze([...phrases.es]),
+    pt: Object.freeze([...phrases.pt]),
+  });
+}
+
+function flag(key: RedFlagKey, whyKey: string, question: string, keywords: Phrases, allOf: readonly Phrases[] = []): RedFlag {
+  return Object.freeze({ key, whyKey, question, keywords: frozen(keywords), allOf: Object.freeze(allOf.map(frozen)) });
+}
+
+// Keywords are whole phrases written as people type them; matching folds case, accents and
+// punctuation, so "can't" also covers "CAN'T" and "cabeça" covers "cabeca". Recall comes first:
+// a false hit costs one tap on "I'm safe, continue". Calibration fixtures: `calibration/red-flags.*.json`.
+const redFlags: readonly RedFlag[] = Object.freeze([
+  flag('thunderclap', 'redflag.why.thunderclap', 'Does the message describe a sudden, explosive or worst-ever headache?', {
+    en: [
+      'worst headache', 'worst pain', 'worst migraine', 'worst of my life', 'worst ever', 'thunderclap', 'thunder clap',
+      'exploded', 'exploding', 'explosion', 'all at once', 'out of nowhere', 'came on suddenly', 'sudden severe',
+      'in seconds', 'within seconds', 'like being hit',
+    ],
+    es: [
+      'peor dolor', 'peor migraña', 'peor de mi vida', 'de golpe', 'de la nada', 'de repente', 'trueno', 'como un rayo',
+      'explotó', 'explotar', 'explosión', 'estalló', 'en segundos',
+    ],
+    pt: [
+      'pior dor', 'pior enxaqueca', 'pior da minha vida', 'do nada', 'de repente', 'de uma vez', 'trovão',
+      'explodir', 'explodiu', 'explodindo', 'explosão', 'em segundos',
+    ],
+  }),
+  flag('weakness', 'redflag.why.weakness', 'Does the message mention new weakness, numbness, a drooping face, trouble speaking, confusion or vision loss?', {
+    en: [
+      'numb', 'numbness', 'drooping', 'droopy', 'slurred', 'slurring', "can't speak", 'cant speak', 'cannot speak',
+      "can't talk", 'cant talk', 'trouble speaking', "words won't come out", 'feels weak', 'arm is weak', 'leg is weak',
+      'weakness', "can't move my", 'paralyzed', 'confused', 'confusion', "can't see", 'cant see', 'cannot see',
+      'lost the vision', 'lost my vision', 'lost vision', 'blind in one eye', 'went blind',
+    ],
+    es: [
+      'adormecida', 'adormecido', 'adormecimiento', 'se me adormeció', 'se me duerme', 'se me durmió', 'entumida',
+      'entumido', 'entumecida', 'entumecido', 'boca chueca', 'boca torcida', 'cara caída', 'no puedo hablar',
+      'no me salen las palabras', 'hablo raro', 'hablo todo raro', 'arrastro las palabras', 'me cuesta hablar',
+      'sin fuerza', 'debilidad', 'no puedo mover', 'confundida', 'confundido', 'confusión', 'no puedo ver', 'no veo nada', 'no veo bien', 'no veo de un ojo',
+      'perdí la vista', 'me quedé ciega', 'me quedé ciego',
+    ],
+    pt: [
+      'dormente', 'dormência', 'adormecido', 'adormecida', 'boca torta', 'boca ficou torta', 'rosto caído',
+      'não consigo falar', 'fala enrolada', 'enrolando pra falar', 'enrolando para falar', 'as palavras não saem',
+      'sem força', 'fraqueza', 'não consigo mexer', 'confusa', 'confuso', 'confusão', 'não consigo ver', 'não enxergo',
+      'perdi a visão', 'fiquei cega', 'fiquei cego',
+    ],
+  }),
+  // Neck pain or stiffness is common in an ordinary attack, so it raises this flag only with a fever term.
+  flag(
+    'fever_stiff_neck',
+    'redflag.why.fever',
+    'Does the message mention a fever together with a stiff neck?',
+    {
+      en: ['fever and stiff neck', 'fever and a stiff neck', 'stiff neck and fever', 'stiff neck and a fever'],
+      es: ['fiebre y cuello rígido', 'fiebre y el cuello rígido', 'fiebre y cuello tieso', 'fiebre y el cuello tieso'],
+      pt: ['febre e pescoço duro', 'febre e o pescoço duro', 'febre e pescoço rígido', 'febre e o pescoço rígido'],
+    },
+    [
+      {
+        en: ['fever', 'feverish', 'high temperature', 'running a temperature', 'temperature of', 'chills'],
+        es: ['fiebre', 'calentura', 'febril', 'temperatura alta', 'escalofríos'],
+        pt: ['febre', 'febril', 'temperatura alta', 'calafrios'],
+      },
+      {
+        en: [
+          'stiff neck', 'neck is stiff', 'neck is so stiff', "can't bend my neck", 'cant bend my neck',
+          'chin to my chest', 'chin to chest',
+        ],
+        es: [
+          'cuello rígido', 'cuello tieso', 'cuello bien tieso', 'nuca rígida', 'nuca tiesa',
+          'no puedo doblar el cuello', 'no puedo bajar la cabeza',
+        ],
+        pt: [
+          'pescoço duro', 'pescoço rígido', 'nuca dura', 'nuca rígida', 'não consigo dobrar o pescoço',
+          'queixo no peito',
+        ],
+      },
+    ],
+  ),
+  flag('head_injury', 'redflag.why.head_injury', 'Does the message say the headache came after a blow to the head or an accident?', {
+    en: [
+      'hit my head', 'banged my head', 'bumped my head', 'knocked my head', 'fell on my head', 'hit in the head',
+      'blow to the head', 'head injury', 'concussion', 'car accident', 'car crash',
+    ],
+    es: [
+      'me pegué en la cabeza', 'me golpeé la cabeza', 'me golpie la cabeza', 'golpe en la cabeza', 'me di un golpe',
+      'me pegaron en la cabeza', 'traumatismo', 'conmoción', 'choque', 'accidente',
+    ],
+    pt: [
+      'bati a cabeça', 'bati com a cabeça', 'pancada na cabeça', 'batida na cabeça', 'machuquei a cabeça',
+      'traumatismo', 'concussão', 'acidente',
+    ],
+  }),
+  flag('pregnancy', 'redflag.why.pregnancy', 'Does the message say the person is pregnant or recently gave birth?', {
+    en: [
+      'pregnant', 'pregnancy', 'gave birth', 'giving birth', 'postpartum', 'post partum', 'had my baby', 'had a baby',
+      'c section', 'expecting a baby',
+    ],
+    es: [
+      'embarazada', 'embarazo', 'di a luz', 'dar a luz', 'parto', 'posparto', 'postparto', 'puerperio', 'cesárea',
+      'tuve a mi bebé', 'tuve un bebé',
+    ],
+    pt: [
+      'grávida', 'gravidez', 'gestante', 'gestação', 'dei à luz', 'pós-parto', 'posparto', 'puerpério', 'cesárea',
+      'cesariana', 'tive bebê', 'tive o bebê', 'tive meu bebê',
+    ],
+  }),
+  flag('long_aura', 'redflag.why.aura', 'Does the message say an aura has lasted more than an hour?', {
+    en: [
+      "aura's been", 'aura has been going', 'aura has lasted', 'aura lasting', 'aura still', "aura won't go away",
+      "aura hasn't gone", 'aura for hours', 'aura for over an hour', 'aura for more than an hour',
+      'aura more than an hour', 'aura over an hour', "lights haven't gone away", "lights still haven't gone away",
+      "lights won't go away", "zigzags won't go away", 'still seeing lights', 'still seeing zigzags',
+    ],
+    es: [
+      'aura ya lleva', 'aura lleva', 'aura no se quita', 'aura no se va', 'aura desde hace', 'aura sigue',
+      'aura todavía', 'horas con el aura', 'horas con aura', 'sigo con el aura', 'sigo viendo lucecitas',
+      'sigo viendo luces', 'aura más de una hora',
+    ],
+    pt: [
+      'aura já passa de', 'aura há mais de', 'aura há horas', 'aura faz horas', 'aura não passa',
+      'aura não vai embora', 'aura continua', 'aura ainda', 'horas com a aura', 'que tô com a aura',
+      'que estou com a aura', 'continuo vendo luzinhas', 'continuo vendo luzes', 'continuo com a aura',
+    ],
+  }),
+  // Raised in code from an open episode's length, never from words.
+  flag('long_attack', 'redflag.why.long', 'Has the attack lasted more than 72 hours?', { en: [], es: [], pt: [] }),
+]);
 
 export const migraine: ConditionPack = Object.freeze({
   id: 'migraine',
@@ -40,5 +176,8 @@ export const migraine: ConditionPack = Object.freeze({
     other: null,
   }),
   overuseWarnRatio: 0.8,
+  combinedClassDayLimit: 10,
+  combinedClasses: Object.freeze(['ergot', 'triptan', 'simple_analgesic', 'opioid'] as const),
   limits: Object.freeze({ longEpisodeHours: 12, statusHours: 72, auraMinutes: 60 }),
+  redFlags,
 });

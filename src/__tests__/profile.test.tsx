@@ -7,6 +7,9 @@ import { setAiConsent, updateProfile } from '../profile/profileRepository';
 import { READY_PROFILE, currentAuth, resetAuth } from '../test/authMock';
 
 jest.mock('../auth/AuthProvider', () => require('../test/authMock'));
+// The cabinet row counts medications from the local store.
+jest.mock('expo-sqlite', () => require('../test/sqliteNode'));
+jest.mock('expo-router', () => ({ router: { push: jest.fn() } }));
 jest.mock('../profile/profileRepository', () => ({ updateProfile: jest.fn(), setAiConsent: jest.fn() }));
 const mockSignOut = jest.fn();
 jest.mock('../auth/useSignOut', () => ({

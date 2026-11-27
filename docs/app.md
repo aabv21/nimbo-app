@@ -19,6 +19,8 @@ Expo Router routes: every file is a screen and `_layout.tsx` files define naviga
   bar. The tab list comes from `visibleTabs`, so Companion has no trigger when the AI is off, and the
   shell renders nothing for a route without a trigger.
   `profile` holds language, appearance, reduce motion, the AI switch and sign-out.
+- `urgent-care.tsx`: the urgent-care screen for a red-flag hit ([Red flags](#red-flags)), registered with
+  the tabs as a full-screen modal with no animation and no swipe to dismiss.
 - `src/__tests__/` holds the tests that span routes.
 
 ## Auth (`src/auth/`)
@@ -127,8 +129,92 @@ transaction, shows the change at once, and the outbox sends it when it can.
 
 ## Condition pack (`src/condition/`)
 
-Re-exports `supabase/functions/_shared/condition/` (the migraine catalogs, medication classes and
-limits). App code imports it from here, never from `supabase/` directly.
+Re-exports `supabase/functions/_shared/condition/` (the migraine catalogs, medication classes,
+limits and red flags, `matchRedFlags`, `matchRedFlagsAnyLocale`, `normalizeText` and `emergencyNumber`). App code imports it from
+here, never from `supabase/` directly.
+
+## Red flags
+
+The pack lists seven red flags (`redFlags`): `thunderclap`, `weakness`, `fever_stiff_neck`,
+`head_injury`, `pregnancy`, `long_aura` and `long_attack`. Each has the message key of its "why"
+line, a yes/no question for a model screen, and whole-phrase keywords per language; `long_attack` has
+none, because it is raised from an open episode's length. A flag can also list `allOf` term groups
+that raise it only together: `fever_stiff_neck` needs a fever term and a neck-stiffness term, because a
+stiff neck alone is common in an ordinary attack. `matchRedFlags(text, locale, pack)`
+normalizes the text and each keyword the same way (lower case, accents folded, anything but letters
+and digits as one space) and returns the hits in pack order. `matchRedFlagsAnyLocale(text, pack)` does
+the same over the en, es and pt lists at once (an `allOf` group counts with a phrase from any language). The fixtures in `calibration/` are the messages it must
+catch, and the ordinary attack descriptions it must not, under each locale and under the union.
+
+- `src/redflags/useRedFlagCheck.ts`: `useRedFlagCheck()` gives `(text, source) => boolean`. It matches all
+  three languages whatever the app's language, since people write in the language they think in and a
+  miss costs more than a rare false hit. On a hit it opens urgent care with the sentence that hit (160
+  characters at most).
+- `src/redflags/urgentCare.ts`: `showUrgentCare(request)` keeps the request in memory and pushes
+  `/urgent-care`, so no health text travels in a route param; `currentUrgentCare()` reads it back and
+  `clearUrgentCare()` drops it. The screen reads it once and clears it when it unmounts, and
+  `AuthProvider` clears it on sign-out and on an account switch, so a message never outlives the
+  screen or the session.
+- `src/app/urgent-care.tsx`: what was found (or the 72-hour line for a duration hit), the why lines,
+  "ask someone to stay with you", then one filled 56 pt call button (`tel:<number>`) with the region
+  under it. A region with no number gets "call your local emergency number" and a button that opens
+  the dialer empty. A duration hit also offers "It already ended: fix the time" (the episode editor).
+  "I'm safe, continue" fades out and goes back. It fades in over 150 ms in every theme, with a warning
+  haptic; the call button never pulses.
+
+`emergencyNumber(region)` takes the phone's region (`getLocales()[0].regionCode`) and returns the
+medical emergency number, or `null`. Each number was checked against a government or health-ministry
+source (2026-11-27):
+
+| Region | Number | Source |
+| --- | --- | --- |
+| AR | 107 (SAME) | https://www.argentina.gob.ar/tema/emergencias |
+| BR | 192 (SAMU) | https://www.gov.br/saude/pt-br/composicao/saes/samu-192 |
+| CA | 911 | https://www.alberta.ca/what-to-expect-when-calling-911, https://www.quebec.ca/en/health/health-system-and-services/pre-hospital-emergency-services/what-to-do-emergency-requiring-ambulance |
+| CL | 131 (SAMU) | https://www.minsal.cl/samu-instala-base-en-alto-hospicio-y-llama-a-utilizar-responsablemente-el-131/ |
+| CO | 123 | https://bogota.gov.co/mi-ciudad/salud/cuando-llamar-una-ambulancia-en-bogota-y-que-linea-solicitarla, https://www.cali.gov.co/salud/publicaciones/169064/red-de-salud-publica-lidera-las-solicitudes-para-atender-emergencias-medicas/ |
+| CR | 911 | https://www.ministeriodesalud.go.cr/index.php/biblioteca-de-archivos-left/documentos-ministerio-de-salud/vigilancia-de-la-salud/normas-protocolos-guias-y-lineamientos/protocolo-de-atencion-de-emergencias/10014-protocolo-de-atencion-de-emergencias-desde-zonas-de-dificil-acceso/file |
+| CU | 104 (SIUM, MINSAP) | https://instituciones.sld.cu/siumlahabana/, https://revcmpinar.sld.cu/index.php/publicaciones/article/download/3460/pdf |
+| DO | 911 | https://memorias.minpre.gob.do/api/documents/4309/download/ (Ley 140-13, the 9-1-1 system and its ambulances) |
+| EC | 911 | https://www.gob.ec/ecu-911/tramites/solicitud-atencion-emergencia-traves-diferentes-mecanismos-alerta |
+| ES | 112 | https://administracion.gob.es/pag_Home/Tu-espacio-europeo/derechos-obligaciones/ciudadanos/asistencia-sanitaria/numeros-urgencia.html |
+| GB | 999 | https://www.nhs.uk/nhs-services/urgent-and-emergency-care-services/when-to-call-999/ |
+| GT | 122 (Bomberos Voluntarios, national ambulance) | https://bomberosvoluntarios.org.gt/en-services/medical-emergencies |
+| HN | 911 (SNE 911, UREM ambulances) | https://portalunico.iaip.gob.hn/ver_archivo/MjAwNDI1NQ== |
+| MX | 911 | https://www.gob.mx/cms/uploads/attachment/file/911650/Llamadas_de_emergencia_9-1-1_202401.pdf |
+| PA | 911 (SUME) | Ley 44 de 2007, which creates the SUME 9-1-1: https://docs.panama.justia.com/federales/leyes/44-de-2007-nov-1-2007.pdf |
+| PE | 106 (SAMU) | https://www.gob.pe/institucion/minsa/noticias/1436318-ministerio-de-salud-mas-de-diez-mil-emergencias-por-accidentes-de-transito-atendio-el-samu-en-lo-que-va-del-2026 |
+| PR | 911 | Ley 144-1994, Negociado de Sistemas de Emergencias 9-1-1: https://docs.pr.gov/files/911/Documentos/Formularios/INFORMACI%C3%93N%20GENERAL%20PARA%20COMPA%C3%91%C3%8DAS%20TELEF%C3%93NICAS.pdf, https://hacienda.pr.gov/sites/default/files/negociado_de_sistemas_de_emergencias_de_pr_911.pdf |
+| PT | 112 | https://www.gov.pt/guias/contactos-de-emergencia-em-portugal |
+| SV | 132 (SEM) | https://transparencia.gob.sv/institutions/minsal/documents/558170/download |
+| US | 911 | https://www.911.gov/calling-911 |
+| UY | 911 | https://www.gub.uy/ministerio-salud-publica/comunicacion/noticias/same-105-se-integro-centro-comando-unificado-para-fortalecer-atencion |
+| VE | 911 (VEN 911) | Gaceta Oficial 41.711 (6 September 2019), which orders the 9-1-1 single emergency number displayed; Conatel's 171 comes from Resolution 220 of 18 March 2003 (https://conatel.gob.ve/wp-content/uploads/2024/08/reforma-parcial-del-plan-de-numeracion-para-los-servicios-de-telefonia-y-servicios-de-radiocomunicaciones-movil-terrestre.pdf) |
+
+Bolivia, Paraguay and Nicaragua return `null`: Bolivia's 168 (a 2017 ministry norm) is not confirmed
+as operating, Paraguay's SEME 141 was reported out of service in 2026, and Nicaragua's 128 was the
+Cruz Roja Nicaragüense's line, dissolved in 2023, with no official replacement found. Any region not in the table
+returns `null` too, and the screen says to call the local emergency number. A region's name for the
+call button is the catalog key `region.<code>`.
+
+
+### Medicine cabinet and overuse guard (`src/cabinet/`, `src/app/cabinet/`)
+
+Medications and doses live in the local mirrors and reach the server through the outbox.
+
+- `medicationStore.ts`: `saveMedication(userId, id, fields)` upserts the mirror row and queues `save_medication` in one
+  transaction (the form's interval in hours is stored as whole minutes). `useMedications` hides archived ones unless
+  asked; `useMedication` reads one.
+- `doseStore.ts`: `logDose` makes the id on the phone (a retried send cannot log twice) and leaves `p_episode_id` out for a
+  dose with no episode; `deleteDose` removes the row and queues `delete_dose`; `useDoses` filters by episode or medication.
+- `doseDays.ts`: `doseDaysForMonth` lists the distinct local dates with an acute dose per class in the calendar month of a
+  date, read in a given time zone, so 23:59 on 30 November is November. Archived medications count; preventive ones do not.
+  `daysLeftInMonth` is the whole days after today.
+- `OveruseNotice.tsx`: `mostUrgent` picks one notice (a limit over a warning, a class over the combined count) and the
+  component shows it; its action opens `/history?filter=doses`.
+- The guard itself is `overuseStatus` in the condition pack: per-class ICHD-3 limits plus the combined limit of 8.2.6 (combination analgesics are 8.2.5, with their own limit).
+- `src/app/cabinet/index.tsx` lists acute and preventive medications with each class's days; `[id].tsx` adds (`new`) or
+  edits one and archives it after a confirmation. Profile has a row that opens the cabinet.
 
 ## Test helpers (`src/test/`)
 

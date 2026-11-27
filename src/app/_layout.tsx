@@ -102,6 +102,10 @@ function GatedStack(): React.JSX.Element {
       </Stack.Protected>
       <Stack.Protected guard={target === '/today'}>
         <Stack.Screen name="(tabs)" />
+        {/* Opens over anything at once and cannot be swiped away: leaving is a choice on the screen. */}
+        {/* NOTE: only the Today target reaches it; upgrade: also guard the onboarding target once that screen joins the gate. */}
+        <Stack.Screen name="cabinet" />
+        <Stack.Screen name="urgent-care" options={{ presentation: 'fullScreenModal', animation: 'none', gestureEnabled: false }} />
       </Stack.Protected>
     </Stack>
   );

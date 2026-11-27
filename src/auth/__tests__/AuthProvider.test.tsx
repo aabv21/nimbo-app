@@ -1,4 +1,4 @@
-import { act, renderHook, waitFor } from '@testing-library/react-native';
+import { act, render, renderHook, screen, waitFor } from '@testing-library/react-native';
 import type { ReactNode } from 'react';
 
 type Session = { user: { id: string; email?: string } } | null;
@@ -29,8 +29,13 @@ jest.mock('../../profile/profileRepository', () => {
   return { ...actual, fetchProfile: () => mockFetchProfile() };
 });
 
+jest.mock('expo-router', () => ({ router: { push: jest.fn(), replace: jest.fn(), back: jest.fn() } }));
+
+import UrgentCare from '../../app/urgent-care';
+import { translate } from '../../i18n';
 import { kvGet, kvRemove, kvSet } from '../../lib/kv';
 import type { Profile } from '../../profile/profileRepository';
+import { currentUrgentCare, showUrgentCare } from '../../redflags/urgentCare';
 import { AuthProvider, useAuth } from '../AuthProvider';
 
 const PROFILE: Profile = {
@@ -170,6 +175,38 @@ test('sign-out clears the profile from memory but keeps the cache for an offline
   expect(result.current).toMatchObject({ status: 'signedOut', userId: null, profile: null });
   const { readCachedProfileSync } = await import('../../profile/profileRepository');
   expect(readCachedProfileSync('u1')).toEqual(PROFILE);
+});
+
+const EXCERPT = 'the worst headache of my life';
+
+test('sign-out forgets a pending urgent-care request, so the screen shows no excerpt', async () => {
+  mockReadStoredSession.mockReturnValue({ userId: 'u1', email: null });
+  kvSet('profile.u1', JSON.stringify(PROFILE));
+  await renderHook(() => useAuth(), { wrapper });
+  showUrgentCare({ flags: ['thunderclap'], excerpt: EXCERPT, source: 'text', episodeId: null });
+
+  await act(() => {
+    authStateCallback?.('SIGNED_OUT', null);
+  });
+
+  expect(currentUrgentCare()).toBeNull();
+  await render(<UrgentCare />);
+  expect(screen.queryByText(translate('en', 'redflag.excerpt', { text: EXCERPT }))).toBeNull();
+});
+
+test('an account switch forgets a pending urgent-care request', async () => {
+  const { result } = await renderHook(() => useAuth(), { wrapper });
+  await act(() => {
+    authStateCallback?.('SIGNED_IN', { user: { id: 'u1' } });
+  });
+  showUrgentCare({ flags: ['thunderclap'], excerpt: EXCERPT, source: 'text', episodeId: null });
+
+  await act(() => {
+    authStateCallback?.('SIGNED_IN', { user: { id: 'u2' } });
+  });
+
+  expect(result.current.userId).toBe('u2');
+  expect(currentUrgentCare()).toBeNull();
 });
 
 test("a different user signing in never sees the previous user's cached profile", async () => {

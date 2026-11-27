@@ -1,4 +1,4 @@
-import { packs } from '../../condition';
+import { emergencyRegions, packs } from '../../condition';
 import { catalogs, isMessageKey, resolveLocale, translate } from '../index';
 
 test.each(['es', 'pt'] as const)('%s has exactly the keys of en', (locale) => {
@@ -32,4 +32,9 @@ test('every condition catalog item has a label in the catalog', () => {
 
 test('params are interpolated', () => {
   expect(translate('en', 'profile.signedInAs', { email: 'a@b.co' })).toContain('a@b.co');
+});
+
+test('every red flag why line and every emergency region name is in the catalog', () => {
+  for (const flag of packs.migraine.redFlags) expect(isMessageKey(flag.whyKey)).toBe(true);
+  for (const region of emergencyRegions) expect(isMessageKey(`region.${region.toLowerCase()}`)).toBe(true);
 });

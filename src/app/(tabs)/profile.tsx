@@ -1,10 +1,13 @@
+import { router } from 'expo-router';
+import { ChevronRight } from 'lucide-react-native';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
-import { AccessibilityInfo, StyleSheet, Text, View } from 'react-native';
+import { AccessibilityInfo, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useAuth } from '../../auth/AuthProvider';
 import { authErrorMessage } from '../../auth/errors';
 import { useSignOut } from '../../auth/useSignOut';
+import { useMedications } from '../../cabinet/medicationStore';
 import { useI18n } from '../../i18n';
 import type { MessageKey } from '../../i18n';
 import { useLocalePreference } from '../../i18n/I18nProvider';
@@ -19,7 +22,7 @@ import { Notice } from '../../ui/Notice';
 import { Screen } from '../../ui/Screen';
 import { SwitchRow } from '../../ui/SwitchRow';
 import { useTabBarInset } from '../../ui/TabBar';
-import { fonts, radius, space, type } from '../../ui/theme';
+import { controlHeight, fonts, radius, space, type } from '../../ui/theme';
 import { useTheme } from '../../ui/themeContext';
 
 const LANGUAGES: readonly LocalePreference[] = ['system', 'en', 'es', 'pt'];
@@ -38,6 +41,26 @@ function Section({ title, children }: { title: string; children: ReactNode }): R
       </Text>
       {children}
     </View>
+  );
+}
+
+/** Opens the cabinet; the count is the medications still in use, kept on this phone. */
+function CabinetRow({ userId }: { userId: string }): React.JSX.Element {
+  const { t } = useI18n();
+  const { color } = useTheme();
+  const count = useMedications(userId).length;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={() => {
+        router.push('/cabinet');
+      }}
+      style={[styles.navRow, { borderColor: color.border }]}
+    >
+      <Text style={[styles.body, styles.navLabel, { color: color.text }]}>{t('cabinet.title')}</Text>
+      <Text style={[styles.sub, { color: color.textMuted }]}>{String(count)}</Text>
+      <ChevronRight size={20} color={color.textMuted} />
+    </Pressable>
   );
 }
 
@@ -109,7 +132,7 @@ function CompanionSetting({ enabled }: { enabled: boolean }): React.JSX.Element 
 export default function Profile(): React.JSX.Element | null {
   const { t } = useI18n();
   const { color } = useTheme();
-  const { profile, email } = useAuth();
+  const { profile, email, userId } = useAuth();
   const { preference, setPreference } = useLocalePreference();
   const { change, error } = useProfileChange();
   const signOut = useSignOut();
@@ -163,6 +186,7 @@ export default function Profile(): React.JSX.Element | null {
             void change({ reduceMotion });
           }}
         />
+        {userId === null ? null : <CabinetRow userId={userId} />}
       </Section>
 
       <Section title={t('profile.companion')}>
@@ -194,5 +218,7 @@ const styles = StyleSheet.create({
   body: { fontFamily: fonts.body, fontSize: type.body, lineHeight: 24 },
   sub: { fontFamily: fonts.body, fontSize: type.label, lineHeight: 20 },
   help: { fontFamily: fonts.body, fontSize: type.caption, lineHeight: 18 },
+  navRow: { flexDirection: 'row', alignItems: 'center', gap: space[2], minHeight: controlHeight, borderTopWidth: 1, borderBottomWidth: 1 },
+  navLabel: { flex: 1 },
   confirm: { gap: space[3], padding: space[3], borderRadius: radius.card, borderWidth: 1 },
 });

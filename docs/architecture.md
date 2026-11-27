@@ -154,6 +154,13 @@ has a timeout (`fetchWithTimeout`), so a dead connection does not hold a spinner
   limits live once in `supabase/functions/_shared/condition/`, with no runtime imports so Deno and the
   app can both load it; `src/condition/index.ts` re-exports it. A test checks every catalog item has
   a label in every language catalog.
+- **Red flags are matched on the phone, every time.** Every free text goes through `matchRedFlagsAnyLocale`
+  (the pack's whole-phrase keywords in all three languages, whatever the app's, with case, accents and
+  punctuation folded) before
+  anything else, offline and with the AI off. Negation is not parsed: a false hit costs one "I'm safe,
+  continue", a miss could cost far more. The calibration fixtures (`calibration/red-flags.*.json`) must
+  hit with zero misses. The emergency number comes from the phone's region, not the language, and a
+  region without a clear official number gets "call your local emergency number" rather than a guess.
 - **Commits by milestone.** The branch history has one commit per milestone (repo and toolchain,
   domain and languages, backend and auth, app shell, docs), each reviewed before it is kept, so the
   history reads as the build order.

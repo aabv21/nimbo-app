@@ -31,8 +31,9 @@ Docs for agents: `https://docs.expo.dev/llms.txt`
 
 - `src/app/`: Expo Router routes only; the root layout gates the route groups with `nextRoute` and `Stack.Protected`. `src/__tests__/`: tests that span routes. Each module: [`docs/app.md`](docs/app.md).
 - `src/ui/`: the theme tokens, motion tokens and base components (`Screen`, `Button`, `TextField`, `Notice`, `TabBar`, `TabScene`, `ChoiceGroup`, `SwitchRow`) and `usePressFeedback`; components read colours only from `useTheme()` and durations only from `useMotion()`.
-- `src/auth/`, `src/profile/`: sign-in, the session, the gate (`gate.ts`) and the profile; `AuthProvider` is the only writer of the profile cache. `src/i18n/`: the `en`, `es` and `pt` catalogs. `src/condition/`: re-exports the condition pack in `supabase/functions/_shared/condition/`. `src/lib/`: the Supabase client, kv store, request helpers, and the local store, outbox and sync (`local/`, `outbox/`, `sync/`). `src/test/`: shared test mocks. `integration/`: tests against the local stack.
+- `src/auth/`, `src/profile/`: sign-in, the session, the gate (`gate.ts`) and the profile; `AuthProvider` is the only writer of the profile cache. `src/i18n/`: the `en`, `es` and `pt` catalogs. `src/condition/`: re-exports the condition pack in `supabase/functions/_shared/condition/`. `src/redflags/`: the red-flag check and the hand-off to the urgent-care screen. `src/lib/`: the Supabase client, kv store, request helpers, and the local store, outbox and sync (`local/`, `outbox/`, `sync/`). `src/test/`: shared test mocks. `integration/`: tests against the local stack.
 - `scripts/`: repo tooling in TypeScript, run with Node's type stripping.
+- `calibration/`: the red-flag fixtures per language that the keyword matcher must pass with zero misses.
 - `supabase/`: `config.toml`, `migrations/`, pgTAP `tests/`, the auth email `templates/` and the Edge Function code (`functions/`).
 - `docs/`: the documentation map below; `docs/diagrams/`: the archify sources (`*.json`), pages (`*.html`) and images (`*.svg`).
 - `assets/images/`: the provisional icon and splash images.

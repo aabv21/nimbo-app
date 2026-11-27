@@ -34,8 +34,23 @@ test('overuse limits are the ICHD-3 medication-overuse day counts', () => {
     combination_analgesic: 10, gepant: null, other: null,
   });
   expect(pack.overuseWarnRatio).toBe(0.8);
+  expect(pack.combinedClassDayLimit).toBe(10);
+  expect(pack.combinedClasses).toEqual(['ergot', 'triptan', 'simple_analgesic', 'opioid']);
 });
 
 test('duration limits', () => {
   expect(pack.limits).toEqual({ longEpisodeHours: 12, statusHours: 72, auraMinutes: 60 });
+});
+
+test('red flags are frozen, in a fixed order, and only fever_stiff_neck needs terms together', () => {
+  expect(Object.isFrozen(pack.redFlags)).toBe(true);
+  expect(pack.redFlags.map((flag) => flag.key)).toEqual([
+    'thunderclap', 'weakness', 'fever_stiff_neck', 'head_injury', 'pregnancy', 'long_aura', 'long_attack',
+  ]);
+  for (const flag of pack.redFlags) {
+    expect(Object.isFrozen(flag)).toBe(true);
+    expect(Object.isFrozen(flag.keywords)).toBe(true);
+    expect(Object.isFrozen(flag.allOf)).toBe(true);
+    expect(flag.allOf.length).toBe(flag.key === 'fever_stiff_neck' ? 2 : 0);
+  }
 });
