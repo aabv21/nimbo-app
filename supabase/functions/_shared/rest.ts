@@ -39,7 +39,12 @@ const RPC_NAME = /^[a-z_][a-z0-9_]*$/;
  * Calls RPCs as the caller, shaped like supabase-js's `rpc`: never throws; a PostgREST error, a
  * network error, the timeout or a body that isn't JSON answers `data: null` and an `error`.
  */
-export function rpcClient(env: SupabaseEnv, fetchFn: FetchFn, auth: string): { rpc(name: string, args: Record<string, unknown>): Promise<RpcResult> } {
+export function rpcClient(
+  env: SupabaseEnv,
+  fetchFn: FetchFn,
+  auth: string,
+  timeoutMs = POSTGREST_TIMEOUT_MS,
+): { rpc(name: string, args: Record<string, unknown>): Promise<RpcResult> } {
   return {
     async rpc(name, args) {
       if (!RPC_NAME.test(name)) return { data: null, error: { message: 'invalid rpc name' } };
@@ -48,7 +53,7 @@ export function rpcClient(env: SupabaseEnv, fetchFn: FetchFn, auth: string): { r
           fetchFn,
           `${env.supabaseUrl}/rest/v1/rpc/${name}`,
           { method: 'POST', headers: { ...userHeaders(env, auth), 'content-type': 'application/json' }, body: JSON.stringify(args) },
-          POSTGREST_TIMEOUT_MS,
+          timeoutMs,
         );
         const text = await response.text();
         const body: unknown = text === '' ? null : JSON.parse(text);
@@ -62,8 +67,8 @@ export function rpcClient(env: SupabaseEnv, fetchFn: FetchFn, auth: string): { r
 }
 
 /** `rpcClient` narrowed to Wave 2's `PremiumClient`: any `data` that is not a boolean reads as null. */
-export function premiumClient(env: SupabaseEnv, fetchFn: FetchFn, auth: string): PremiumClient {
-  const client = rpcClient(env, fetchFn, auth);
+export function premiumClient(env: SupabaseEnv, fetchFn: FetchFn, auth: string, timeoutMs = POSTGREST_TIMEOUT_MS): PremiumClient {
+  const client = rpcClient(env, fetchFn, auth, timeoutMs);
   return {
     async rpc(name, args) {
       const { data, error } = await client.rpc(name, args);

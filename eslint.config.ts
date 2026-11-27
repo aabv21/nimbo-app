@@ -33,6 +33,11 @@ export default defineConfig(
     rules: { 'security/detect-object-injection': 'off' },
   },
   {
+    // The screens index a record by a guard key, an intent or a red-flag key from a fixed tuple.
+    files: ['supabase/functions/_shared/{screen,screenQuestions,screenFallback}.ts'],
+    rules: { 'security/detect-object-injection': 'off' },
+  },
+  {
     // These index a record by a catalog name, a form field or a period from a fixed tuple.
     files: ['src/history/{filterEpisodes,labels}.ts', 'src/app/episode/[[]id]/edit.tsx'],
     rules: { 'security/detect-object-injection': 'off' },

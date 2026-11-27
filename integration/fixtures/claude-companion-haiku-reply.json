@@ -1,0 +1,16 @@
+{
+  "status": 200,
+  "body": {
+    "type": "message",
+    "role": "assistant",
+    "model": "claude-haiku-5-5",
+    "stop_reason": "end_turn",
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"dose_advice\":false,\"medication_change\":false,\"diagnosis\":false,\"ungrounded_number\":false,\"overuse_override\":false,\"red_flag_dismissal\":false,\"prediction\":false}"
+      }
+    ],
+    "usage": { "input_tokens": 1100, "output_tokens": 50 }
+  }
+}

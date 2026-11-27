@@ -21,11 +21,20 @@ function flag(key: RedFlagKey, whyKey: string, question: string, keywords: Phras
   return Object.freeze({ key, whyKey, question, keywords: frozen(keywords), allOf: Object.freeze(allOf.map(frozen)) });
 }
 
+// "Can't feel my/the" only with a body part after it: "I can't feel the pain anymore" is relief, not numbness.
+const NUMB_BODY_PARTS = [
+  'arm', 'arms', 'hand', 'hands', 'leg', 'legs', 'foot', 'feet', 'face', 'fingers', 'lips', 'tongue', 'side', 'half',
+  'left', 'right', 'toes', 'cheek', 'body',
+] as const;
+const CANT_FEEL = ["can't feel my", 'cant feel my', 'cannot feel my', "can't feel the", 'cant feel the', 'cannot feel the'].flatMap((prefix) =>
+  NUMB_BODY_PARTS.map((part) => `${prefix} ${part}`),
+);
+
 // Keywords are whole phrases written as people type them; matching folds case, accents and
 // punctuation, so "can't" also covers "CAN'T" and "cabeça" covers "cabeca". Recall comes first:
 // a false hit costs one tap on "I'm safe, continue". Calibration fixtures: `calibration/red-flags.*.json`.
 const redFlags: readonly RedFlag[] = Object.freeze([
-  flag('thunderclap', 'redflag.why.thunderclap', 'Does the message describe a sudden, explosive or worst-ever headache?', {
+  flag('thunderclap', 'redflag.why.thunderclap', 'Does `message` describe a sudden, explosive or worst-ever headache?', {
     en: [
       'worst headache', 'worst pain', 'worst migraine', 'worst of my life', 'worst ever', 'thunderclap', 'thunder clap',
       'exploded', 'exploding', 'explosion', 'all at once', 'out of nowhere', 'came on suddenly', 'sudden severe',
@@ -40,14 +49,13 @@ const redFlags: readonly RedFlag[] = Object.freeze([
       'explodir', 'explodiu', 'explodindo', 'explosão', 'em segundos',
     ],
   }),
-  flag('weakness', 'redflag.why.weakness', 'Does the message mention new weakness, numbness, a drooping face, trouble speaking, confusion, vision loss or double vision?', {
+  flag('weakness', 'redflag.why.weakness', 'Does `message` mention new weakness, numbness, a drooping face, trouble speaking, confusion, vision loss or double vision?', {
     en: [
       'numb', 'numbness', 'drooping', 'droopy', 'slurred', 'slurring', "can't speak", 'cant speak', 'cannot speak',
       "can't talk", 'cant talk', 'trouble speaking', "words won't come out", 'feels weak', 'arm is weak', 'leg is weak',
       'weakness', "can't move my", 'paralyzed', 'confused', 'confusion', "can't see", 'cant see', 'cannot see',
       'lost the vision', 'lost my vision', 'lost vision', 'blind in one eye', 'went blind',
-      "can't feel my", 'cant feel my', 'cannot feel my', "can't feel the", 'cant feel the', 'no feeling in',
-      'lost feeling', 'double vision', 'seeing double', 'see double',
+      ...CANT_FEEL, 'no feeling in', 'lost feeling', 'double vision', 'seeing double', 'see double',
     ],
     es: [
       'adormecida', 'adormecido', 'adormecimiento', 'se me adormeció', 'se me duerme', 'se me durmió', 'entumida',
@@ -69,11 +77,12 @@ const redFlags: readonly RedFlag[] = Object.freeze([
       'visão dupla', 'vista dupla', 'vejo duplo', 'vendo duplo', 'vejo dobrado', 'vendo dobrado',
     ],
   }),
-  // Neck pain or stiffness is common in an ordinary attack, so it raises this flag only with a fever term.
+  // Neck stiffness and a bad headache are common in an ordinary attack, so either raises this flag only
+  // with a fever term: the second group holds the neck terms and the severe-headache terms.
   flag(
     'fever_stiff_neck',
     'redflag.why.fever',
-    'Does the message mention a fever together with a stiff neck?',
+    'Does `message` mention a fever together with a stiff neck or a severe headache?',
     {
       en: ['fever and stiff neck', 'fever and a stiff neck', 'stiff neck and fever', 'stiff neck and a fever'],
       es: ['fiebre y cuello rígido', 'fiebre y el cuello rígido', 'fiebre y cuello tieso', 'fiebre y el cuello tieso'],
@@ -89,19 +98,27 @@ const redFlags: readonly RedFlag[] = Object.freeze([
         en: [
           'stiff neck', 'neck is stiff', 'neck is so stiff', "can't bend my neck", 'cant bend my neck',
           'chin to my chest', 'chin to chest',
+          'worst headache', 'severe headache', 'severe head pain', 'horrible headache', 'terrible headache',
+          'awful headache', 'bad headache', 'unbearable headache', 'unbearable pain', 'excruciating',
         ],
         es: [
           'cuello rígido', 'cuello tieso', 'cuello bien tieso', 'nuca rígida', 'nuca tiesa',
           'no puedo doblar el cuello', 'no puedo bajar la cabeza',
+          'dolor de cabeza horrible', 'dolor horrible', 'dolor de cabeza terrible', 'dolor terrible', 'insoportable',
+          'fortísimo', 'fortísima', 'fuertísimo', 'fuertísima', 'fuertisimo', 'dolor de cabeza muy fuerte',
+          'dolor muy fuerte', 'dolor de cabeza intenso',
         ],
         pt: [
           'pescoço duro', 'pescoço rígido', 'nuca dura', 'nuca rígida', 'não consigo dobrar o pescoço',
           'queixo no peito',
+          'dor de cabeça forte', 'dor de cabeça muito forte', 'dor de cabeça intensa', 'dor de cabeça horrível',
+          'dor horrível', 'insuportável',
+          'fortíssima', 'fortíssimo',
         ],
       },
     ],
   ),
-  flag('head_injury', 'redflag.why.head_injury', 'Does the message say the headache came after a blow to the head or an accident?', {
+  flag('head_injury', 'redflag.why.head_injury', 'Does `message` say the headache came after a blow to the head or an accident?', {
     en: [
       'hit my head', 'banged my head', 'bumped my head', 'knocked my head', 'fell on my head', 'hit in the head',
       'blow to the head', 'head injury', 'concussion', 'car accident', 'car crash',
@@ -115,7 +132,7 @@ const redFlags: readonly RedFlag[] = Object.freeze([
       'traumatismo', 'concussão', 'acidente',
     ],
   }),
-  flag('pregnancy', 'redflag.why.pregnancy', 'Does the message say the person is pregnant or recently gave birth?', {
+  flag('pregnancy', 'redflag.why.pregnancy', 'Does `message` say the person is pregnant or recently gave birth?', {
     en: [
       'pregnant', 'pregnancy', 'gave birth', 'giving birth', 'postpartum', 'post partum', 'had my baby', 'had a baby',
       'c section', 'expecting a baby',
@@ -129,7 +146,7 @@ const redFlags: readonly RedFlag[] = Object.freeze([
       'cesariana', 'tive bebê', 'tive o bebê', 'tive meu bebê',
     ],
   }),
-  flag('long_aura', 'redflag.why.aura', 'Does the message say an aura has lasted more than an hour?', {
+  flag('long_aura', 'redflag.why.aura', 'Does `message` say an aura has lasted more than an hour?', {
     en: [
       "aura's been", 'aura has been going', 'aura has lasted', 'aura lasting', 'aura still', "aura won't go away",
       "aura hasn't gone", 'aura for hours', 'aura for over an hour', 'aura for more than an hour',
@@ -148,7 +165,7 @@ const redFlags: readonly RedFlag[] = Object.freeze([
     ],
   }),
   // Raised in code from an open episode's length, never from words.
-  flag('long_attack', 'redflag.why.long', 'Has the attack lasted more than 72 hours?', { en: [], es: [], pt: [] }),
+  flag('long_attack', 'redflag.why.long', 'Does `message` say the attack has lasted more than 72 hours?', { en: [], es: [], pt: [] }),
 ]);
 
 export const migraine: ConditionPack = Object.freeze({

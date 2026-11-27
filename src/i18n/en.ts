@@ -253,7 +253,7 @@ export const en = {
   'redflag.why.weakness': 'Numbness on one side of the face or trouble speaking need urgent care, even if they feel like an aura.',
   'redflag.why.long': 'An attack this long needs to be seen by a doctor.',
   'redflag.excerpt': '“{text}”',
-  'redflag.why.fever': 'A fever with a stiff neck needs urgent care, even if the headache feels like your usual migraine.',
+  'redflag.why.fever': 'A fever with a stiff neck or a severe headache needs urgent care, even if the headache feels like your usual migraine.',
   'redflag.why.head_injury': 'A headache after a blow to the head needs to be checked by a doctor, even if you have migraine.',
   'redflag.why.pregnancy': 'A first severe headache in pregnancy or after giving birth needs urgent care, even if you have migraine.',
   'redflag.why.aura': 'An aura that lasts more than an hour needs urgent care, even if you’ve had auras before.',

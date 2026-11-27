@@ -38,7 +38,13 @@
     { "text": "não sinto minha mão desde que começou a dor", "expect": ["weakness"] },
     { "text": "visão dupla desde de manhã", "expect": ["weakness"] },
     { "text": "vejo duplo e a dor tá forte", "expect": ["weakness"] },
-    { "text": "não sinto o lado esquerdo do rosto", "expect": ["weakness"] }
+    { "text": "não sinto o lado esquerdo do rosto", "expect": ["weakness"] },
+    { "text": "febre alta e uma dor de cabeça fortíssima", "expect": ["fever_stiff_neck"] },
+    { "text": "febre e dor de cabeça forte desde ontem", "expect": ["fever_stiff_neck"] },
+    { "text": "tô com febre e uma dor insuportável", "expect": ["fever_stiff_neck"] },
+    { "text": "calafrios e uma dor de cabeça horrível", "expect": ["fever_stiff_neck"] },
+    { "text": "febre e uma dor de cabeça muito forte", "expect": ["fever_stiff_neck"] },
+    { "text": "febre e dor de cabeça intensa", "expect": ["fever_stiff_neck"] }
   ],
   "negatives": [
     { "text": "a enxaqueca de sempre, tempora esquerda, enjoo" },
@@ -64,6 +70,17 @@
     { "text": "enxaqueca de novo, a terceira da semana" },
     { "text": "tomei vinho ontem a noite e hoje to pagando" },
     { "text": "pior que ontem" },
-    { "text": "pescoço duro de novo com a enxaqueca" }
+    { "text": "pescoço duro de novo com a enxaqueca" },
+    { "text": "já não sinto a dor" },
+    { "text": "não sinto mais a dor de cabeça" },
+    { "text": "não sinto nada de dor desde cedo, o remédio funcionou" },
+    { "text": "tive febre semana passada, hoje só a enxaqueca de sempre" }
+  ],
+  "modelOnly": [
+    { "text": "tô ardendo de febre e com a cabeça latejando como nunca", "expect": ["fever_stiff_neck"] },
+    { "text": "minha mão direita tá formigando e deixo as coisas cair", "expect": ["weakness"] },
+    { "text": "caí da escada e bati a nuca no degrau", "expect": ["head_injury"] },
+    { "text": "tô de 7 meses e a dor de cabeça não passa", "expect": ["pregnancy"] },
+    { "text": "já são quatro dias com essa dor sem parar", "expect": ["long_attack"] }
   ]
 }

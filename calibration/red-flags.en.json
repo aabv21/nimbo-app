@@ -43,7 +43,19 @@
     { "text": "cant feel my hand, it started with the headache", "expect": ["weakness"] },
     { "text": "double vision since this morning", "expect": ["weakness"] },
     { "text": "I'm seeing double and the pain is a 7", "expect": ["weakness"] },
-    { "text": "can't feel the left side of my face", "expect": ["weakness"] }
+    { "text": "can't feel the left side of my face", "expect": ["weakness"] },
+    { "text": "fever of 39 and the worst headache, no idea why", "expect": ["thunderclap", "fever_stiff_neck"] },
+    { "text": "I have a fever and a severe headache since lunch", "expect": ["fever_stiff_neck"] },
+    { "text": "running a temperature and a horrible headache", "expect": ["fever_stiff_neck"] },
+    { "text": "chills all night and an unbearable headache this morning", "expect": ["fever_stiff_neck"] },
+    { "text": "fever with a bad headache", "expect": ["fever_stiff_neck"] },
+    { "text": "fever and a really bad headache", "expect": ["fever_stiff_neck"] },
+    { "text": "high fever and severe head pain", "expect": ["fever_stiff_neck"] },
+    { "text": "fever and an awful headache", "expect": ["fever_stiff_neck"] },
+    { "text": "i cannot feel the left side of my body", "expect": ["weakness"] },
+    { "text": "cannot feel the arm", "expect": ["weakness"] },
+    { "text": "I can't feel my toes", "expect": ["weakness"] },
+    { "text": "can't feel my cheek", "expect": ["weakness"] }
   ],
   "negatives": [
     { "text": "the usual migraine, left temple, nausea" },
@@ -69,6 +81,17 @@
     { "text": "migraine again, third this week, so tired of this" },
     { "text": "red wine last night, paying for it today" },
     { "text": "worse than yesterday" },
-    { "text": "stiff neck again with this migraine" }
+    { "text": "stiff neck again with this migraine" },
+    { "text": "I can't feel the pain anymore" },
+    { "text": "can't feel my headache now, the triptan worked" },
+    { "text": "cant feel the throbbing now, finally" },
+    { "text": "a fever last week, today just the usual migraine" }
+  ],
+  "modelOnly": [
+    { "text": "fever of 39 and my head is pounding like never before", "expect": ["fever_stiff_neck"] },
+    { "text": "my right hand went tingly and clumsy and I keep dropping things", "expect": ["weakness"] },
+    { "text": "slipped on the ice this morning and landed on the back of my skull, now it's throbbing", "expect": ["head_injury"] },
+    { "text": "my baby is due in March and this headache won't stop", "expect": ["pregnancy"] },
+    { "text": "four days now and it still hasn't let up", "expect": ["long_attack"] }
   ]
 }

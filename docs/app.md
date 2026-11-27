@@ -178,7 +178,10 @@ the attacks behind it (`episodeIds`) as evidence.
 
 - `contract.ts`: re-exports `supabase/functions/_shared/companion/contract.ts`, the vocabulary the companion function and
   the app share: `MODES`, `GUARD_KEYS`, `INTENTS`, the drafts (`EpisodeDraft`, `DoseDraft`, `CheckinDraft`), `Evidence`,
-  `Guard` and `ReplacedReason`.
+  `Guard` and `ReplacedReason`; the request the app sends (`CompanionRequest`, at most `MAX_TURNS` turns of
+  `TURN_MAX_CHARS`, `TOTAL_MAX_CHARS` in all, checked by `parseCompanionRequest`), the 200 body (`CompanionResponse`,
+  checked by `isCompanionResponse`), the error body (`CompanionErrorBody`) and `QuotaKind`. `reply` is null when a red
+  flag stopped the request or the guard replaced the reply; `guard: 'degraded'` means no model screened the reply.
 - `chatStore.ts`: the chat on this phone only (`chat_messages`), never queued or synced, and removed by the sign-out purge.
   `appendMessage(userId, message)` stores a message in one statement, and the table's `chat_messages_keep` trigger keeps the user's last `CHAT_KEEP` (200); `updateMessage` changes a
   message's `status` or `payload` (drafts, evidence, the guard result and the record ids made on Confirm); `useChat`
@@ -191,8 +194,8 @@ The pack lists seven red flags (`redFlags`): `thunderclap`, `weakness`, `fever_s
 `head_injury`, `pregnancy`, `long_aura` and `long_attack`. Each has the message key of its "why"
 line, a yes/no question for a model screen, and whole-phrase keywords per language; `long_attack` has
 none, because it is raised from an open episode's length. A flag can also list `allOf` term groups
-that raise it only together: `fever_stiff_neck` needs a fever term and a neck-stiffness term, because a
-stiff neck alone is common in an ordinary attack. `matchRedFlags(text, locale, pack)`
+that raise it only together: `fever_stiff_neck` needs a fever term and a neck-stiffness or
+severe-headache term, because either alone is common in an ordinary attack. `matchRedFlags(text, locale, pack)`
 normalizes the text and each keyword the same way (lower case, accents folded, anything but letters
 and digits as one space) and returns the hits in pack order. `matchRedFlagsAnyLocale(text, pack)` does
 the same over the en, es and pt lists at once (an `allOf` group counts with a phrase from any language). The fixtures in `calibration/` are the messages it must

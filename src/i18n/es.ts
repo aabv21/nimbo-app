@@ -255,7 +255,7 @@ export const es: Record<keyof typeof en, string> = {
   'redflag.why.weakness': 'Adormecimiento de un lado de la cara o dificultad para hablar necesitan atención urgente, aunque se parezcan a un aura.',
   'redflag.why.long': 'Una crisis tan larga necesita que la vea un médico.',
   'redflag.excerpt': '«{text}»',
-  'redflag.why.fever': 'La fiebre con el cuello rígido necesita atención urgente, aunque el dolor se parezca a tu migraña de siempre.',
+  'redflag.why.fever': 'La fiebre con el cuello rígido o con un dolor de cabeza muy fuerte necesita atención urgente, aunque el dolor se parezca a tu migraña de siempre.',
   'redflag.why.head_injury': 'Un dolor de cabeza después de un golpe en la cabeza necesita que lo revise un médico, aunque tengas migraña.',
   'redflag.why.pregnancy': 'Un primer dolor de cabeza fuerte en el embarazo o después del parto necesita atención urgente, aunque tengas migraña.',
   'redflag.why.aura': 'Un aura que dura más de una hora necesita atención urgente, aunque ya hayas tenido auras.',

@@ -37,7 +37,17 @@
     { "text": "no siento la mano desde que empezó el dolor", "expect": ["weakness"] },
     { "text": "visión doble desde esta mañana", "expect": ["weakness"] },
     { "text": "veo doble y me duele mucho", "expect": ["weakness"] },
-    { "text": "no siento la cara de un lado", "expect": ["weakness"] }
+    { "text": "no siento la cara de un lado", "expect": ["weakness"] },
+    { "text": "39 de calentura y dolor de cabeza horrible", "expect": ["fever_stiff_neck"] },
+    { "text": "tengo fiebre y un dolor de cabeza insoportable", "expect": ["fever_stiff_neck"] },
+    { "text": "fiebre desde anoche y un dolor fortísimo", "expect": ["fever_stiff_neck"] },
+    { "text": "con escalofríos y un dolor de cabeza terrible", "expect": ["fever_stiff_neck"] },
+    { "text": "fiebre y un dolor de cabeza fuertísimo", "expect": ["fever_stiff_neck"] },
+    { "text": "fiebre y dolor de cabeza fuertisimo", "expect": ["fever_stiff_neck"] },
+    { "text": "tengo fiebre y una jaqueca fuertísima", "expect": ["fever_stiff_neck"] },
+    { "text": "tengo fiebre y un dolor de cabeza muy fuerte", "expect": ["fever_stiff_neck"] },
+    { "text": "fiebre y un dolor muy fuerte", "expect": ["fever_stiff_neck"] },
+    { "text": "fiebre y dolor de cabeza intenso", "expect": ["fever_stiff_neck"] }
   ],
   "negatives": [
     { "text": "la migraña de siempre, sien izquierda, nauseas" },
@@ -64,6 +74,17 @@
     { "text": "anoche tome vino tinto y hoy lo estoy pagando" },
     { "text": "peor que ayer" },
     { "text": "tengo el cuello rígido" },
-    { "text": "tengo el cuello tieso como siempre que me da migraña" }
+    { "text": "tengo el cuello tieso como siempre que me da migraña" },
+    { "text": "ya no siento el dolor" },
+    { "text": "ya ni siento el dolor de cabeza, el triptán funcionó" },
+    { "text": "no siento nada de dolor desde la mañana" },
+    { "text": "tuve fiebre la semana pasada, hoy solo la migraña de siempre" }
+  ],
+  "modelOnly": [
+    { "text": "39 de fiebre y la cabeza me late como nunca", "expect": ["fever_stiff_neck"] },
+    { "text": "la mano derecha me hormiguea y se me caen las cosas", "expect": ["weakness"] },
+    { "text": "me caí de la bici y me di con el casco contra el piso", "expect": ["head_injury"] },
+    { "text": "estoy de 20 semanas y me duele muchísimo la cabeza", "expect": ["pregnancy"] },
+    { "text": "ya van cuatro días con el mismo dolor sin parar", "expect": ["long_attack"] }
   ]
 }

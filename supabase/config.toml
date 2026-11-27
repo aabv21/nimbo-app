@@ -416,6 +416,10 @@ TYPESAFE_BASE_URL = "http://host.docker.internal:54518"
 ANTHROPIC_API_KEY = "local-only-not-a-key"
 ANTHROPIC_BASE_URL = "http://host.docker.internal:54519"
 
+# The gateway verifies the caller's JWT before the function runs; the function reads `sub` from it.
+[functions.companion]
+verify_jwt = true
+
 [analytics]
 enabled = true
 port = 54527

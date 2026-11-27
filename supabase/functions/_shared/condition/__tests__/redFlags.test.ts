@@ -9,6 +9,8 @@ import { matchRedFlags, matchRedFlagsAnyLocale, normalizeText } from '../redFlag
 interface Fixtures {
   positives: { text: string; expect: RedFlagKey[] }[];
   negatives: { text: string }[];
+  /** Messages the keywords may miss and the model screen must catch; `screen.test.ts` feeds them through a mocked Jev. */
+  modelOnly: { text: string; expect: RedFlagKey[] }[];
 }
 
 const locales: readonly Locale[] = ['en', 'es', 'pt'];
@@ -75,6 +77,42 @@ test.each(locales)('%s fixtures cover every text-detectable flag at least 4 time
   expect(negatives.length).toBeGreaterThanOrEqual(20);
 });
 
+test.each(locales)('%s model-only messages really miss every keyword, so they test the model layer', (locale) => {
+  const { modelOnly } = fixtures(locale);
+  expect(modelOnly.length).toBeGreaterThanOrEqual(3);
+  expect(modelOnly.filter(({ text }) => matchRedFlagsAnyLocale(text, pack).length > 0)).toEqual([]);
+  expect(modelOnly.some(({ expect: keys }) => keys.includes('fever_stiff_neck'))).toBe(true);
+});
+
+test('a fever with a severe headache is a red flag on the phone too, in any language', () => {
+  for (const text of [
+    'fever and a severe headache',
+    'fiebre y un dolor de cabeza insoportable',
+    'febre e uma dor de cabeça fortíssima',
+    'fever and un dolor fortísimo',
+  ]) {
+    expect(matchRedFlagsAnyLocale(text, pack)).toEqual(['fever_stiff_neck']);
+  }
+  for (const text of ['a severe headache again', 'dolor de cabeza insoportable', 'dor de cabeça forte', 'a fever last week']) {
+    expect(matchRedFlagsAnyLocale(text, pack)).toEqual([]);
+  }
+});
+
+test("relief is not numbness: no longer feeling the pain hits nothing, while a body part that can't be felt still does", () => {
+  for (const text of [
+    "I can't feel the pain anymore",
+    "can't feel my headache now, the triptan worked",
+    'ya no siento el dolor',
+    'já não sinto a dor',
+    'não sinto mais a dor de cabeça',
+  ]) {
+    expect(matchRedFlagsAnyLocale(text, pack)).toEqual([]);
+  }
+  for (const text of ["I can't feel my left arm", 'cant feel my hand, it started with the headache', "can't feel the left side of my face"]) {
+    expect(matchRedFlagsAnyLocale(text, pack)).toEqual(['weakness']);
+  }
+});
+
 test('normalizeText lower-cases, strips accents and punctuation, and collapses spaces', () => {
   expect(normalizeText('¡PEOR dolor!!  de cabeça')).toBe('peor dolor de cabeca');
   expect(normalizeText("  I can't SPEAK\n")).toBe('i can t speak');
@@ -119,5 +157,6 @@ test('the seven flags, their why keys and a yes/no question each', () => {
     ['long_aura', 'redflag.why.aura'],
     ['long_attack', 'redflag.why.long'],
   ]);
-  for (const flag of pack.redFlags) expect(flag.question).toMatch(/^(Does|Is|Has|Did) .+\?$/);
+  // The model screens' state is `{ message }`, so each question names that field in backticks.
+  for (const flag of pack.redFlags) expect(flag.question).toMatch(/^(Does|Is|Has|Did) .*`message`.*\?$/);
 });

@@ -255,7 +255,7 @@ export const pt: Record<keyof typeof en, string> = {
   'redflag.why.weakness': 'Dormência de um lado do rosto ou dificuldade para falar precisam de atendimento urgente, mesmo que pareçam uma aura.',
   'redflag.why.long': 'Uma crise tão longa precisa ser vista por um médico.',
   'redflag.excerpt': '“{text}”',
-  'redflag.why.fever': 'Febre com o pescoço duro precisa de atendimento urgente, mesmo que a dor pareça a sua enxaqueca de sempre.',
+  'redflag.why.fever': 'Febre com o pescoço duro ou com uma dor de cabeça muito forte precisa de atendimento urgente, mesmo que a dor pareça a sua enxaqueca de sempre.',
   'redflag.why.head_injury': 'Uma dor de cabeça depois de uma pancada na cabeça precisa ser avaliada por um médico, mesmo que você tenha enxaqueca.',
   'redflag.why.pregnancy': 'Uma primeira dor de cabeça forte na gravidez ou depois do parto precisa de atendimento urgente, mesmo que você tenha enxaqueca.',
   'redflag.why.aura': 'Uma aura que dura mais de uma hora precisa de atendimento urgente, mesmo que você já tenha tido auras.',

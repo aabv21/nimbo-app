@@ -208,8 +208,10 @@ neither involves a model.
 - **Text.** Every free text the user writes is matched before anything else; in this wave that is an
   attack's notes, checked after they are saved. `matchRedFlagsAnyLocale` matches the pack's keywords in
   English, Spanish and Portuguese at once, whatever the app's language, with case, accents and
-  punctuation folded. Fever and a stiff neck raise `fever_stiff_neck` only together, because a stiff
-  neck alone is common in an ordinary attack. The fixtures in `calibration/` must hit with zero misses
+  punctuation folded. A fever raises `fever_stiff_neck` only together with a stiff neck or a severe
+  headache, because either alone is common in an ordinary attack. "Can't feel" counts only with a body
+  part after it ("my left arm", "the left side"), so "I can't feel the pain anymore" is relief, not
+  numbness. The fixtures in `calibration/` must hit with zero misses
   ([`testing.md`](testing.md#scripts-and-functions)).
 - **Duration.** An attack still open after 72 hours opens urgent care with `long_attack`, once per
   attack, on launch and on each return to the app.
@@ -253,6 +255,82 @@ as operating, Paraguay's SEME 141 was reported out of service in 2026, and Nicar
 Cruz Roja Nicaragüense's line, dissolved in 2023, with no official replacement found. Any region not in
 the table returns `null` too. A region's name on the call button is the catalog key `region.<code>`.
 Before each launch country, spot-check its number ([`owner-runbook.md`](owner-runbook.md)).
+
+### The companion's guards
+
+`supabase/functions/_shared/screen.ts` holds the two screens every companion message and reply pass
+through. Each layer that fails hands over to the next, and none fails open.
+
+- **Input** (`screenInput`). The keywords of all three languages always run. Jev then gets one request
+  with a Noul per red flag (the pack's question, `long_attack` included) and a Choice over the seven
+  intents, within 4 s; if it fails, Claude Haiku answers the same questions as booleans under a strict
+  JSON schema, within 4 s. The red flags are the union of the keywords and the model (a Noul at 0.3 or
+  more). With both models down, the keyword flags stand alone and the intent is `other`. There is no
+  retry: the next layer is the retry.
+- **Reply** (`screenReply`). Code checks every reply first: a dose amount or dosing interval (digits or
+  number words, ranges such as "every 4-6 hours", "de 6 em 6 horas", decimals kept whole) is
+  `dose_advice` unless it sits inside a verbatim quote of the user's own `get_cabinet` name or
+  `dose_text` from this request; and every number that no tool result states is listed (dates and
+  times in the results ground nothing). Jev then judges seven Nouls, one per guard key (a hit at 0.35
+  or more), with one retry on 429 or 529 only when it leaves Haiku its full 4 s; then Haiku. The
+  violated keys are the union of the code's and the model's. With both models down, code decides alone:
+  the dose check, `ungrounded_number` for any unlisted number, and `medication_change` for a sentence
+  that pairs a take imperative ("take", "tómate", "pode tomar") with a medicine, an amount or a count.
+  The result is the response's `guard`: `ok` only after a model screened the reply, `replaced` when
+  any key is violated, and `degraded` when both models were down and code found nothing, so an
+  unscreened reply is never shown as screened. An unexpected error marks every key.
+
+The thresholds are starting points, set low because a miss costs more than a false replacement; the
+fixtures and the live calibration behind them are in [`testing.md`](testing.md#calibration-fixtures).
+
+### The companion function
+
+`supabase/functions/companion/handler.ts` answers one chat message (`verify_jwt` on, so the gateway
+checks the caller first). The prompt, tools, refs and reply parsing are in `_shared/companion/`.
+
+1. The request (`parseCompanionRequest`): the last 12 turns at most, each up to 500 characters and
+   4,000 in all, the first and last the user's, plus the mode, the locale, the app's local day and
+   whether it was typed or dictated. The profile is read with the caller's token, `timezone` and
+   `ai_enabled` only, beside the premium check: the AI off answers 403, a failed read 503, and a
+   missing zone reads as UTC.
+2. The input screen runs next, with up to 8.5 s, while the notes and the attacks are read beside it.
+   A red flag answers at once with `redFlags`, no model reply and no quota spent, so nothing can
+   contradict the urgent-care screen.
+3. The quota (`consume_quota`) on the request's day: a typed message spends a `companion` unit, a
+   dictated one a `dictation` unit and then a `companion` unit; the first refused answers 429 with its
+   kind and limit. Premium and free callers get their own limits (equal for now). Any failure of the
+   quota call answers 503.
+4. A bounded loop with Claude Sonnet 5.5: at most 3 tool rounds (4 calls, the last with
+   `tool_choice: none`), within 25 s of the first call and at least 8.5 s before the request's
+   deadline; each call ends 3 s before the loop's deadline, so the tool round after it can still read,
+   and none starts with under 3 s left. A round's calls run together and their results go back in one user
+   turn; the assistant content goes back unchanged. Effort `low`, adaptive thinking (the default),
+   no sampling settings, the server-side refusal fallback, and two cache breakpoints: the fixed
+   prompt with the tools (shared by every user) and the per-request block (the language, mode, day,
+   the notes inside an escaped `<notes>` block, and the attack's ref), plus top-level automatic caching
+   on every call but the last, so each round rereads the turns and tool results before it. In crisis mode a confident
+   logging intent adds a mid-conversation system message asking for the draft first.
+5. The tools read the caller's rows with their token and hand the model short refs (`e1`, `m1`, `r1`),
+   never ids; only the server maps them back, for the drafts and the evidence. A result is bounded (at
+   most 20 attacks with 10 doses each, 30 medications, 5 plan entries; a cut result says
+   `truncated: true`). Proposals write nothing: they come back as drafts (at most 3) that the app saves
+   on Confirm.
+6. The reply is cleaned (no ids, links or Markdown, 500 characters), cut to its complete sentences
+   when truncated and to two sentences in crisis mode, and its `[ref]` markers become evidence. The
+   reply screen then runs with up to 8.5 s, with each draft's clock time as a grounded number, so
+   "logged at 3 pm" is not an ungrounded number. With under 2 s left it runs its local checks only,
+   so the reply is at best `degraded`. A replaced reply comes back as `reply: null` with
+   the first violated key (the app renders a template); a refusal as `replaced: 'refusal'`.
+
+No request to Anthropic or TypeSafe carries the user's name, email, id, location or any row id, and
+the logs hold outcome words only (`answered`, `replaced`, `degraded`, `red_flag`, `over_quota`,
+`unavailable`, with `rounds`, `input_source`, `guard_source`, `key` and `cache_read`).
+
+Every request answers within 40 s, under the app's 45 s wait. Each stage gets the smaller of its own
+cap and what that deadline leaves after the stages still to come: every database call at most 3 s,
+the input screen at most 8.5 s and only while 28 s remain for the rest, the loop until 8.5 s before
+the deadline, and the reply screen until the deadline. The database shrinks first, then the loop; the
+screens shrink last and never below their local checks. A typical message takes a few seconds.
 
 ## Medication overuse guard
 

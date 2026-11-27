@@ -55,6 +55,14 @@ describe('restJson', () => {
 });
 
 describe('rpcClient', () => {
+  test('a hung call is cut at the timeout the caller gives, as an error', async () => {
+    const result = await rpcClient(ENV, fakeFetch(hanging).fetch, AUTH, 50).rpc('slow_rpc', {});
+    expect(result.data).toBeNull();
+    expect(result.error).not.toBeNull();
+    const premium = await premiumClient(ENV, fakeFetch(hanging).fetch, AUTH, 50).rpc('has_premium', { p_user: USER_ID });
+    expect(premium.data).toBeNull();
+  });
+
   test('posts the args to /rest/v1/rpc/<name> as the caller and answers the data', async () => {
     const { fetch, calls } = fakeFetch(() => json(200, { ok: true }));
     expect(await rpcClient(ENV, fetch, AUTH).rpc('some_rpc', { p_x: 1 })).toEqual({ data: { ok: true }, error: null });
