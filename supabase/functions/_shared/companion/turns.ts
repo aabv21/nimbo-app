@@ -45,22 +45,28 @@ export function parseStep(body: unknown): Step {
 const UUID_ANYWHERE = /[([]?\s*[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\s*[)\]]?/gi;
 const LINK = /\b(?:https?:\/\/|www\.)\S+/gi;
 
-/** C0 and C1 controls, zero-width and bidi marks: they would hide or reorder text in the app. */
+/** C0 and C1 controls, zero-width and bidi marks, and line separators: they would hide, reorder or fake a line of text. */
 function invisible(code: number): boolean {
   return (
     code <= 0x1f ||
     (code >= 0x7f && code <= 0x9f) ||
     (code >= 0x200b && code <= 0x200f) ||
+    code === 0x2028 ||
+    code === 0x2029 ||
     (code >= 0x202a && code <= 0x202e) ||
     (code >= 0x2066 && code <= 0x2069) ||
     code === 0xfeff
   );
 }
 
+/** `text` with every invisible character as a space: for a reply and for a note alike. */
+export function spaceInvisible(text: string): string {
+  return Array.from(text, (char) => (invisible(char.codePointAt(0) ?? 0) ? ' ' : char)).join('');
+}
+
 /** Plain text for the app: no ids, links, Markdown markers or control characters, at most 500 characters cut at a word. */
 export function sanitizeReply(text: string): string {
-  const clean = Array.from(text, (char) => (invisible(char.codePointAt(0) ?? 0) ? ' ' : char))
-    .join('')
+  const clean = spaceInvisible(text)
     .replace(UUID_ANYWHERE, ' ')
     .replace(LINK, ' ')
     .replace(/[*`#]/g, '')

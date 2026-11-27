@@ -27,6 +27,17 @@ function debriefOf(draft: EpisodeDraft, episode: Episode | null): { helped: stri
   return { helped, didNotHelp };
 }
 
+/**
+ * The debrief lists, stamped as debriefed only once the attack is over (`ended`, by itself or by this draft): on an
+ * attack still open they are kept unstamped, so the day-after debrief is still asked.
+ */
+function saveHelped(userId: string, episodeId: string, draft: EpisodeDraft, episode: Episode | null, ended: boolean): void {
+  if (draft.helped.length === 0 && draft.didNotHelp.length === 0) return;
+  const lists = debriefOf(draft, episode);
+  if (ended) saveDebriefTx(userId, episodeId, { ...lists, triggers: [], doseHelped: {} });
+  else updateEpisodeTx(userId, episodeId, lists);
+}
+
 function logDoses(userId: string, draft: EpisodeDraft, episodeId: string, doseIds: readonly string[]): void {
   draft.doses.forEach((dose, index) => {
     const id = doseIds.at(index);
@@ -40,9 +51,7 @@ function applyNewEpisode(userId: string, draft: EpisodeDraft, ids: Ids, source: 
   const input: EpisodeInput = { startedAt: draft.startedAt, endedAt: draft.endedAt, source, ...tagPatch(draft, null) };
   if (draft.intensity !== null) input.intensity = draft.intensity;
   logEpisodeTx(userId, ids.recordId, input);
-  if (draft.helped.length > 0 || draft.didNotHelp.length > 0) {
-    saveDebriefTx(userId, ids.recordId, { ...debriefOf(draft, null), triggers: [], doseHelped: {} });
-  }
+  saveHelped(userId, ids.recordId, draft, null, draft.endedAt !== null);
   logDoses(userId, draft, ids.recordId, ids.doseIds);
 }
 
@@ -56,9 +65,7 @@ function applyEpisodeChange(userId: string, episodeId: string, draft: EpisodeDra
   if (draft.endedAt !== null) patch.endedAt = draft.endedAt;
   if (draft.intensity !== null) patch.intensity = draft.intensity;
   updateEpisodeTx(userId, episodeId, patch);
-  if (draft.helped.length > 0 || draft.didNotHelp.length > 0) {
-    saveDebriefTx(userId, episodeId, { ...debriefOf(draft, episode), triggers: [], doseHelped: {} });
-  }
+  saveHelped(userId, episodeId, draft, episode, episode.endedAt !== null || draft.endedAt !== null);
   logDoses(userId, draft, episodeId, ids.doseIds);
 }
 
@@ -87,6 +94,8 @@ export function applyDraft(userId: string, draft: Draft, ids: Ids, source: 'chat
       else applyEpisodeChange(userId, draft.episodeId, draft, ids);
       return;
     case 'dose':
+      // Deleted since the draft was made: the server would refuse the dose for good, so it is refused here instead.
+      if (draft.episodeId !== null && readEpisode(userId, draft.episodeId) === null) throw new RangeError('The attack is not on this phone.');
       logDoseTx(userId, { id: ids.recordId, medicationId: draft.medicationId, takenAt: new Date(draft.takenAt), episodeId: draft.episodeId });
       return;
     case 'checkin':

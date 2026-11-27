@@ -1,8 +1,8 @@
 // The companion: screens the message, spends the quota, runs a bounded Claude tool loop over the caller's
 // own rows and screens the reply before the app sees it (docs/architecture.md#the-companion-function).
 
-import { type Draft, type Evidence, type Guard, parseCompanionRequest, type CompanionResponse, isLocalDate } from '../_shared/companion/contract.ts';
-import { clockNumbers, readNotes, readOpenEpisode, readOwnEpisode, readProfile, weekdayOf } from '../_shared/companion/data.ts';
+import { type ClientQuotaKind, type Draft, type Evidence, type Guard, parseCompanionRequest, type CompanionResponse } from '../_shared/companion/contract.ts';
+import { clockNumbers, readNotes, readOpenEpisode, readOwnEpisode, readProfile } from '../_shared/companion/data.ts';
 import { buildCompanionRequest, COMPANION_EFFORT, COMPANION_MAX_TOKENS, type PromptContext, routingMessage } from '../_shared/companion/prompt.ts';
 import { createRefs } from '../_shared/companion/refs.ts';
 import { runTool, type ToolEnv } from '../_shared/companion/tools.ts';
@@ -12,7 +12,7 @@ import type { ClaudeEnv, JevEnv, SupabaseEnv } from '../_shared/env.ts';
 import { callerOf, readJson, reply } from '../_shared/http.ts';
 import { FALLBACK_BETA, runClaude } from '../_shared/models.ts';
 import { hasPremium } from '../_shared/premium.ts';
-import { consumeQuota, DAILY_LIMITS, type QuotaKind } from '../_shared/quota.ts';
+import { consumeQuota, DAILY_LIMITS } from '../_shared/quota.ts';
 import type { ToolResultRecord } from '../_shared/replyChecks.ts';
 import { premiumClient } from '../_shared/rest.ts';
 import { type ScreenDeps, screenInput, screenReply } from '../_shared/screen.ts';
@@ -41,15 +41,18 @@ export const MIN_CALL_MS = 3_000;
 export const REPLY_SCREEN_MIN_MS = 2_000;
 export const MAX_TOOL_ROUNDS = 3;
 
-type Limits = Readonly<Record<QuotaKind, number>>;
+type Limits = Readonly<Record<ClientQuotaKind, number>>;
 
 export type CompanionDeps = {
   env: SupabaseEnv & JevEnv & ClaudeEnv;
   fetch: typeof fetch;
   now?: () => number;
   rand?: () => number;
-  /** Per tier; both default to `DAILY_LIMITS` until the owner names premium limits. */
-  limits?: { free: Limits; premium: Limits };
+  /**
+   * Per tier; both default to `DAILY_LIMITS` until the owner names premium limits. `screen` has one limit for
+   * both, because it is spent beside the premium read, before the tier is known.
+   */
+  limits?: { free: Limits; premium: Limits; screen: number };
 };
 
 const pack = packs.migraine;
@@ -64,7 +67,7 @@ function draftClockNumbers(drafts: readonly Draft[], timeZone: string): string[]
   return [...new Set(times.flatMap((time) => (time === null ? [] : clockNumbers(Date.parse(time), timeZone))))];
 }
 
-// Worst case, every stage at its cap: the profile and premium reads together (3 s), the input screen with
+// Worst case, every stage at its cap: the profile and premium reads with the screening unit (3 s), the input screen with
 // the context reads beside it (8.5 s), two quota units (6 s), the loop up to 8.5 s before the deadline, and
 // the reply screen up to the deadline: 40 s. A typical message takes a few seconds.
 export async function handleCompanion(request: Request, deps: CompanionDeps): Promise<Response> {
@@ -81,14 +84,19 @@ export async function handleCompanion(request: Request, deps: CompanionDeps): Pr
   const reader = { supabase: env, fetch: fetchFn, auth: caller.auth, timeoutMs: () => dbTimeout() };
   let profile: Awaited<ReturnType<typeof readProfile>>;
   let premium: boolean;
+  let screenAllowed: boolean;
   try {
-    [profile, premium] = await Promise.all([
+    [profile, premium, screenAllowed] = await Promise.all([
       readProfile(reader, caller.userId),
       hasPremium(premiumClient(env, fetchFn, caller.auth, dbTimeout()), caller.userId),
+      // Every message costs a screening unit, red flags included, so the paid screen is bounded before any
+      // other unit is checked. Refused or failed, the screen runs on the keywords alone: never a 503 over it.
+      consumeQuota(env, fetchFn, caller.userId, 'screen', deps.limits?.screen ?? DAILY_LIMITS.screen, input.localDate, dbTimeout()).catch(() => false),
     ]);
   } catch {
     return reply('unavailable', 503, { error: 'unavailable' }, { stage: 'profile' });
   }
+  const screenWord = { screen_quota: screenAllowed ? 'ok' : 'out' };
   if (profile === null || !profile.aiEnabled) return reply('ai_off', 403, { error: 'ai_off' });
   const { timeZone } = profile;
 
@@ -104,35 +112,35 @@ export async function handleCompanion(request: Request, deps: CompanionDeps): Pr
     (values) => ({ ok: true as const, values }),
     () => ({ ok: false as const }),
   );
-  const screened = await screenInput(userText, screenDeps(Math.min(now() + SCREEN_DEADLINE_MS, requestDeadline - AFTER_INPUT_SCREEN_MS)));
+  // A deadline of now leaves the keywords alone: no model call, and their red flags still stand.
+  const inputDeadline = screenAllowed ? Math.min(now() + SCREEN_DEADLINE_MS, requestDeadline - AFTER_INPUT_SCREEN_MS) : now();
+  const screened = await screenInput(userText, screenDeps(inputDeadline));
   if (screened.redFlags.length > 0) {
-    // No model reply and no quota: nothing may contradict the urgent-care screen the app opens.
+    // No model reply and no further unit: nothing may contradict the urgent-care screen the app opens.
     const body: CompanionResponse = { reply: null, drafts: [], evidence: [], redFlags: screened.redFlags, intent: screened.intent, guard: 'ok', replaced: null };
-    return reply('red_flag', 200, body, { input_source: screened.source });
+    return reply('red_flag', 200, body, { input_source: screened.source, ...screenWord });
   }
   const loaded = await contextReads;
-  // Before the quota, so a failed read costs the user nothing.
-  if (!loaded.ok) return reply('unavailable', 503, { error: 'unavailable' }, { stage: 'read' });
+  // Before the companion unit, so a failed read costs the user nothing more.
+  if (!loaded.ok) return reply('unavailable', 503, { error: 'unavailable' }, { stage: 'read', ...screenWord });
   const [openEpisode, own, saved] = loaded.values;
   // An episode id that is not the caller's reads as absent.
   const focus = own ?? openEpisode;
   const notes = saved.map((note) => ({ ref: refs.add('n', note.id), text: note.text }));
 
-  // The day is checked again here because it becomes a counter key.
-  if (!isLocalDate(input.localDate)) return reply('invalid', 400, { error: 'invalid_input' });
   try {
     const limits = (premium ? deps.limits?.premium : deps.limits?.free) ?? DAILY_LIMITS;
     // A voice message is a dictation and a message: both units, dictation first, stopping at the first refusal.
-    const units: [QuotaKind, number][] = [['companion', limits.companion]];
+    const units: [ClientQuotaKind, number][] = [['companion', limits.companion]];
     if (input.input === 'voice') units.unshift(['dictation', limits.dictation]);
     for (const [kind, limit] of units) {
       if (!(await consumeQuota(env, fetchFn, caller.userId, kind, limit, input.localDate, dbTimeout()))) {
-        return reply('over_quota', 429, { error: 'over_quota', quota: kind, limit }, { quota: kind });
+        return reply('over_quota', 429, { error: 'over_quota', quota: kind, limit }, { quota: kind, ...screenWord });
       }
     }
   } catch {
     // UpstreamError, AbortError (the timeout), a network TypeError or a SyntaxError from a body that isn't JSON.
-    return reply('unavailable', 503, { error: 'unavailable' }, { stage: 'quota' });
+    return reply('unavailable', 503, { error: 'unavailable' }, { stage: 'quota', ...screenWord });
   }
 
   const state: ToolEnv['state'] = { drafts: 0, spans: new Map() };
@@ -140,7 +148,7 @@ export async function handleCompanion(request: Request, deps: CompanionDeps): Pr
     if (episode !== null) state.spans.set(episode.id, { start: Date.parse(episode.startedAt), end: episode.endedAt === null ? null : Date.parse(episode.endedAt) });
   }
   const focusRef = focus === null ? null : refs.add('e', focus.id);
-  const context: PromptContext = { locale: input.locale, mode: input.mode, localDate: input.localDate, weekday: weekdayOf(input.localDate), notes, openEpisodeRef: focusRef };
+  const context: PromptContext = { locale: input.locale, mode: input.mode, now: now(), timeZone, notes, openEpisodeRef: focusRef };
 
   const messages: unknown[] = input.messages.map((turn) => ({ role: turn.role, content: turn.text }));
   const routing = routingMessage(screened.intent, screened.intentP, input.mode, focusRef);
@@ -154,6 +162,7 @@ export async function handleCompanion(request: Request, deps: CompanionDeps): Pr
   const words = (extra: Record<string, string>, round: number): Record<string, string> => ({
     rounds: String(round),
     input_source: screened.source,
+    ...screenWord,
     cache_read: String(cacheRead),
     ...extra,
   });

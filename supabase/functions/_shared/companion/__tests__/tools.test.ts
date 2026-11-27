@@ -1,7 +1,7 @@
 /** @jest-environment node */
 // The ten tools over a fake PostgREST: what each reads, what it hands the model (refs, never ids), the
 // overuse as Today counts it, and the checks a proposal must pass before it becomes a draft.
-import { doseDaysForMonth, overuseStatus, packs } from '../../condition/index.ts';
+import { doseDaysForMonth, MAX_AHEAD_MS, overuseStatus, packs } from '../../condition/index.ts';
 import { json } from '../../__tests__/fakeFetch.ts';
 import type { SupabaseEnv } from '../../env.ts';
 import { createRefs } from '../refs.ts';
@@ -265,6 +265,32 @@ describe('get_crisis_plan', () => {
     const plan = ((await run('get_crisis_plan', {})).content as { plan: Row[] }).plan;
     expect(plan).toEqual([{ ref: 'p1', kind: 'medication', name: 'Sumatriptan', helped: 1, of: 1 }]);
   });
+
+  test('an archived medication is left out even when its doses helped, as What helped before does', async () => {
+    const episodes = [episode(id(11), '2026-11-10T13:00:00.000Z', { ended_at: '2026-11-10T15:00:00.000Z', debriefed_at: '2026-11-11T13:00:00.000Z' })];
+    const doses = [
+      { ...dose(OLD_TRIPTAN, 10, id(11)), helped: true },
+      { ...dose(OLD_TRIPTAN, 11, id(11)), helped: true },
+      { ...dose(SUMATRIPTAN, 10, id(11)), helped: true },
+    ];
+    const { run, calls } = setup({ episodes, doses });
+    const plan = ((await run('get_crisis_plan', {})).content as { plan: Row[] }).plan;
+    expect(plan.map((entry) => entry.name)).toEqual(['Sumatriptan']);
+    const read = calls.find((call) => call.url.pathname === '/rest/v1/medications');
+    expect(read?.url.searchParams.get('archived_at')).toBe('is.null');
+  });
+});
+
+test('the cabinet and crisis-plan reads each name an order and a bound, so a cut never drops rows at random', async () => {
+  const { run, calls } = setup();
+  await run('get_cabinet', {});
+  await run('get_crisis_plan', {});
+  const reads = calls.filter((call) => call.method === 'GET');
+  expect(reads).toHaveLength(5);
+  for (const read of reads) {
+    expect(read.url.searchParams.get('order')).toMatch(/^[a-z_]+\.(?:asc|desc)$/);
+    expect(Number(read.url.searchParams.get('limit'))).toBeGreaterThan(0);
+  }
 });
 
 describe('not available yet', () => {
@@ -497,4 +523,19 @@ test('every read names its columns, uses the caller token, and never asks for th
     expect(call.url.href).not.toMatch(/email|coarse_|profiles/);
     if (call.method === 'GET') expect(call.url.searchParams.get('select')).not.toBe('*');
   }
+});
+
+test('a draft time may be as far ahead as the phone stores allow, and no further', async () => {
+  const { run } = setup();
+  await run('get_cabinet', {});
+  const at = (ms: number): string => new Date(NOW + ms).toISOString();
+  expect((await run('propose_dose', { medication_ref: 'm1', taken_at: at(MAX_AHEAD_MS) })).isError).toBe(false);
+  expect(errorOf(await run('propose_dose', { medication_ref: 'm1', taken_at: at(MAX_AHEAD_MS + 1_000) }))).toBe('time_in_future');
+});
+
+test('a note loses its invisible characters as a reply does: controls, zero-width and bidi marks, line separators', async () => {
+  const saved: unknown[] = [];
+  const { run } = setup({}, { rpc: { save_agent_note: (args) => (saved.push(args.p_text), json(200, id(901))) } });
+  await run('save_note', { text: 'likes\u200b short\u202e answers\u2028please' });
+  expect(saved).toEqual(['likes short answers please']);
 });

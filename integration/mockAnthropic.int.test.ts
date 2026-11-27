@@ -1,6 +1,7 @@
 // The mock Messages API's replies, its 2026-10-21 validation and what it records; it needs no local stack, only its own port.
 
-import { type MockAnthropic, startMockAnthropic } from './mockAnthropic';
+import { buildCompanionRequest, type PromptContext } from '../supabase/functions/_shared/companion/prompt.ts';
+import { companionCheckinReply, type MockAnthropic, startMockAnthropic } from './mockAnthropic';
 
 const url = 'http://127.0.0.1:54519/v1/messages';
 const BODY = { model: 'claude-haiku-5-5', max_tokens: 256, messages: [{ role: 'user', content: 'hi' }] };
@@ -52,4 +53,32 @@ test('records each call body and its headers, in order, so a test can check anth
     'anthropic-version': '2026-10-21',
     'anthropic-beta': 'server-side-fallback-2026-07-01',
   });
+});
+
+test('a reply function answers from each call body', async () => {
+  mock.respondWith((body) => ({ status: 200, body: { echoed: (body as { model: string }).model } }));
+  expect(await (await post(BODY)).json()).toEqual({ echoed: 'claude-haiku-5-5' });
+});
+
+test('the companion-checkin scenario proposes a check-in on the request day, then answers once the result is back', () => {
+  const context: PromptContext = { locale: 'en', mode: 'chat', now: Date.parse('2026-11-27T17:00:00.000Z'), timeZone: 'America/Bogota', notes: [], openEpisodeRef: null };
+  const first = [{ role: 'user', content: 'slept 5 hours, very stressed' }];
+  const round = companionCheckinReply(buildCompanionRequest(context, first, { final: false }));
+  expect(round).toMatchObject({
+    status: 200,
+    body: {
+      stop_reason: 'tool_use',
+      content: [{ type: 'tool_use', name: 'propose_checkin', input: { local_date: '2026-11-27', sleep_band: '5_6', stress: 'high' } }],
+    },
+  });
+  const after = [
+    ...first,
+    { role: 'assistant', content: [{ type: 'tool_use', id: 'toolu_mock_checkin', name: 'propose_checkin', input: {} }] },
+    { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolu_mock_checkin', content: '{}' }] },
+  ];
+  expect(companionCheckinReply(buildCompanionRequest(context, after, { final: false }))).toMatchObject({
+    status: 200,
+    body: { stop_reason: 'end_turn', content: [{ type: 'text', text: expect.any(String) as string }] },
+  });
+  expect(companionCheckinReply({ messages: first })).toMatchObject({ status: 400 });
 });

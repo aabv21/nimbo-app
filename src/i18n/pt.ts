@@ -586,4 +586,26 @@ export const pt: Record<keyof typeof en, string> = {
   'crisis.tell.gone': 'Esta crise não está mais neste celular, então não consegui salvar o que você disse.',
   'crisis.listening.release_notes': 'Solte para terminar. Vou salvar nas notas desta crise.',
   'companion.in_notes': 'Salvo nas notas da crise',
+  // "What I know about you": the agent's notes in Profile.
+  'profile.memory': 'O que sei sobre você',
+  'profile.memory.count.one': '{n} nota',
+  'profile.memory.count.other': '{n} notas',
+  'memory.lede': 'O Nimbo guarda estas notas para lembrar como você prefere as coisas. Apague qualquer uma e ele esquece.',
+  'memory.delete': 'Apagar esta nota',
+  'memory.only': 'É a única memória de longo prazo do Nimbo. A conversa fica neste celular.',
+  'memory.empty': 'Ainda não anotei nada sobre você. Se você me contar algo que valha lembrar, aparece aqui e você pode apagar.',
+  'memory.delete.error': 'Não foi possível apagar. Verifique sua conexão e tente de novo.',
+
+  // The day-after debrief and its rows in History.
+  'debrief.q.helped.yesterday': 'Bom dia. Ontem você teve uma crise de {duration}. O que ajudou?',
+  'debrief.q.helped.date': 'Você teve uma crise de {duration} em {date}. O que ajudou?',
+  'debrief.q.not_helped': 'Anotado. Algo não ajudou?',
+  'debrief.q.triggers': 'Algo que pode ter desencadeado?',
+  'debrief.done': 'Obrigado. Isso entra no seu plano para as crises.',
+  'debrief.none': 'Nada',
+  'debrief.progress': 'Pergunta {n} de {of}',
+  'episode.helped': 'Ajudou, segundo sua revisão',
+  'episode.not_helped': 'Não ajudou',
+  'episode.edit.helped': 'O que ajudou',
+  'episode.edit.not_helped': 'O que não ajudou',
 };

@@ -3,6 +3,7 @@ import { ChevronRight } from 'lucide-react-native';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { AccessibilityInfo, Pressable, StyleSheet, Text, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 
 import { useAuth } from '../../auth/AuthProvider';
 import { authErrorMessage } from '../../auth/errors';
@@ -14,6 +15,8 @@ import { useLocalePreference } from '../../i18n/I18nProvider';
 import type { LocalePreference } from '../../i18n/I18nProvider';
 import type { RequestErrorKind } from '../../lib/requestResult';
 import { useSyncState } from '../../lib/sync/SyncProvider';
+import { useOncePerFocus } from '../../lib/useOncePerFocus';
+import { useAgentNotes } from '../../memory/useAgentNotes';
 import { setAiConsent } from '../../profile/profileRepository';
 import type { ThemePreference } from '../../profile/profileRepository';
 import { useProfileChange } from '../../profile/useProfileChange';
@@ -24,7 +27,8 @@ import { Screen } from '../../ui/Screen';
 import { SwitchRow } from '../../ui/SwitchRow';
 import { useTabBarInset } from '../../ui/TabBar';
 import { controlHeight, fonts, radius, space, type } from '../../ui/theme';
-import { useTheme } from '../../ui/themeContext';
+import { useTheme, useTones } from '../../ui/themeContext';
+import { usePressFeedback } from '../../ui/usePressFeedback';
 
 const LANGUAGES: readonly LocalePreference[] = ['system', 'en', 'es', 'pt'];
 const APPEARANCES: readonly ThemePreference[] = ['system', 'day', 'dark', 'dim'];
@@ -66,6 +70,42 @@ function CabinetRow({ userId }: { userId: string }): React.JSX.Element {
   );
 }
 
+/**
+ * Opens the agent's notes, with the AI on or off: they are the user's data either way. The count shows once a cached
+ * copy or a read exists.
+ */
+function MemoryRow({ userId }: { userId: string }): React.JSX.Element {
+  const { t, tp } = useI18n();
+  const { color } = useTheme();
+  const tones = useTones();
+  const { notes } = useAgentNotes(userId);
+  const once = useOncePerFocus();
+  const { scaleStyle, pressedStyle, onPressIn, onPressOut } = usePressFeedback();
+  return (
+    <Animated.View style={scaleStyle}>
+      <Pressable
+        testID="profile-memory"
+        accessibilityRole="button"
+        onPress={() => {
+          once(() => {
+            router.push('/memory');
+          });
+        }}
+        onPressIn={onPressIn}
+        onPressOut={onPressOut}
+        style={[styles.navRow, { borderColor: color.border }]}
+      >
+        <Animated.View pointerEvents="none" style={[styles.pressed, { backgroundColor: tones.pressSecondary }, pressedStyle]} />
+        <Text style={[styles.body, styles.navLabel, { color: color.text }]}>{t('profile.memory')}</Text>
+        {notes === null ? null : (
+          <Text style={[styles.sub, { color: color.textMuted }]}>{tp('profile.memory.count', notes.length)}</Text>
+        )}
+        <ChevronRight size={20} color={color.textMuted} />
+      </Pressable>
+    </Animated.View>
+  );
+}
+
 /** The AI switch: turning it off asks first, turning it on shows what is shared; consent goes only through `setAiConsent`. */
 function CompanionSetting({ enabled }: { enabled: boolean }): React.JSX.Element {
   const { t } = useI18n();
@@ -93,6 +133,7 @@ function CompanionSetting({ enabled }: { enabled: boolean }): React.JSX.Element 
   return (
     <>
       <SwitchRow
+        testID="profile-ai-switch"
         title={t('profile.companion.switch')}
         sub={t('profile.companion.sub')}
         value={enabled}
@@ -109,6 +150,7 @@ function CompanionSetting({ enabled }: { enabled: boolean }): React.JSX.Element 
           </Text>
           {failed ? <Notice tone="danger" title={t('consent.error')} /> : null}
           <Button
+            testID="profile-ai-confirm"
             label={t(asking ? 'consent.accept' : 'common.confirm')}
             loading={saving}
             loadingLabel={t('common.saving')}
@@ -260,6 +302,7 @@ export default function Profile(): React.JSX.Element | null {
 
       <Section title={t('profile.companion')}>
         <CompanionSetting enabled={profile.aiEnabled} />
+        {userId === null ? null : <MemoryRow key={userId} userId={userId} />}
       </Section>
 
       <Section title={t('profile.account')}>
@@ -282,5 +325,6 @@ const styles = StyleSheet.create({
   help: { fontFamily: fonts.body, fontSize: type.caption, lineHeight: 18 },
   navRow: { flexDirection: 'row', alignItems: 'center', gap: space[2], minHeight: controlHeight, borderTopWidth: 1, borderBottomWidth: 1 },
   navLabel: { flex: 1 },
+  pressed: { ...StyleSheet.absoluteFill, opacity: 0 },
   confirm: { gap: space[3], padding: space[3], borderRadius: radius.card, borderWidth: 1 },
 });

@@ -21,24 +21,24 @@
   },
   "components": [
     {
-      "id": "idp",
-      "type": "external",
-      "label": "Apple \u00b7 Google",
-      "sublabel": "sign-in ID tokens",
-      "row": 2,
-      "col": 0
-    },
-    {
       "id": "app",
       "type": "frontend",
       "label": "Nimbo app",
-      "sublabel": "nimbo.db \u00b7 outbox \u00b7 local notifications",
+      "sublabel": "nimbo.db \u00b7 outbox \u00b7 chat",
       "row": 1,
       "col": 0,
       "size": [
         210,
         64
       ]
+    },
+    {
+      "id": "idp",
+      "type": "external",
+      "label": "Apple \u00b7 Google",
+      "sublabel": "sign-in ID tokens",
+      "row": 2,
+      "col": 0
     },
     {
       "id": "auth",
@@ -52,7 +52,7 @@
       "id": "pg",
       "type": "database",
       "label": "Postgres 17",
-      "sublabel": "profiles \u00b7 tracking \u00b7 entitlements",
+      "sublabel": "tracking \u00b7 notes \u00b7 quotas",
       "row": 1,
       "col": 2,
       "size": [
@@ -63,10 +63,14 @@
     {
       "id": "fn",
       "type": "backend",
-      "label": "Edge Functions",
-      "sublabel": "planned",
-      "row": 1,
-      "col": 3
+      "label": "companion",
+      "sublabel": "Edge Function",
+      "row": 2,
+      "col": 2,
+      "size": [
+        180,
+        64
+      ]
     },
     {
       "id": "smtp",
@@ -77,24 +81,28 @@
       "col": 4
     },
     {
-      "id": "ai",
-      "type": "external",
-      "label": "AI and data APIs",
-      "sublabel": "planned",
-      "row": 1,
-      "col": 4
-    },
-    {
       "id": "gh",
       "type": "external",
       "label": "GitHub Actions",
       "sublabel": "keep-alive, planned",
+      "row": 1,
+      "col": 4
+    },
+    {
+      "id": "claude",
+      "type": "external",
+      "label": "Anthropic",
+      "sublabel": "Sonnet 5.5 \u00b7 Haiku 5.5",
       "row": 2,
-      "col": 2,
-      "size": [
-        180,
-        64
-      ]
+      "col": 4
+    },
+    {
+      "id": "jev",
+      "type": "external",
+      "label": "TypeSafe",
+      "sublabel": "Jev screens",
+      "row": 3,
+      "col": 4
     }
   ],
   "boundaries": [
@@ -135,6 +143,15 @@
       "variant": "emphasis"
     },
     {
+      "id": "app-fn",
+      "from": "app",
+      "to": "fn",
+      "label": "chat + user JWT",
+      "variant": "emphasis",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
       "id": "auth-smtp",
       "from": "auth",
       "to": "smtp",
@@ -145,14 +162,23 @@
       "id": "fn-pg",
       "from": "fn",
       "to": "pg",
-      "variant": "dashed"
+      "label": "caller's JWT",
+      "fromSide": "top",
+      "toSide": "bottom"
     },
     {
-      "id": "fn-ai",
+      "id": "fn-claude",
       "from": "fn",
-      "to": "ai",
-      "label": "model calls",
-      "variant": "dashed"
+      "to": "claude",
+      "label": "tool loop, fallback"
+    },
+    {
+      "id": "fn-jev",
+      "from": "fn",
+      "to": "jev",
+      "label": "screens",
+      "fromSide": "bottom",
+      "toSide": "left"
     },
     {
       "id": "gh-pg",
@@ -165,19 +191,26 @@
   "cards": [
     {
       "dot": "emerald",
-      "title": "Today",
+      "title": "On the phone",
       "items": [
-        "The phone saves to nimbo.db first and queues each write",
-        "RLS and column grants scope every row; health writes go through RPCs",
-        "Consent is written only by two RPCs"
+        "Health data is saved to nimbo.db first and each write is queued",
+        "The chat is kept only on this phone"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "The companion",
+      "items": [
+        "Model calls run only in the companion function",
+        "Requests carry no name, email, id or location"
       ]
     },
     {
       "dot": "amber",
       "title": "Planned",
       "items": [
-        "Dashed boxes and lines arrive in later waves",
-        "Model calls will run only in Edge Functions"
+        "The boxes marked planned and the dashed lines arrive in later waves",
+        "Weather and other data APIs come with insights"
       ]
     },
     {
@@ -185,7 +218,7 @@
       "title": "Keys",
       "items": [
         "The app holds the URL and the anon key",
-        "The service-role key never reaches src/"
+        "Provider keys are function secrets, never in src/"
       ]
     }
   ]

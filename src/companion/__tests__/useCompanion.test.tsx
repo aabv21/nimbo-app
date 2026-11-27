@@ -10,7 +10,7 @@ import { appendMessage } from '../chatStore';
 import type { ChatMessage } from '../chatStore';
 import { askCompanion } from '../companionClient';
 import type { CompanionOutcome } from '../companionClient';
-import type { CompanionResponse, EpisodeDraft } from '../contract';
+import type { CompanionResponse, Draft, EpisodeDraft } from '../contract';
 import { overQuotaToday, useCompanion } from '../useCompanion';
 
 jest.mock('expo-sqlite', () => require('../../test/sqliteNode'));
@@ -82,7 +82,7 @@ function answer(outcome: CompanionOutcome): void {
   mockedAsk.mockResolvedValueOnce(outcome);
 }
 
-function seedDraft(draft: EpisodeDraft, input: 'text' | 'voice' = 'text'): number {
+function seedDraft(draft: Draft, input: 'text' | 'voice' = 'text'): number {
   return appendMessage(USER, {
     role: 'assistant',
     input,
@@ -160,6 +160,16 @@ describe('confirm', () => {
     expect(listOutbox(USER)).toEqual([]);
   });
 
+  test('a dose draft whose attack was deleted since is invalid: nothing is stamped and no refused dose is queued', async () => {
+    const id = seedDraft({ kind: 'dose', ref: 'd1', medicationId: MED, takenAt: '2026-11-27T21:00:00.000Z', episodeId: '00000000-0000-4000-8000-0000000000e7' });
+    const hook = await renderHook(() => useCompanion('chat'));
+    await act(() => {
+      expect(hook.result.current.confirm(id, 'd1')).toBe('invalid');
+    });
+    expect(stored(id)?.confirmed).toEqual({});
+    expect(listOutbox(USER)).toEqual([]);
+  });
+
   test('a draft from a typed message is saved with the chat source, one from a dictated message with the voice source', async () => {
     const typed = seedDraft(DRAFT);
     const spoken = seedDraft({ ...DRAFT, ref: 'd2' }, 'voice');
@@ -205,6 +215,20 @@ describe('send', () => {
     const [user, after] = hook.result.current.messages;
     expect(user?.status).toBe('red_flag');
     expect(after).toMatchObject({ role: 'assistant', status: 'red_flag', template: 'redflag_after', text: '' });
+  });
+
+  test('a red-flag body this version could not check still opens urgent care and appends the after line', async () => {
+    // A newer server's flag key: no known key survives, and the screen still opens (it always offers the call).
+    answer({ ok: true, unchecked: true, result: { ...OK, reply: null, redFlags: [] } });
+    const hook = await renderHook(() => useCompanion('chat'));
+    await act(async () => {
+      await hook.result.current.send('My arm feels odd', 'text');
+    });
+    expect(showUrgentCare).toHaveBeenCalledWith({ flags: [], excerpt: 'My arm feels odd', source: 'text', episodeId: null });
+    expect(hook.result.current.messages.map((message) => [message.role, message.status, message.template])).toEqual([
+      ['user', 'red_flag', null],
+      ['assistant', 'red_flag', 'redflag_after'],
+    ]);
   });
 
   test('sends the local day and the UI locale, and stores the reply with its payload', async () => {

@@ -12,6 +12,12 @@ function isLocalePreference(value: string): value is LocalePreference {
   return value === 'system' || value === 'en' || value === 'es' || value === 'pt';
 }
 
+/** Whether this device has a language choice of its own (`system` included); false on a fresh install. */
+export function hasStoredPreference(): boolean {
+  const stored = kvGet(LOCALE_PREFERENCE_KEY);
+  return stored !== null && isLocalePreference(stored);
+}
+
 function readStoredPreference(): LocalePreference {
   const stored = kvGet(LOCALE_PREFERENCE_KEY);
   if (stored !== null && isLocalePreference(stored)) {

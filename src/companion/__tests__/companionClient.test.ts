@@ -70,6 +70,32 @@ describe('askCompanion', () => {
     const client = fakeClient(() => Promise.resolve({ data: { ...OK, guard: 'replaced' }, error: null }));
     expect(await askCompanion(REQUEST, client)).toEqual({ ok: false, error: 'unknown' });
   });
+
+  describe('red flags from a newer server still open urgent care', () => {
+    const RED_ONLY = { reply: null, drafts: [], evidence: [], intent: 'other', guard: 'ok', replaced: null };
+
+    test('known flags in a body that fails its other checks come back as a red-flag answer', async () => {
+      const data = { ...RED_ONLY, redFlags: ['thunderclap'], drafts: [{ kind: 'reminder', ref: 'd1' }], intent: 'new_intent' };
+      const client = fakeClient(() => Promise.resolve({ data, error: null }));
+      expect(await askCompanion(REQUEST, client)).toEqual({ ok: true, unchecked: true, result: { ...RED_ONLY, redFlags: ['thunderclap'] } });
+    });
+
+    test('a flag key this version does not know still counts, with only the known keys kept', async () => {
+      const client = fakeClient(() => Promise.resolve({ data: { ...RED_ONLY, redFlags: ['new_flag', 'weakness'] }, error: null }));
+      expect(await askCompanion(REQUEST, client)).toEqual({ ok: true, unchecked: true, result: { ...RED_ONLY, redFlags: ['weakness'] } });
+      const unknownOnly = fakeClient(() => Promise.resolve({ data: { ...RED_ONLY, redFlags: ['new_flag'] }, error: null }));
+      expect(await askCompanion(REQUEST, unknownOnly)).toEqual({ ok: true, unchecked: true, result: { ...RED_ONLY, redFlags: [] } });
+    });
+
+    test.each([
+      ['an empty list', []],
+      ['a list with a non-string', ['thunderclap', 3]],
+      ['no list', undefined],
+    ])('%s is not a red flag: the body stays unknown', async (_label, redFlags) => {
+      const client = fakeClient(() => Promise.resolve({ data: { ...RED_ONLY, redFlags, guard: 'nope' }, error: null }));
+      expect(await askCompanion(REQUEST, client)).toEqual({ ok: false, error: 'unknown' });
+    });
+  });
 });
 
 describe('historyForRequest', () => {

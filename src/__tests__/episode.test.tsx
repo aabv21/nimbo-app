@@ -1,12 +1,13 @@
-import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, within } from '@testing-library/react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { Alert, Platform } from 'react-native';
 
 import EpisodeDetail from '../app/episode/[id]';
 import EpisodeEdit from '../app/episode/[id]/edit';
-import { logDose } from '../cabinet/doseStore';
+import { logDose, setDoseHelped } from '../cabinet/doseStore';
 import { saveMedication } from '../cabinet/medicationStore';
+import { updateEpisode } from '../episodes/episodeStore';
 import { translate } from '../i18n';
 import type { MessageKey, Params } from '../i18n';
 import { formatClock, formatDuration } from '../i18n/format';
@@ -98,6 +99,33 @@ describe('detail', () => {
     expect(screen.getByText(t('today.attack.dose_v', { med: 'Ibuprofen', time: formatClock(new Date(START.getTime() + 15 * 60 * 1000), 'en') }))).toBeTruthy();
   });
 
+  test('shows what helped and what did not from the debrief, the medications included', async () => {
+    const id = seed();
+    saveMedication('user-1', MED_ID, {
+      name: 'Ibuprofen', kind: 'acute', form: 'oral', medicationClass: 'simple_analgesic', doseText: null, minIntervalHours: null,
+      schedule: null, scheduleTime: null, scheduleAnchor: null, archived: false,
+    });
+    const doseId = logDose('user-1', { medicationId: MED_ID, takenAt: new Date(START.getTime() + 15 * 60 * 1000), episodeId: id });
+    updateEpisode('user-1', id, { helped: ['cold_pack'], didNotHelp: ['water'], debriefed: true });
+    setDoseHelped('user-1', doseId, true);
+    await render(<EpisodeDetail />);
+
+    const helped = within(screen.getByTestId('episode-helped'));
+    expect(helped.getByText(t('episode.helped'))).toBeTruthy();
+    expect(helped.getByText('Cold pack')).toBeTruthy();
+    expect(helped.getByText('Ibuprofen')).toBeTruthy();
+    const notHelped = within(screen.getByTestId('episode-not-helped'));
+    expect(notHelped.getByText(t('episode.not_helped'))).toBeTruthy();
+    expect(notHelped.getByText('Drinking water')).toBeTruthy();
+  });
+
+  test('an attack with no debrief shows no debrief rows', async () => {
+    seed();
+    await render(<EpisodeDetail />);
+    expect(screen.queryByText(t('episode.helped'))).toBeNull();
+    expect(screen.queryByText(t('episode.not_helped'))).toBeNull();
+  });
+
   test('Edit opens the editor', async () => {
     const id = seed();
     await render(<EpisodeDetail />);
@@ -155,6 +183,34 @@ describe('edit', () => {
     expect(lastOperation()).toEqual({
       kind: 'update_episode',
       args: { p_id: id, p_fields: { started_at: earlier.toISOString(), pain_areas: ['temple_left'], symptoms: ['nausea', 'vomiting'] } },
+    });
+  });
+
+  test('the helped chips save what helped, with the debrief stamp, in the same patch', async () => {
+    const id = seed();
+    await render(<EpisodeEdit />);
+    await fireEvent.press(within(screen.getByTestId('episode-helped')).getByRole('checkbox', { name: 'Cold pack' }));
+    await fireEvent.press(screen.getByRole('radio', { name: '5' }));
+    await fireEvent.press(screen.getByRole('button', { name: t('common.save') }));
+    expect(lastOperation()).toEqual({
+      kind: 'update_episode',
+      args: { p_id: id, p_fields: { intensity: 5, helped: ['cold_pack'], did_not_help: [], debriefed: true } },
+    });
+  });
+
+  test('a relief marked as not helping leaves what helped, and the other way round', async () => {
+    const id = seed();
+    updateEpisode('user-1', id, { helped: ['cold_pack'], debriefed: true });
+    await render(<EpisodeEdit />);
+    const helped = within(screen.getByTestId('episode-helped'));
+    const notHelped = within(screen.getByTestId('episode-not-helped'));
+    expect(helped.getByRole('checkbox', { name: 'Cold pack' })).toBeChecked();
+    await fireEvent.press(notHelped.getByRole('checkbox', { name: 'Cold pack' }));
+    expect(helped.getByRole('checkbox', { name: 'Cold pack' })).not.toBeChecked();
+    await fireEvent.press(screen.getByRole('button', { name: t('common.save') }));
+    expect(lastOperation()).toEqual({
+      kind: 'update_episode',
+      args: { p_id: id, p_fields: { helped: [], did_not_help: ['cold_pack'], debriefed: true } },
     });
   });
 

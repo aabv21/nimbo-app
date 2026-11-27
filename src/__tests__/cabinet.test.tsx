@@ -27,6 +27,17 @@ jest.mock('../profile/profileRepository', () => ({ updateProfile: jest.fn(), set
 jest.mock('expo-router', () => ({
   router: { push: jest.fn(), replace: jest.fn(), back: jest.fn() },
   useLocalSearchParams: jest.fn(),
+  useFocusEffect: (effect: () => void) => {
+    jest.requireActual<typeof import('react')>('react').useEffect(() => {
+      effect();
+    }, []);
+  },
+}));
+// Profile's notes row reads the agent's notes online; this suite never answers it.
+jest.mock('../lib/supabase', () => ({ supabase: {} }));
+jest.mock('../memory/agentNotesRepository', () => ({
+  ...jest.requireActual<typeof import('../memory/agentNotesRepository')>('../memory/agentNotesRepository'),
+  fetchAgentNotes: jest.fn(() => new Promise(() => undefined)),
 }));
 
 const t = (key: MessageKey, params?: Params): string => translate('en', key, params);

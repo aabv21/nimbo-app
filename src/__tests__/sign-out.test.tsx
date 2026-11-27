@@ -110,6 +110,10 @@ test('signing out with a record not uploaded asks first, then clears the session
   localDb().runSync(
     "INSERT INTO medications (id, user_id, name, kind, class, schedule, schedule_time) VALUES ('med-1', 'user-1', 'Propranolol', 'preventive', 'other', 'daily', '08:00:00');",
   );
+  // The agent's notes, cached from an online visit to "What I know about you": the user's words about themselves.
+  kvSet('memory.user-1', JSON.stringify([{ id: 'n1', text: 'Works night shifts on Thursdays', createdAt: '2026-11-20T10:00:00Z' }]));
+  // Debriefs finished on this phone.
+  kvSet('debrief.done.user-1', JSON.stringify(['clean-episode']));
 
   await renderRouter('./src/app', { initialUrl: '/profile' });
   expect(await screen.findByRole('header', { name: translate('en', 'profile.title') })).toBeOnTheScreen();
@@ -139,6 +143,9 @@ test('signing out with a record not uploaded asks first, then clears the session
     expect(episodeIds()).toEqual(['pending-episode']);
   });
   expect(listOutbox('user-1').map((op) => op.kind)).toEqual(['update_episode']);
+  // The cached notes and the debriefs marked done leave whatever the outbox holds.
+  expect(kvGet('memory.user-1')).toBeNull();
+  expect(kvGet('debrief.done.user-1')).toBeNull();
   expect(localDb().getAllSync("SELECT id FROM medications WHERE user_id = 'user-1';")).toEqual([]);
   expect(scheduled.has(REMINDER)).toBe(false);
   expect(presented).toEqual(['another-app-alert']);

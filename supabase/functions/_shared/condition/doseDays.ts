@@ -15,7 +15,7 @@ function partsOf(date: Date, timeZone: string): { year: number; month: number; d
 
 const pad = (value: number): string => String(value).padStart(2, '0');
 
-/** `YYYY-MM-DD` of `date` in `timeZone`; the device's own zone is `Intl.DateTimeFormat().resolvedOptions().timeZone`. */
+/** `YYYY-MM-DD` of `date` in `timeZone`; the app's own zone is `deviceTimeZone()` (src/lib/localDate.ts). */
 export function localDateIn(date: Date, timeZone: string): string {
   const { year, month, day } = partsOf(date, timeZone);
   return `${String(year)}-${pad(month)}-${pad(day)}`;

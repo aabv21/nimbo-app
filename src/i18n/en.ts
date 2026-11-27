@@ -584,4 +584,27 @@ export const en = {
   'crisis.tell.gone': 'This attack is no longer on this phone, so I couldn’t save what you said.',
   'crisis.listening.release_notes': 'Let go to finish. I’ll save it in this attack’s notes.',
   'companion.in_notes': 'Saved in the attack’s notes',
+
+  // "What I know about you": the agent's notes in Profile.
+  'profile.memory': 'What I know about you',
+  'profile.memory.count.one': '{n} note',
+  'profile.memory.count.other': '{n} notes',
+  'memory.lede': 'Nimbo keeps these notes to remember how you like things. Delete any of them and it forgets.',
+  'memory.delete': 'Delete this note',
+  'memory.only': 'This is Nimbo’s only long-term memory. The conversation stays on this phone.',
+  'memory.empty': 'I haven’t noted anything about you yet. If you tell me something worth remembering, it shows up here and you can delete it.',
+  'memory.delete.error': 'Couldn’t delete it. Check your connection and try again.',
+
+  // The day-after debrief and its rows in History.
+  'debrief.q.helped.yesterday': 'Good morning. Yesterday you had an attack of {duration}. What helped?',
+  'debrief.q.helped.date': 'You had an attack of {duration} on {date}. What helped?',
+  'debrief.q.not_helped': 'Noted. Did anything not help?',
+  'debrief.q.triggers': 'Anything that may have set it off?',
+  'debrief.done': 'Thanks. This goes into your crisis plan.',
+  'debrief.none': 'Nothing',
+  'debrief.progress': 'Question {n} of {of}',
+  'episode.helped': 'Helped, from your debrief',
+  'episode.not_helped': 'Didn’t help',
+  'episode.edit.helped': 'What helped',
+  'episode.edit.not_helped': 'What didn’t help',
 } as const;

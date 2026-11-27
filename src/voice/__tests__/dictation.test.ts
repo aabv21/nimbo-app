@@ -37,6 +37,8 @@ test('start runs on the device on iOS, in the app language, and holds until rele
   expect(recognition.start).toHaveBeenCalledWith(
     expect.objectContaining({ lang: 'en-US', requiresOnDeviceRecognition: true, continuous: true, interimResults: false }),
   );
+  // The audio is never kept: no recording file, whatever the library's default becomes.
+  expect(recognition.start).toHaveBeenCalledWith(expect.objectContaining({ recordingOptions: { persist: false } }));
   expect(hook.result.current.listening).toBe(true);
 
   await act(() => {

@@ -5,3 +5,8 @@ export function localDate(now: Date = new Date()): string {
   const day = String(now.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 }
+
+/** The device's IANA zone, read at each call so a trip moves it: the one place the app asks for it. */
+export function deviceTimeZone(): string {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone;
+}

@@ -25,6 +25,10 @@ and date when it changes.
 | Enroll in the Apple Developer Program | Pending | Needed for Sign in with Apple on a device and for TestFlight. |
 | Review the notification texts | Pending | Before the first build that ships reminders: the notifications setup step (`onb.notif.*`), the lock-screen choice (`notif.lock.*`), the reminder's neutral line (`push.neutral`) and detail line (`reminder.detail`) and the Android channel name (`reminder.channel`) in `src/i18n/en.ts`, `es.ts` and `pt.ts`, and the iOS location prompt in `app.json` (English only for now, [`native-config.md`](native-config.md#permissions)). |
 | Spot-check the emergency number for each launch country | Pending | Before launching in a country, call up its source in the emergency table ([`architecture.md`](architecture.md#red-flags-and-urgent-care)) and confirm the number still stands; a country missing from the table gets "Call your local emergency number". Bolivia, Paraguay and Nicaragua are left out on purpose. |
+| Create the Anthropic API key and set a spend limit | Pending | In the Anthropic Console, a key for Nimbo only, and a monthly spend limit on its workspace: the daily quotas bound each user, but only the spend limit bounds the total ([`ai.md`](ai.md#quotas-and-cost)). Keep the key out of the repo and out of `.env.local`. |
+| Create the TypeSafe API key | Pending | A key for Jev (`jev-latest`), which screens every companion message and reply. |
+| Set the function secrets and deploy `companion` | Pending | Only after the merge: `supabase secrets set ANTHROPIC_API_KEY=<key> TYPESAFE_API_KEY=<key>` on the hosted project, then deploy `companion`. Leave `ANTHROPIC_BASE_URL` and `TYPESAFE_BASE_URL` unset so the function uses the hosted APIs; the local stack points them at the mocks ([`local-stack.md`](local-stack.md#mocks)). |
+| Calibrate the guards | Pending | In the live session, with both keys exported in the shell (never in `.env.local`): `pnpm calibrate eval`, then `--layer claude`. Raise a threshold only where every positive is still caught; the script changes nothing itself ([`ai.md`](ai.md#calibration)). |
 | Name the processors of dictated audio in the privacy policy | Pending (Wave 5) | When the privacy policy is written: on Android without the offline language pack, dictation sends the audio to Google's speech recognizer, so Google is a processor of dictated audio; on iOS recognition stays on the device. Nimbo never stores or uploads audio itself, only the transcript as text ([`native-config.md`](native-config.md#permissions)). |
 | Print `{{ .Token }}` in the hosted confirmation and recovery email templates | Pending | The app asks for a 6-digit code; the hosted project's templates must contain it, as `supabase/templates/confirmation.html` and `recovery.html` do locally ([`local-stack.md`](local-stack.md)). |
 
@@ -51,6 +55,8 @@ The user can read their own entitlement row, `granted_note` included, so never p
 
 Google sign-in and Apple sign-in on a device, real email delivery of the codes, the first hosted
 migration, every tracking RPC and `has_premium` against the hosted project, and `pnpm premium grant`
-against it. The Maestro flows (`pnpm e2e`) run on the Android emulator against the local stack, and
+against it. For the companion: `pnpm calibrate eval` with the real keys, the deployed `companion` with its
+secrets (the prompt cache with the fallback header, the 3 s database cap on a cold project), dictation on
+a device (Android's Google recognizer, iOS on-device recognition), and the Maestro companion flow. The Maestro flows (`pnpm e2e`) run on the Android emulator against the local stack, and
 on the iOS simulator once the iOS dev build exists; a preview build is made only after a merge. The
 offline suites cover the logic around each ([`testing.md`](testing.md)).

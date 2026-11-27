@@ -11,6 +11,7 @@ interface SwitchRowProps {
   value: boolean;
   onChange: (value: boolean) => void;
   disabled?: boolean;
+  testID?: string;
 }
 
 const TRACK_WIDTH = 52;
@@ -20,13 +21,14 @@ const INSET = 5;
 const TRAVEL = TRACK_WIDTH - 2 - THUMB - INSET * 2;
 
 /** A setting with an on/off switch; the whole row is the target. The thumb snaps: a 20 pt slide is more than Dim allows. */
-export function SwitchRow({ title, sub, value, onChange, disabled = false }: SwitchRowProps): React.JSX.Element {
+export function SwitchRow({ title, sub, value, onChange, disabled = false, testID }: SwitchRowProps): React.JSX.Element {
   const { color } = useTheme();
   const tone = useTones();
   const { pressedStyle, onPressIn, onPressOut } = usePressFeedback();
 
   return (
     <Pressable
+      {...(testID === undefined ? {} : { testID })}
       accessibilityRole="switch"
       accessibilityLabel={title}
       {...(sub === undefined ? {} : { accessibilityHint: sub })}

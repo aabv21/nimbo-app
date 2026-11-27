@@ -3,21 +3,21 @@
 import { FunctionsFetchError, FunctionsHttpError, FunctionsRelayError } from '@supabase/supabase-js';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-import { isRecord } from '../../supabase/functions/_shared/guards.ts';
 import type { Database } from '../lib/database.types';
 import { supabase } from '../lib/supabase';
 import type { ChatMessage } from './chatStore';
-import { isCompanionResponse, MAX_TURNS, TOTAL_MAX_CHARS, TURN_MAX_CHARS } from './contract';
-import type { CompanionRequest, CompanionResponse, QuotaKind, Turn } from './contract';
+import { isCompanionResponse, isRecord, MAX_TURNS, RED_FLAG_KEYS, TOTAL_MAX_CHARS, TURN_MAX_CHARS } from './contract';
+import type { ClientQuotaKind, CompanionRequest, CompanionResponse, Turn } from './contract';
 
 type Client = SupabaseClient<Database>;
 
 export type CompanionError = 'network' | 'over_quota' | 'unavailable' | 'ai_off' | 'unknown';
 
 export type CompanionOutcome =
-  | { ok: true; result: CompanionResponse }
+  /** `unchecked`: the body failed this version's checks but named red flags, so only those were kept and urgent care opens. */
+  | { ok: true; result: CompanionResponse; unchecked?: true }
   | { ok: false; error: Exclude<CompanionError, 'over_quota'> }
-  | { ok: false; error: 'over_quota'; quota: QuotaKind; limit: number };
+  | { ok: false; error: 'over_quota'; quota: ClientQuotaKind; limit: number };
 
 const chars = (text: string): string[] => Array.from(text);
 
@@ -45,7 +45,7 @@ export function historyForRequest(chat: readonly ChatMessage[]): Turn[] {
   return kept;
 }
 
-async function quotaOf(response: Response): Promise<{ quota: QuotaKind; limit: number } | null> {
+async function quotaOf(response: Response): Promise<{ quota: ClientQuotaKind; limit: number } | null> {
   let body: unknown;
   try {
     body = await response.json();
@@ -79,12 +79,27 @@ async function failure(error: unknown): Promise<Extract<CompanionOutcome, { ok: 
   return { ok: false, error: 'unknown' };
 }
 
-/** Never throws: every failure is an outcome, and a body this app version cannot check is `unknown`. */
+const isFlagKey = (value: string): value is CompanionResponse['redFlags'][number] => (RED_FLAG_KEYS as readonly string[]).includes(value);
+
+/**
+ * Safety under version skew: a body that fails the checks (a newer server's draft kind, intent or flag key) but names
+ * red flags still opens urgent care, with the keys this version knows; null when it names none.
+ */
+function redFlagsOnly(body: unknown): CompanionOutcome | null {
+  if (!isRecord(body) || !Array.isArray(body.redFlags) || body.redFlags.length === 0) return null;
+  const flags: unknown[] = body.redFlags;
+  if (!flags.every((flag): flag is string => typeof flag === 'string')) return null;
+  const result: CompanionResponse = { reply: null, drafts: [], evidence: [], redFlags: flags.filter(isFlagKey), intent: 'other', guard: 'ok', replaced: null };
+  return { ok: true, unchecked: true, result };
+}
+
+/** Never throws: every failure is an outcome, and a body this app version cannot check is `unknown` unless it names red flags. */
 export async function askCompanion(input: CompanionRequest, client: Client = supabase): Promise<CompanionOutcome> {
   try {
     const response = await client.functions.invoke<unknown>('companion', { body: input });
     if (response.error !== null) return await failure(response.error);
-    return isCompanionResponse(response.data) ? { ok: true, result: response.data } : { ok: false, error: 'unknown' };
+    if (isCompanionResponse(response.data)) return { ok: true, result: response.data };
+    return redFlagsOnly(response.data) ?? { ok: false, error: 'unknown' };
   } catch (error) {
     return failure(error);
   }

@@ -268,6 +268,31 @@ describe('rows left on the phone', () => {
     expect(episodeCount('earlier')).toBe(0);
     expect(episodeCount('queued')).toBe(1);
   });
+
+  test("startup drops every other user's cached notes and finished debriefs, queued or not, and keeps the signed-in user's", async () => {
+    for (const user of ['user-1', 'earlier', 'queued']) {
+      insertEpisode(user, `${user}-episode`);
+      kvSet(`memory.${user}`, '[]');
+      kvSet(`debrief.done.${user}`, '["e1"]');
+    }
+    localDb().withTransactionSync(() => {
+      enqueue('queued', 'delete_episode', { p_id: 'queued-episode' });
+    });
+
+    await render(
+      <SyncProvider>
+        <Probe />
+      </SyncProvider>,
+    );
+    await flush();
+
+    for (const user of ['earlier', 'queued']) {
+      expect(kvGet(`memory.${user}`)).toBeNull();
+      expect(kvGet(`debrief.done.${user}`)).toBeNull();
+    }
+    expect(kvGet('memory.user-1')).toBe('[]');
+    expect(kvGet('debrief.done.user-1')).toBe('["e1"]');
+  });
 });
 
 describe('a reconnect', () => {

@@ -1,10 +1,11 @@
 // The phone stores' time check, shared so every store refuses the same times before anything is written or queued.
+import { MAX_AHEAD_MS } from '../../condition';
 
 /**
  * Stricter than the server, which stores a time up to a day ahead as now (`private.client_time`) for a clock running
  * fast: a time more than 5 minutes ahead is a mistake to show here, not one to clamp in silence while the mirror keeps it.
  */
-export const CLOCK_SKEW_MS = 5 * 60 * 1000;
+export const CLOCK_SKEW_MS = MAX_AHEAD_MS;
 
 const EARLIEST_MS = Date.UTC(2000, 0, 1);
 

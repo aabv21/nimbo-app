@@ -239,6 +239,8 @@ export function useDictation(onHeard: (text: string) => void): {
             maxAlternatives: 1,
             requiresOnDeviceRecognition: offline,
             iosTaskHint: 'dictation',
+            // Set, not left to the default: the audio must never be written to a file (docs/native-config.md).
+            recordingOptions: { persist: false },
           });
         } catch {
           active = null;

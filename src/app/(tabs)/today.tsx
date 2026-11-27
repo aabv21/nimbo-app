@@ -10,7 +10,7 @@ import { isCheckinDone, useCheckin, useCheckinDates } from '../../checkin/checki
 import { useMinuteClock } from '../../crisis/useMinuteClock';
 import { startEpisode, useEpisodes, useOpenEpisode } from '../../episodes/episodeStore';
 import { useI18n } from '../../i18n';
-import { localDate } from '../../lib/localDate';
+import { deviceTimeZone, localDate } from '../../lib/localDate';
 import { useOncePerFocus } from '../../lib/useOncePerFocus';
 import { SyncNotice } from '../../lib/sync/SyncNotice';
 import { MedicationSummary, useMedicationMonth } from '../../today/MedicationSummary';
@@ -25,7 +25,6 @@ import { fonts, radius, space, type } from '../../ui/theme';
 import { useTheme } from '../../ui/themeContext';
 
 // The device's zone: doses count by the calendar the user lives by, as on the cabinet.
-const TIME_ZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
 // Every check-in date there could be, to tell whether anything was ever logged.
 const EVER: readonly [string, string] = ['0000-01-01', '9999-12-31'];
 
@@ -60,7 +59,7 @@ function TodayScreen({ userId }: { userId: string }): React.JSX.Element {
   const open = useOpenEpisode(userId);
   const checkin = useCheckin(userId, day);
   const anyCheckin = useCheckinDates(userId, EVER[0], EVER[1]).size > 0;
-  const month = useMedicationMonth(userId, now, TIME_ZONE);
+  const month = useMedicationMonth(userId, now, deviceTimeZone());
 
   const status: TodayStatus =
     open !== null

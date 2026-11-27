@@ -12,6 +12,7 @@ import { OveruseNotice } from '../../cabinet/OveruseNotice';
 import { overuseStatus, packs } from '../../condition';
 import type { OveruseEntry } from '../../condition';
 import { useI18n } from '../../i18n';
+import { deviceTimeZone } from '../../lib/localDate';
 import { BackButton } from '../../ui/BackButton';
 import { Button } from '../../ui/Button';
 import { Screen } from '../../ui/Screen';
@@ -19,10 +20,6 @@ import { controlHeight, fonts, space, type } from '../../ui/theme';
 import { useTheme } from '../../ui/themeContext';
 
 const pack = packs.migraine;
-
-function deviceTimeZone(): string {
-  return Intl.DateTimeFormat().resolvedOptions().timeZone;
-}
 
 function Tag({ entry }: { entry: OveruseEntry }): React.JSX.Element {
   const { t, tp } = useI18n();

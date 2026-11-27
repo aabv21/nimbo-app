@@ -12,15 +12,19 @@ import { useMedications } from '../../cabinet/medicationStore';
 import { EmptyState, StateNotice } from '../../companion/CompanionStates';
 import { Composer } from '../../companion/Composer';
 import type { Draft, Evidence } from '../../companion/contract';
+import { DebriefCard } from '../../companion/DebriefCard';
+import { debriefDue } from '../../companion/debrief';
+import { readDebriefsDone } from '../../companion/debriefDone';
 import { DraftEditor } from '../../companion/DraftEditor';
 import { EvidenceSheet } from '../../companion/EvidenceSheet';
 import { MessageList } from '../../companion/MessageList';
 import { companionDay, overQuotaToday, replaceDraft, useCompanion } from '../../companion/useCompanion';
 import { useMinuteClock } from '../../crisis/useMinuteClock';
 import { startEpisode, useEpisodes, useOpenEpisode } from '../../episodes/episodeStore';
+import type { Episode } from '../../episodes/episodeStore';
 import { useI18n } from '../../i18n';
 import type { MessageKey } from '../../i18n';
-import { localDate } from '../../lib/localDate';
+import { deviceTimeZone, localDate } from '../../lib/localDate';
 import { useOncePerFocus } from '../../lib/useOncePerFocus';
 import { Button } from '../../ui/Button';
 import { useTabBarInset } from '../../ui/TabBar';
@@ -42,9 +46,20 @@ function CompanionScreen({ userId }: { userId: string }): React.JSX.Element {
   const once = useOncePerFocus();
   const now = useMinuteClock();
   const day = localDate(now);
-  const companion = useCompanion('chat');
-  const { send, retry, confirm } = companion;
   const episodes = useEpisodes(userId);
+  // The debrief whose saved confirmation is still showing, kept while its attack is no longer due.
+  const [holding, setHolding] = useState<Episode | null>(null);
+  // Re-read when the attacks change: a debrief marks its attack done in the same press that stamps it.
+  const skipped = useMemo(() => {
+    const done = readDebriefsDone(userId);
+    return new Set(episodes.filter((episode) => done.has(episode.id)).map((episode) => episode.id));
+  }, [episodes, userId]);
+  const due = useMemo(() => debriefDue(episodes, now, deviceTimeZone(), skipped), [episodes, now, skipped]);
+  const debrief = holding ?? due;
+  // Only while the card is on its questions are typed words about that attack; its saved confirmation is not a question.
+  const asking = holding === null ? due : null;
+  const companion = useCompanion(asking === null ? 'chat' : 'debrief', asking === null ? {} : { episodeId: asking.id });
+  const { send, retry, confirm } = companion;
   const open = useOpenEpisode(userId);
   const doses = useDoses(userId);
   // Archived ones too: an old dose or draft still names its medication.
@@ -105,7 +120,7 @@ function CompanionScreen({ userId }: { userId: string }): React.JSX.Element {
           />
         </View>
         <View style={styles.root}>
-          {companion.messages.length === 0 ? (
+          {companion.messages.length === 0 && debrief === null ? (
             <View style={[styles.emptyFrame, { paddingLeft: insets.left + space[3], paddingRight: insets.right + space[3] }]}>
               <EmptyState disabled={state !== 'ready' || companion.typing} onSuggest={sendText} />
             </View>
@@ -113,6 +128,22 @@ function CompanionScreen({ userId }: { userId: string }): React.JSX.Element {
             <MessageList
               messages={companion.messages}
               typing={companion.typing}
+              latest={
+                debrief === null ? undefined : (
+                  <DebriefCard
+                    key={debrief.id}
+                    userId={userId}
+                    episode={debrief}
+                    now={now}
+                    onSaved={() => {
+                      setHolding(debrief);
+                    }}
+                    onClosed={() => {
+                      setHolding(null);
+                    }}
+                  />
+                )
+              }
               records={records}
               retryDisabled={state === 'over_quota'}
               onRetry={onRetry}

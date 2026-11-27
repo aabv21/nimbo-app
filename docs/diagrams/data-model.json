@@ -13,7 +13,7 @@
     "cellW": 170,
     "cellH": 64,
     "gapX": 70,
-    "gapY": 84,
+    "gapY": 60,
     "origin": [
       40,
       80
@@ -75,7 +75,7 @@
       "id": "trackingRpcs",
       "type": "security",
       "label": "Tracking RPCs",
-      "sublabel": "log_episode + 7 more",
+      "sublabel": "9, set_dose_helped too",
       "row": 1,
       "col": 1
     },
@@ -93,13 +93,13 @@
       "label": "has_premium()",
       "sublabel": "own row only",
       "row": 1,
-      "col": 4
+      "col": 3
     },
     {
       "id": "episodes",
       "type": "database",
       "label": "public.episodes",
-      "sublabel": "attacks",
+      "sublabel": "attacks, debrief",
       "row": 2,
       "col": 0,
       "tag": "RLS"
@@ -120,6 +120,52 @@
       "sublabel": "acute and preventive",
       "row": 2,
       "col": 2,
+      "tag": "RLS"
+    },
+    {
+      "id": "noteRpcs",
+      "type": "security",
+      "label": "Note RPCs",
+      "sublabel": "save_ / delete_agent_note",
+      "row": 2,
+      "col": 3,
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "agentNotes",
+      "type": "database",
+      "label": "public.agent_notes",
+      "sublabel": "20 per user",
+      "row": 2,
+      "col": 4,
+      "tag": "RLS"
+    },
+    {
+      "id": "companion",
+      "type": "backend",
+      "label": "companion",
+      "sublabel": "Edge Function",
+      "row": 3,
+      "col": 2
+    },
+    {
+      "id": "consumeQuota",
+      "type": "security",
+      "label": "consume_quota()",
+      "sublabel": "service role only",
+      "row": 3,
+      "col": 3
+    },
+    {
+      "id": "usage",
+      "type": "database",
+      "label": "usage_counters",
+      "sublabel": "public, no grants",
+      "row": 3,
+      "col": 4,
       "tag": "RLS"
     }
   ],
@@ -166,7 +212,9 @@
       "id": "premium-entitlements",
       "from": "premium",
       "to": "entitlements",
-      "label": "reads"
+      "label": "reads",
+      "fromSide": "right",
+      "toSide": "bottom"
     },
     {
       "id": "app-trackingRpcs",
@@ -217,6 +265,32 @@
       "from": "doses",
       "to": "medications",
       "label": "references"
+    },
+    {
+      "id": "app-noteRpcs",
+      "from": "app",
+      "to": "noteRpcs",
+      "fromSide": "right",
+      "toSide": "top"
+    },
+    {
+      "id": "noteRpcs-agentNotes",
+      "from": "noteRpcs",
+      "to": "agentNotes",
+      "variant": "security"
+    },
+    {
+      "id": "companion-consumeQuota",
+      "from": "companion",
+      "to": "consumeQuota",
+      "label": "per message",
+      "variant": "emphasis"
+    },
+    {
+      "id": "consumeQuota-usage",
+      "from": "consumeQuota",
+      "to": "usage",
+      "variant": "security"
     }
   ],
   "cards": [
@@ -225,31 +299,31 @@
       "title": "Ownership",
       "items": [
         "Every table keys rows to auth.users, deleted with the user",
-        "Each has one read-own select policy for authenticated"
+        "Each has a read-own select policy, except usage_counters, which has none"
       ]
     },
     {
       "dot": "rose",
       "title": "RPC-only writes",
       "items": [
-        "Consent, onboarding and every health row are written only by security definer RPCs",
-        "A direct insert, update or delete fails with 42501"
+        "Health rows, consent and onboarding are written only by security definer RPCs",
+        "Notes go through save_agent_note and delete_agent_note; a direct write fails with 42501"
       ]
     },
     {
       "dot": "cyan",
-      "title": "Profile",
+      "title": "Debrief",
       "items": [
-        "Location is a coarse area: coarse_lat and coarse_lon at one decimal",
-        "priority is one of four, known_triggers are catalog keys, track_period is opt-in"
+        "episodes.helped, did_not_help and debriefed_at; doses.helped",
+        "update_episode stamps debriefed_at; set_dose_helped sets a dose's helped"
       ]
     },
     {
       "dot": "amber",
-      "title": "Premium",
+      "title": "Quotas and premium",
       "items": [
-        "Only the service role or the dashboard writes entitlements",
-        "A grant and a purchase never cancel each other"
+        "consume_quota counts per user, local day and kind: 40 companion, 20 dictation, 200 screen",
+        "Only the service role or the dashboard writes entitlements"
       ]
     }
   ]

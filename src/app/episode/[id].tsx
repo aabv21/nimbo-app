@@ -25,10 +25,10 @@ const MINUTE_MS = 60 * 1000;
 // Only an attack logged by voice or in a chat says so; one typed in by hand shows nothing.
 const SOURCE_LINES: Record<Episode['source'], MessageKey | null> = { manual: null, voice: 'episode.source', chat: 'episode.source.chat' };
 
-function Row({ label, children }: { label: string; children: React.ReactNode }): React.JSX.Element {
+function Row({ label, children, testID }: { label: string; children: React.ReactNode; testID?: string }): React.JSX.Element {
   const { color } = useTheme();
   return (
-    <View style={[styles.row, { borderBottomColor: color.border }]}>
+    <View testID={testID} style={[styles.row, { borderBottomColor: color.border }]}>
       <Text style={[styles.term, { color: color.textMuted }]}>{label}</Text>
       <View style={styles.lines}>{children}</View>
     </View>
@@ -89,11 +89,17 @@ function Detail({ userId, id }: { userId: string; id: string }): React.JSX.Eleme
     });
   const medicationName = (medicationId: string): string =>
     medications.find((medication) => medication.id === medicationId)?.name ?? t('draft.k.dose');
-  const lists: { label: string; lines: string[] }[] = [
+  // The debrief's answers: the comfort measures, then the medications whose doses were marked, each once.
+  const marked = (helped: boolean): string[] => [
+    ...new Set(doses.filter((dose) => dose.helped === helped).map((dose) => medicationName(dose.medicationId))),
+  ];
+  const lists: { label: string; lines: string[]; testID?: string }[] = [
     { label: t('episode.where'), lines: labels('painAreas', episode.painAreas) },
     { label: t('draft.k.symptoms'), lines: labels('symptoms', episode.symptoms) },
     { label: t('episode.triggers'), lines: labels('triggers', episode.triggers) },
     { label: t('episode.reliefs'), lines: labels('reliefs', episode.reliefs) },
+    { label: t('episode.helped'), lines: [...labels('reliefs', episode.helped), ...marked(true)], testID: 'episode-helped' },
+    { label: t('episode.not_helped'), lines: [...labels('reliefs', episode.didNotHelp), ...marked(false)], testID: 'episode-not-helped' },
     {
       label: t('draft.k.dose'),
       // Oldest first, as the attack went.
@@ -142,9 +148,9 @@ function Detail({ userId, id }: { userId: string; id: string }): React.JSX.Eleme
             <Text style={[styles.number, { color: color.text }]}>{episode.intensity}</Text>
           </Row>
         )}
-        {lists.map(({ label, lines }) =>
+        {lists.map(({ label, lines, testID }) =>
           lines.length === 0 ? null : (
-            <Row key={label} label={label}>
+            <Row key={label} label={label} {...(testID === undefined ? {} : { testID })}>
               {lines.map((line, index) => (
                 <Text key={`${line}-${String(index)}`} style={[styles.line, { color: color.text }]}>
                   {line}

@@ -33,6 +33,12 @@ export default defineConfig(
     rules: { 'security/detect-object-injection': 'off' },
   },
   {
+    // The calibration script and its test index a record by a guard key, a red-flag key or a fixture's position, and read
+    // one environment variable by its name.
+    files: ['scripts/calibrate.ts', 'scripts/__tests__/calibration.test.ts'],
+    rules: { 'security/detect-object-injection': 'off' },
+  },
+  {
     // The screens index a record by a guard key, an intent or a red-flag key from a fixed tuple.
     files: ['supabase/functions/_shared/{screen,screenQuestions,screenFallback}.ts'],
     rules: { 'security/detect-object-injection': 'off' },
@@ -77,7 +83,7 @@ export default defineConfig(
       'jest.setup.ts',
       'src/ui/__tests__/ThemeProvider.test.tsx',
       'src/__tests__/{boundary,ai-consent,consent-gate,smoke,profile}.test.tsx',
-      'src/__tests__/{cabinet,crisis,checkin,history,episode,onboarding,today,sign-out,companion}.test.tsx',
+      'src/__tests__/{cabinet,crisis,checkin,history,episode,onboarding,today,sign-out,companion,memory}.test.tsx',
       'src/cabinet/__tests__/*.test.{ts,tsx}',
       'src/checkin/__tests__/*.test.{ts,tsx}',
       'src/episodes/__tests__/*.test.{ts,tsx}',
@@ -85,7 +91,7 @@ export default defineConfig(
       'src/crisis/__tests__/{TellMe,WhatHelped}.test.tsx',
       'src/redflags/__tests__/*.test.tsx',
       'src/premium/__tests__/*.test.tsx',
-      'src/profile/__tests__/{useTimezoneSync,useProfileChange,profileRepository}.test.ts',
+      'src/profile/__tests__/{useTimezoneSync,useLanguageSync,useProfileChange,profileRepository}.test.ts',
       'src/auth/__tests__/AuthProvider.test.tsx',
       'src/lib/{local,outbox,sync}/__tests__/*.test.{ts,tsx}',
     ],

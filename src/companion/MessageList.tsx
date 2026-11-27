@@ -122,14 +122,14 @@ const MessageItem = memo(function MessageItem({ message, fresh, records, retryDi
     );
   }
 
-  // NOTE: the debrief's closing line arrives with the debrief itself; until then nothing writes `debrief_done`.
-  if (message.template === 'debrief_done') return null;
   const payload = message.payload;
   return (
     <Animated.View {...rise} style={styles.agentBlock}>
       <Text style={[styles.caption, { color: color.textMuted }]}>{t('tabs.companion')}</Text>
       {message.template === 'redflag_after' ? (
         <Text style={[styles.note, { color: color.text }]}>{t('companion.redflag.after')}</Text>
+      ) : message.template === 'debrief_done' ? (
+        <Text style={[styles.note, { color: color.text }]}>{t('debrief.done')}</Text>
       ) : message.status === 'replaced' ? (
         <ReplacedReply message={message} records={records} />
       ) : (
@@ -196,10 +196,12 @@ function TypingLine(): React.JSX.Element | null {
 interface MessageListProps extends Handlers {
   messages: readonly ChatMessage[];
   typing: boolean;
+  /** Shown after the newest message, below the typing line: the debrief asked now. */
+  latest?: React.JSX.Element | undefined;
   records: Records;
 }
 
-export function MessageList({ messages, typing, records, retryDisabled, onRetry, onConfirm, onEdit, onEvidence }: MessageListProps): React.JSX.Element {
+export function MessageList({ messages, typing, latest, records, retryDisabled, onRetry, onConfirm, onEdit, onEvidence }: MessageListProps): React.JSX.Element {
   const { t, locale } = useI18n();
   const { color } = useTheme();
   // Messages already there when the chat first showed do not animate; one that arrives later rises in.
@@ -246,7 +248,17 @@ export function MessageList({ messages, typing, records, retryDisabled, onRetry,
       keyExtractor={(item) => item.key}
       renderItem={renderItem}
       keyboardShouldPersistTaps="handled"
-      {...(typing ? { ListHeaderComponent: <TypingLine /> } : {})}
+      {...(typing || latest !== undefined
+        ? {
+            // Inverted, so the header sits at the bottom, under the newest message.
+            ListHeaderComponent: (
+              <View style={styles.latest}>
+                {typing ? <TypingLine /> : null}
+                {latest}
+              </View>
+            ),
+          }
+        : {})}
       contentContainerStyle={styles.content}
     />
   );
@@ -263,4 +275,5 @@ const styles = StyleSheet.create({
   body: { fontFamily: fonts.body, fontSize: type.body, lineHeight: 24 },
   caption: { fontFamily: fonts.body, fontSize: type.caption, lineHeight: 18 },
   typing: { fontFamily: fonts.body, fontSize: type.label, lineHeight: 20 },
+  latest: { gap: space[3] },
 });

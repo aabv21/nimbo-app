@@ -212,7 +212,7 @@ isOneToOne: false
                            }
           }
           Enums: {
-            "app_language": "en"|"es"|"pt","app_theme": "system"|"day"|"dark"|"dim","episode_source": "manual"|"voice"|"chat","medication_class": "simple_analgesic"|"triptan"|"ergot"|"opioid"|"combination_analgesic"|"gepant"|"other","medication_form": "oral"|"injection"|"nasal"|"other","medication_kind": "preventive"|"acute","medication_schedule": "daily"|"monthly"|"quarterly","quota_kind": "companion"|"dictation","sleep_band": "lt5"|"5_6"|"6_7"|"7_8"|"gt8","sleep_quality": "bad"|"ok"|"good","stress_level": "low"|"mid"|"high"
+            "app_language": "en"|"es"|"pt","app_theme": "system"|"day"|"dark"|"dim","episode_source": "manual"|"voice"|"chat","medication_class": "simple_analgesic"|"triptan"|"ergot"|"opioid"|"combination_analgesic"|"gepant"|"other","medication_form": "oral"|"injection"|"nasal"|"other","medication_kind": "preventive"|"acute","medication_schedule": "daily"|"monthly"|"quarterly","quota_kind": "companion"|"dictation"|"screen","sleep_band": "lt5"|"5_6"|"6_7"|"7_8"|"gt8","sleep_quality": "bad"|"ok"|"good","stress_level": "low"|"mid"|"high"
           }
           CompositeTypes: {
             [_ in never]: never
@@ -332,7 +332,7 @@ export const Constants = {
           }
         },"public": {
           Enums: {
-            "app_language": ["en", "es", "pt"],"app_theme": ["system", "day", "dark", "dim"],"episode_source": ["manual", "voice", "chat"],"medication_class": ["simple_analgesic", "triptan", "ergot", "opioid", "combination_analgesic", "gepant", "other"],"medication_form": ["oral", "injection", "nasal", "other"],"medication_kind": ["preventive", "acute"],"medication_schedule": ["daily", "monthly", "quarterly"],"quota_kind": ["companion", "dictation"],"sleep_band": ["lt5", "5_6", "6_7", "7_8", "gt8"],"sleep_quality": ["bad", "ok", "good"],"stress_level": ["low", "mid", "high"]
+            "app_language": ["en", "es", "pt"],"app_theme": ["system", "day", "dark", "dim"],"episode_source": ["manual", "voice", "chat"],"medication_class": ["simple_analgesic", "triptan", "ergot", "opioid", "combination_analgesic", "gepant", "other"],"medication_form": ["oral", "injection", "nasal", "other"],"medication_kind": ["preventive", "acute"],"medication_schedule": ["daily", "monthly", "quarterly"],"quota_kind": ["companion", "dictation", "screen"],"sleep_band": ["lt5", "5_6", "6_7", "7_8", "gt8"],"sleep_quality": ["bad", "ok", "good"],"stress_level": ["low", "mid", "high"]
           }
         }
 } as const

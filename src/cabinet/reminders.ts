@@ -5,6 +5,7 @@ import { Platform } from 'react-native';
 
 import { translate } from '../i18n';
 import type { Locale } from '../i18n';
+import { deviceTimeZone } from '../lib/localDate';
 import type { Medication } from './medicationStore';
 
 export const REMINDER_CHANNEL_ID = 'preventive-reminders';
@@ -212,7 +213,7 @@ export function syncReminders(
     const due = meds.filter((med) => med.kind === 'preventive' && !med.archived && med.schedule !== null);
     if (due.length === 0) return;
     await ensureChannel(options.locale);
-    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const timeZone = deviceTimeZone();
     const now = new Date();
     for (const med of due) {
       const clock = med.scheduleTime === null ? null : clockOf(med.scheduleTime);

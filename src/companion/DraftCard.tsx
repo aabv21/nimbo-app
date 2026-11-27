@@ -199,7 +199,7 @@ export const DraftCard = memo(function DraftCard({
         </Text>
       ) : null}
       {docked ? null : confirmed ? (
-        <Button swap label={t('common.done')} icon={Check} onPress={() => undefined} />
+        <Button testID="draft-confirmed" swap label={t('common.done')} icon={Check} onPress={() => undefined} />
       ) : (
         <View style={styles.actions}>
           <Button
@@ -212,7 +212,7 @@ export const DraftCard = memo(function DraftCard({
             }}
           />
           {/* Tappable from the first frame: the rows assemble around it, never blocking it. */}
-          <Button label={t('common.confirm')} style={styles.grow} onPress={confirm} />
+          <Button testID="draft-confirm" label={t('common.confirm')} style={styles.grow} onPress={confirm} />
         </View>
       )}
     </Animated.View>

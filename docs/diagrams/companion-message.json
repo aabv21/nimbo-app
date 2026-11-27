@@ -1,0 +1,282 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "Nimbo Companion Message",
+    "locale": "en",
+    "output": "docs/diagrams/companion-message.html",
+    "quality_profile": "showcase",
+    "column_fit": "spread",
+    "viewBox": [
+      1400,
+      872
+    ]
+  },
+  "participants": [
+    {
+      "id": "tab",
+      "type": "frontend",
+      "label": "Companion tab"
+    },
+    {
+      "id": "fn",
+      "type": "backend",
+      "label": "companion"
+    },
+    {
+      "id": "screens",
+      "type": "security",
+      "label": "Jev · Haiku"
+    },
+    {
+      "id": "quota",
+      "type": "security",
+      "label": "consume_quota()"
+    },
+    {
+      "id": "claude",
+      "type": "external",
+      "label": "Claude Sonnet 5.5"
+    },
+    {
+      "id": "rest",
+      "type": "database",
+      "label": "PostgREST"
+    },
+    {
+      "id": "local",
+      "type": "database",
+      "label": "nimbo.db"
+    }
+  ],
+  "segments": [
+    {
+      "from": 168,
+      "to": 330,
+      "label": "Input screen"
+    },
+    {
+      "from": 344,
+      "to": 406,
+      "label": "Quota"
+    },
+    {
+      "from": 420,
+      "to": 612,
+      "label": "Tool loop, at most 3 rounds"
+    },
+    {
+      "from": 626,
+      "to": 718,
+      "label": "Reply screen"
+    },
+    {
+      "from": 732,
+      "to": 768,
+      "label": "Confirm"
+    }
+  ],
+  "messages": [
+    {
+      "from": "tab",
+      "to": "fn",
+      "y": 190,
+      "label": "turns, after the keyword check",
+      "variant": "emphasis"
+    },
+    {
+      "from": "fn",
+      "to": "rest",
+      "y": 222,
+      "label": "profile, notes, the attack",
+      "variant": "default"
+    },
+    {
+      "from": "fn",
+      "to": "quota",
+      "y": 254,
+      "label": "spend screen, else keywords only",
+      "variant": "default"
+    },
+    {
+      "from": "fn",
+      "to": "screens",
+      "y": 286,
+      "label": "input: keywords, Jev, else Haiku",
+      "variant": "security"
+    },
+    {
+      "from": "screens",
+      "to": "fn",
+      "y": 318,
+      "label": "red flags + intent",
+      "variant": "return"
+    },
+    {
+      "from": "fn",
+      "to": "quota",
+      "y": 362,
+      "label": "spend companion (+ dictation)",
+      "variant": "default"
+    },
+    {
+      "from": "quota",
+      "to": "fn",
+      "y": 394,
+      "label": "true, else 429",
+      "variant": "return"
+    },
+    {
+      "from": "fn",
+      "to": "claude",
+      "y": 438,
+      "label": "prompt + 10 tools",
+      "variant": "emphasis"
+    },
+    {
+      "from": "claude",
+      "to": "fn",
+      "y": 470,
+      "label": "tool_use",
+      "variant": "return"
+    },
+    {
+      "from": "fn",
+      "to": "rest",
+      "y": 502,
+      "label": "tool reads, short refs out",
+      "variant": "default"
+    },
+    {
+      "from": "rest",
+      "to": "fn",
+      "y": 534,
+      "label": "the caller's rows only",
+      "variant": "return"
+    },
+    {
+      "from": "fn",
+      "to": "claude",
+      "y": 566,
+      "label": "results in one user turn",
+      "variant": "default"
+    },
+    {
+      "from": "claude",
+      "to": "fn",
+      "y": 598,
+      "label": "reply text",
+      "variant": "return"
+    },
+    {
+      "from": "fn",
+      "to": "screens",
+      "y": 642,
+      "label": "reply: local checks, 7 Nouls",
+      "variant": "security"
+    },
+    {
+      "from": "screens",
+      "to": "fn",
+      "y": 674,
+      "label": "ok · replaced · degraded",
+      "variant": "return"
+    },
+    {
+      "from": "fn",
+      "to": "tab",
+      "y": 706,
+      "label": "reply or template, drafts",
+      "variant": "return"
+    },
+    {
+      "from": "tab",
+      "to": "local",
+      "y": 750,
+      "label": "Confirm: records + ops, one tx",
+      "variant": "emphasis"
+    }
+  ],
+  "activations": [
+    {
+      "participant": "fn",
+      "from": 185,
+      "to": 712,
+      "type": "backend"
+    },
+    {
+      "participant": "quota",
+      "from": 249,
+      "to": 260,
+      "type": "security"
+    },
+    {
+      "participant": "screens",
+      "from": 281,
+      "to": 324,
+      "type": "security"
+    },
+    {
+      "participant": "quota",
+      "from": 357,
+      "to": 400,
+      "type": "security"
+    },
+    {
+      "participant": "claude",
+      "from": 433,
+      "to": 476,
+      "type": "external"
+    },
+    {
+      "participant": "rest",
+      "from": 497,
+      "to": 540,
+      "type": "database"
+    },
+    {
+      "participant": "claude",
+      "from": 561,
+      "to": 604,
+      "type": "external"
+    },
+    {
+      "participant": "screens",
+      "from": 637,
+      "to": 680,
+      "type": "security"
+    },
+    {
+      "participant": "local",
+      "from": 745,
+      "to": 756,
+      "type": "database"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "rose",
+      "title": "Red flag first",
+      "items": [
+        "A keyword or model hit answers redFlags at once",
+        "Only the screening unit is spent; Claude is never called"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Bounded",
+      "items": [
+        "The request ends within 40 s; each screen gets 8.5 s",
+        "The loop stops 8.5 s before the end, so the reply is always screened"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Nothing saved by the model",
+      "items": [
+        "A draft is written only when the user taps Confirm",
+        "The stores write the records and their outbox calls together"
+      ]
+    }
+  ]
+}

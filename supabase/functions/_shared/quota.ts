@@ -4,9 +4,10 @@
 import type { SupabaseEnv } from './env.ts';
 import { POSTGREST_TIMEOUT_MS, restJson, serviceHeaders } from './rest.ts';
 
-export type QuotaKind = 'companion' | 'dictation';
+/** `screen` is the companion's input screen (Jev, then Haiku), spent on every message before the others. */
+export type QuotaKind = 'companion' | 'dictation' | 'screen';
 
-export const DAILY_LIMITS: Readonly<Record<QuotaKind, number>> = { companion: 40, dictation: 20 };
+export const DAILY_LIMITS: Readonly<Record<QuotaKind, number>> = { companion: 40, dictation: 20, screen: 200 };
 
 /**
  * Spends one unit of `kind` on `day`, the app's local day (the database counts on the UTC day when

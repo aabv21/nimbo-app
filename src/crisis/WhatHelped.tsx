@@ -13,6 +13,7 @@ import type { PlanEntry } from '../condition';
 import { updateEpisode, useEpisode, useEpisodes } from '../episodes/episodeStore';
 import { catalogLabelKey } from '../history/labels';
 import { useI18n } from '../i18n';
+import { deviceTimeZone } from '../lib/localDate';
 import { crisisControlHeight, fonts, radius, space, type } from '../ui/theme';
 import { useTheme, useTones } from '../ui/themeContext';
 import { DoseButton } from './DoseButton';
@@ -23,7 +24,6 @@ const PLAN_ROWS = 3;
 /** A medication row carries the medication, for its dose button; a relief row has none. */
 type PlanRow = { entry: PlanEntry; label: string; medication: Medication | null };
 // The device's zone, as the dose buttons above use it.
-const TIME_ZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 function DoingChip({ label, checked, onPress }: { label: string; checked: boolean; onPress: () => void }): React.JSX.Element {
   const { t } = useI18n();
@@ -108,7 +108,7 @@ export function WhatHelped({ episodeId }: { episodeId: string }): React.JSX.Elem
           ) : (
             <>
               <Text style={[styles.small, { color: color.textMuted }]}>{t('crisis.helped.row', { n: entry.helped, of: entry.of })}</Text>
-              <DoseButton userId={user} episodeId={episodeId} medication={medication} now={now} timeZone={TIME_ZONE} inPlan />
+              <DoseButton userId={user} episodeId={episodeId} medication={medication} now={now} timeZone={deviceTimeZone()} inPlan />
             </>
           )}
         </View>

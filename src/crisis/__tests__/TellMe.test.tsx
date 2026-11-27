@@ -159,6 +159,27 @@ test('a transcript with a red-flag phrase opens urgent care once and sends nothi
   expect(readEpisode(USER, episodeId)?.notes).toBeNull();
 });
 
+test('a red flag only the server caught opens urgent care once, keeps crisis mode open, and shows the after line', async () => {
+  // No keyword on the phone matches this one; Jev on the server does.
+  mockedAsk.mockResolvedValueOnce(answer({ reply: null, redFlags: ['weakness'], intent: 'other' }));
+  await open();
+  await tell('my left hand has gone strange and heavy');
+
+  expect(mockedAsk).toHaveBeenCalledTimes(1);
+  expect(router.push).toHaveBeenCalledTimes(1);
+  expect(router.push).toHaveBeenCalledWith('/urgent-care');
+  expect(router.back).not.toHaveBeenCalled();
+  expect(router.replace).not.toHaveBeenCalled();
+  // Back from urgent care, crisis mode is where it was, with the after line in place of a reply.
+  expect(screen.getByText(t('companion.redflag.after'))).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: t('crisis.over') })).toBeOnTheScreen();
+  expect(localDb().getAllSync('SELECT role, status, template FROM chat_messages ORDER BY id;')).toEqual([
+    { role: 'user', status: 'red_flag', template: null },
+    { role: 'assistant', status: 'red_flag', template: 'redflag_after' },
+  ]);
+  expect(readEpisode(USER, episodeId)?.notes).toBeNull();
+});
+
 test('a normal transcript sends crisis mode, voice input and the episode id; the reply reads aloud and the draft takes the dock', async () => {
   mockedAsk.mockResolvedValueOnce(answer({ drafts: [draft()] }));
   await open();

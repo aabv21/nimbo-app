@@ -46,7 +46,7 @@ permission must list it here with the reason and the plugin that adds it.
     recognizer, so Google is a processor of dictated audio and must be named in the privacy policy
     ([`owner-runbook.md`](owner-runbook.md)).
   - On both platforms Nimbo never stores or uploads audio itself: no recording is persisted
-    (`recordingOptions.persist` stays off), and only the transcript, as text, reaches the app.
+    (`recordingOptions: { persist: false }`, set explicitly on every start), and only the transcript, as text, reaches the app.
   - Both prompt strings are English only, like the location one.
   - With the AI off, the mic and "Tell me" are hidden, so the prompt never appears.
 - **Text to speech (`expo-speech`):** "Read aloud" on a crisis-mode reply. It needs no permission and no config

@@ -586,4 +586,26 @@ export const es: Record<keyof typeof en, string> = {
   'crisis.tell.gone': 'Esta crisis ya no está en este teléfono, así que no pude guardar lo que dijiste.',
   'crisis.listening.release_notes': 'Suelta para terminar. Lo guardaré en las notas de esta crisis.',
   'companion.in_notes': 'Guardado en las notas de la crisis',
+  // "What I know about you": the agent's notes in Profile.
+  'profile.memory': 'Lo que sé de ti',
+  'profile.memory.count.one': '{n} nota',
+  'profile.memory.count.other': '{n} notas',
+  'memory.lede': 'Nimbo guarda estas notas para recordar cómo prefieres las cosas. Borra cualquiera y la olvida.',
+  'memory.delete': 'Borrar esta nota',
+  'memory.only': 'Es la única memoria de Nimbo a largo plazo. La conversación queda en este teléfono.',
+  'memory.empty': 'Todavía no anoté nada sobre ti. Si me cuentas algo que convenga recordar, aparecerá aquí y podrás borrarlo.',
+  'memory.delete.error': 'No se pudo borrar. Revisa tu conexión e inténtalo de nuevo.',
+
+  // The day-after debrief and its rows in History.
+  'debrief.q.helped.yesterday': 'Buenos días. Ayer tuviste una crisis de {duration}. ¿Qué te ayudó?',
+  'debrief.q.helped.date': 'Tuviste una crisis de {duration} el {date}. ¿Qué te ayudó?',
+  'debrief.q.not_helped': 'Anotado. ¿Algo no ayudó?',
+  'debrief.q.triggers': '¿Algo que pudo haberla desencadenado?',
+  'debrief.done': 'Gracias. Esto va a tu plan para las crisis.',
+  'debrief.none': 'Nada',
+  'debrief.progress': 'Pregunta {n} de {of}',
+  'episode.helped': 'Ayudó, según tu repaso',
+  'episode.not_helped': 'No ayudó',
+  'episode.edit.helped': 'Lo que ayudó',
+  'episode.edit.not_helped': 'Lo que no ayudó',
 };

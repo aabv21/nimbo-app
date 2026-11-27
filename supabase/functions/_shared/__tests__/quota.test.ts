@@ -8,7 +8,7 @@ const ENV: SupabaseEnv = { supabaseUrl: 'http://supabase.test', anonKey: 'anon-k
 const USER_ID = '8a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d';
 
 test('the daily limits', () => {
-  expect(DAILY_LIMITS).toEqual({ companion: 40, dictation: 20 });
+  expect(DAILY_LIMITS).toEqual({ companion: 40, dictation: 20, screen: 200 });
 });
 
 test('posts the rpc args with the service-role headers', async () => {

@@ -21,6 +21,7 @@ import { useI18n } from '../i18n';
 import { I18nProvider } from '../i18n/I18nProvider';
 import { SyncProvider } from '../lib/sync/SyncProvider';
 import { readIntroSeen } from '../onboarding/introSeen';
+import { useLanguageSync } from '../profile/useLanguageSync';
 import { Button } from '../ui/Button';
 import { Notice } from '../ui/Notice';
 import { Screen } from '../ui/Screen';
@@ -89,6 +90,12 @@ function LongAttackWatch({ userId }: { userId: string | null }): null {
   return null;
 }
 
+/** Keyed by account, so a language save on its way for one account is never taken as sent for the next. */
+function LanguageSync(): null {
+  useLanguageSync();
+  return null;
+}
+
 /**
  * Registers only the screens the account state allows (`Stack.Protected`), so a deep link to a screen
  * the user may not reach never mounts it: the landing route forwards to the one that is.
@@ -113,6 +120,7 @@ function GatedStack(): React.JSX.Element {
       {target === '/today' ? <LongAttackWatch userId={auth.userId} /> : null}
       {/* Gone with the signed-in tree, so a sign-out cancels the account's reminders. */}
       {target === '/today' && auth.userId !== null ? <ReminderSync userId={auth.userId} /> : null}
+      {target === '/today' && auth.userId !== null ? <LanguageSync key={auth.userId} /> : null}
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: color.bg } }}>
         <Stack.Screen name="index" />
         {/* Signed out: the intro stays registered after it is marked seen, so leaving it never unmounts it mid-step. */}
@@ -129,6 +137,7 @@ function GatedStack(): React.JSX.Element {
         <Stack.Protected guard={target === '/today'}>
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="episode" />
+          <Stack.Screen name="memory" />
           {/* Draws its own scrim and sheet motion over Today, which stays visible below it. */}
           <Stack.Screen name="checkin" options={{ presentation: 'transparentModal', animation: 'none' }} />
           {/* Opens over anything at once and cannot be swiped away: leaving is a choice on the screen. */}

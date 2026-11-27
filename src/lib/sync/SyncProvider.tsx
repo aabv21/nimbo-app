@@ -6,6 +6,8 @@ import type { ReactNode } from 'react';
 import { useAuth } from '../../auth/AuthProvider';
 import { useLocalQuery } from '../local/useLocalQuery';
 import { purgeOtherUsers, purgeUser } from '../local/db';
+import { removeDebriefsDone } from '../../companion/debriefDone';
+import { removeCachedNotes } from '../../memory/agentNotesRepository';
 import { removeCachedProfile } from '../../profile/profileRepository';
 import { onEnqueue, outboxState, resetFailed, wakeOffline } from '../outbox/outbox';
 import { pauseOutbox, resumeOutbox, rpcSender, runOutbox } from '../outbox/runOutbox';
@@ -13,6 +15,12 @@ import type { OutboxDeps } from '../outbox/runOutbox';
 import { readStoredSession, supabase } from '../supabase';
 import { useOnResume } from '../useOnResume';
 import { pullAll } from './pull';
+
+/** The agent's notes (the user's words about themselves, never queued) and the debriefs marked done. */
+function forgetUserCaches(userId: string): void {
+  removeCachedNotes(userId);
+  removeDebriefsDone(userId);
+}
 
 export interface SyncState {
   /** Operations not yet sent and not failed. */
@@ -76,7 +84,8 @@ export function SyncProvider({ children }: { children: ReactNode }): React.JSX.E
   // At launch, rows of anyone but the signed-in user are left from a sign-out made while the app was closed.
   const launchUser = useRef(userId);
   useEffect(() => {
-    purgeOtherUsers(launchUser.current);
+    // Their notes and finished debriefs go as at a sign-out, whatever the outbox holds.
+    for (const user of purgeOtherUsers(launchUser.current)) forgetUserCaches(user);
   }, []);
 
   useEffect(() => {
@@ -87,10 +96,14 @@ export function SyncProvider({ children }: { children: ReactNode }): React.JSX.E
     return () => {
       // Sign-out or another account: nothing of this user goes out until they are back, and their rows leave
       // the phone once no send or pull can still write them, all but those still waiting to be sent. The cached
-      // profile goes too once nothing is queued; while something is, it lets them reopen offline to send it.
+      // profile goes too once nothing is queued; while something is, it lets them reopen offline to send it. The
+      // agent's notes (the user's words about themselves, never queued) and the debriefs marked done go whatever the
+      // outbox holds.
       const settled = Promise.all([pauseOutbox(userId), cycle.current.catch(() => undefined)]);
       void settled.then(() => {
-        if (userRef.current !== userId && purgeUser(userId)) removeCachedProfile(userId);
+        if (userRef.current === userId) return;
+        forgetUserCaches(userId);
+        if (purgeUser(userId)) removeCachedProfile(userId);
       });
     };
   }, [userId, sync]);

@@ -22,6 +22,7 @@ import { WhatHelped } from '../crisis/WhatHelped';
 import { endEpisode, updateEpisode, useEpisode } from '../episodes/episodeStore';
 import { formatClock, formatDuration } from '../i18n/format';
 import { isMessageKey, useI18n } from '../i18n';
+import { deviceTimeZone } from '../lib/localDate';
 import { BackButton } from '../ui/BackButton';
 import { Button } from '../ui/Button';
 import { crossFade, easingFor, entrance, useMotion } from '../ui/motion';
@@ -31,7 +32,6 @@ import { controlHeight, crisisControlHeight, fonts, radius, space, type } from '
 import { ThemeContext, toSystemScheme, useTheme, useThemeState, useTones } from '../ui/themeContext';
 
 // The device's zone: the one `formatClock` shows times in, so a typed time means what the screen says.
-const TIME_ZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 function labelOf(t: ReturnType<typeof useI18n>['t'], catalog: 'painAreas' | 'symptoms', key: string): string {
   const messageKey = `condition.${catalog}.${key}`;
@@ -296,7 +296,7 @@ function CrisisMode({ forceDim }: { forceDim: (on: boolean) => void }): React.JS
                     {t('crisis.doses.title')}
                   </Text>
                   {acute.map((medication) => (
-                    <DoseButton key={medication.id} userId={user} episodeId={id} medication={medication} now={now} timeZone={TIME_ZONE} />
+                    <DoseButton key={medication.id} userId={user} episodeId={id} medication={medication} now={now} timeZone={deviceTimeZone()} />
                   ))}
                 </View>
               )}
@@ -361,7 +361,7 @@ function CrisisMode({ forceDim }: { forceDim: (on: boolean) => void }): React.JS
       {asking && episode !== null && episode.endedAt === null ? (
         <EndSheet
           startedAt={new Date(episode.startedAt)}
-          timeZone={TIME_ZONE}
+          timeZone={deviceTimeZone()}
           onConfirm={confirmEnd}
           onNotYet={() => {
             setAsking(false);

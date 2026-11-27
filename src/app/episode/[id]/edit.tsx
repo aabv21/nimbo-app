@@ -1,4 +1,5 @@
-// Edits every field of an attack, times included. Only what changed is saved; notes are checked for red flags once saved.
+// Edits every field of an attack, times and the debrief included. Only what changed is saved; notes are checked for red
+// flags once saved. With the AI off there is no companion to ask, so the debrief's chips here are how it is answered.
 import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Check, X } from 'lucide-react-native';
@@ -33,6 +34,12 @@ const LISTS: readonly { field: ListField; catalog: CatalogName; title: MessageKe
   { field: 'reliefs', catalog: 'reliefs', title: 'episode.reliefs' },
 ];
 
+type DebriefField = 'helped' | 'didNotHelp';
+const DEBRIEF: readonly { field: DebriefField; other: DebriefField; title: MessageKey; testID: string }[] = [
+  { field: 'helped', other: 'didNotHelp', title: 'episode.edit.helped', testID: 'episode-helped' },
+  { field: 'didNotHelp', other: 'helped', title: 'episode.edit.not_helped', testID: 'episode-not-helped' },
+];
+
 interface Form {
   startedAt: Date;
   endedAt: Date | null;
@@ -41,6 +48,8 @@ interface Form {
   symptoms: readonly string[];
   triggers: readonly string[];
   reliefs: readonly string[];
+  helped: readonly string[];
+  didNotHelp: readonly string[];
   notes: string;
 }
 
@@ -53,15 +62,21 @@ function formOf(episode: Episode): Form {
     symptoms: episode.symptoms,
     triggers: episode.triggers,
     reliefs: episode.reliefs,
+    helped: episode.helped,
+    didNotHelp: episode.didNotHelp,
     notes: episode.notes ?? '',
   };
 }
 
 const sameSet = (a: readonly string[], b: readonly string[]): boolean => a.length === b.length && a.every((key) => b.includes(key));
 
-/** Only the fields that differ from `before`, so a save never overwrites what another phone changed. */
+/**
+ * Only the fields that differ from `before`, so a save never overwrites what another phone changed. A changed debrief
+ * goes whole, with its stamp, as the companion's debrief saves it.
+ */
 function changes(before: Form, after: Form): EpisodePatch {
   const notes = after.notes.trim();
+  const debriefed = !sameSet(after.helped, before.helped) || !sameSet(after.didNotHelp, before.didNotHelp);
   return {
     ...(after.startedAt.getTime() === before.startedAt.getTime() ? {} : { startedAt: after.startedAt.toISOString() }),
     ...(after.endedAt?.getTime() === before.endedAt?.getTime() ? {} : { endedAt: after.endedAt?.toISOString() ?? null }),
@@ -71,6 +86,7 @@ function changes(before: Form, after: Form): EpisodePatch {
     ...(sameSet(after.triggers, before.triggers) ? {} : { triggers: after.triggers }),
     ...(sameSet(after.reliefs, before.reliefs) ? {} : { reliefs: after.reliefs }),
     ...(notes === before.notes.trim() ? {} : { notes: notes === '' ? null : notes }),
+    ...(debriefed ? { helped: after.helped, didNotHelp: after.didNotHelp, debriefed: true } : {}),
   };
 }
 
@@ -92,6 +108,16 @@ function Editor({ userId, episode }: { userId: string; episode: Episode }): Reac
   const toggle = (field: ListField, key: string): void => {
     const chosen = form[field];
     set(field, chosen.includes(key) ? chosen.filter((item) => item !== key) : [...chosen, key]);
+  };
+  // A relief either helped or did not: picking it in one list takes it out of the other.
+  const toggleDebrief = (field: DebriefField, other: DebriefField, key: string): void => {
+    const chosen = form[field];
+    setForm((current) => ({
+      ...current,
+      [field]: chosen.includes(key) ? chosen.filter((item) => item !== key) : [...chosen, key],
+      [other]: current[other].filter((item) => item !== key),
+    }));
+    setError(null);
   };
   const endBeforeStart = form.endedAt !== null && form.endedAt.getTime() < form.startedAt.getTime();
 
@@ -212,6 +238,27 @@ function Editor({ userId, episode }: { userId: string; episode: Episode }): Reac
                 selected={form[field].includes(item.key)}
                 onPress={() => {
                   toggle(field, item.key);
+                }}
+              />
+            ))}
+          </View>
+        </View>
+      ))}
+
+      {DEBRIEF.map(({ field, other, title, testID }) => (
+        <View key={field} testID={testID} style={styles.group}>
+          <Text accessibilityRole="header" style={[styles.heading, { color: color.text }]}>
+            {t(title)}
+          </Text>
+          <View style={styles.chips}>
+            {packs.migraine.reliefs.map((item) => (
+              <Chip
+                key={item.key}
+                role="checkbox"
+                label={t(item.labelKey as MessageKey)}
+                selected={form[field].includes(item.key)}
+                onPress={() => {
+                  toggleDebrief(field, other, item.key);
                 }}
               />
             ))}

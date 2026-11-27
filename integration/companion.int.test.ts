@@ -138,7 +138,7 @@ test(
     expect(result.status).toBe(200);
     expect(result.body).toMatchObject({ reply: 'Your cabinet has your triptan, and a draft is ready for you to check.', guard: 'ok', drafts: [], redFlags: [] });
     expect(claude.calls() - calls).toBe(2);
-    expect(await usage(user.id)).toEqual({ companion: 1 });
+    expect(await usage(user.id)).toEqual({ screen: 1, companion: 1 });
     expect(await rowCounts(user.id)).toEqual(before);
     // The cabinet went to the model by ref, with the dose text but never the id.
     const second = JSON.stringify(claude.requests().at(-1));
@@ -155,7 +155,7 @@ test(
     const user = await seededUser('companion-voice');
     claude.respondWithSequence([fixture('answer')]);
     expect((await invoke(user.client, message('Hello there', { input: 'voice' }))).status).toBe(200);
-    expect(await usage(user.id)).toEqual({ companion: 1, dictation: 1 });
+    expect(await usage(user.id)).toEqual({ screen: 1, companion: 1, dictation: 1 });
   },
   FUNCTION_TIMEOUT_MS,
 );
@@ -239,7 +239,7 @@ test(
 );
 
 test(
-  'a keyword red flag, in any language, makes no Claude call and spends nothing',
+  'a keyword red flag, in any language, makes no Claude call and spends only a screening unit each',
   async () => {
     const user = await seededUser('companion-red-flag');
     for (const text of ['This is the worst headache of my life', 'pior dor da minha vida']) {
@@ -249,7 +249,8 @@ test(
       expect(result.body).toMatchObject({ reply: null, redFlags: ['thunderclap'], drafts: [] });
       expect(claude.calls()).toBe(calls);
     }
-    expect(await usage(user.id)).toEqual({});
+    // One usage_counters row of kind 'screen', counted per message; no companion unit.
+    expect(await usage(user.id)).toEqual({ screen: 2 });
   },
   FUNCTION_TIMEOUT_MS,
 );

@@ -66,8 +66,10 @@ const toolRound = (...calls: [string, unknown][]): Answer => ({
 type World = {
   profile?: Row | null;
   premium?: boolean;
-  quota?: Partial<Record<'companion' | 'dictation', number>>;
+  quota?: Partial<Record<'companion' | 'dictation' | 'screen', number>>;
   quotaFails?: Error | Response;
+  /** Fails only the screening unit's RPC. */
+  screenFails?: Error | Response;
   jev?: ((request: unknown) => Answer) | 'down';
   haiku?: (body: Record<string, unknown>) => Answer;
   sonnet?: Sonnet[];
@@ -122,6 +124,8 @@ async function respond(result: Answer, signal: AbortSignal | null | undefined, a
 function world(setup: World = {}) {
   const quotaUsed: Record<string, number> = {};
   const quotaCalls: string[] = [];
+  /** Quota units and model calls in the order they started. */
+  const events: string[] = [];
   const jevBodies: unknown[] = [];
   const claudeBodies: Record<string, unknown>[] = [];
   const claudeHeaders: Headers[] = [];
@@ -146,8 +150,11 @@ function world(setup: World = {}) {
       consume_quota: (args) => {
         const kind = String(args.p_kind);
         quotaCalls.push(kind);
-        if (setup.quotaFails instanceof Response) return setup.quotaFails;
-        if (setup.quotaFails !== undefined) throw setup.quotaFails;
+        events.push(`quota:${kind}`);
+        const fails = kind === 'screen' ? (setup.screenFails ?? setup.quotaFails) : setup.quotaFails;
+        // A clone each time: one failure may answer several units, and a body reads only once.
+        if (fails instanceof Response) return fails.clone();
+        if (fails !== undefined) throw fails;
         const used = quotaUsed[kind] ?? 0;
         if (used >= Math.min(Number(args.p_limit), limitOf(kind))) return json(200, false);
         quotaUsed[kind] = used + 1;
@@ -159,11 +166,13 @@ function world(setup: World = {}) {
       const body = JSON.parse(typeof init.body === 'string' ? init.body : 'null') as Record<string, unknown>;
       if (url.host === 'typesafe.test') {
         jevBodies.push(body);
+        events.push('jev');
         if (setup.jev === 'down') return json(500, {});
         const jev = setup.jev ?? ((request: unknown) => ({ status: 200, body: jevAnswersWith(request, {}) }));
         return respond(jev(body), init.signal, aborts);
       }
       claudeBodies.push(body);
+      events.push(body.model === CLASSIFIER_MODEL ? 'haiku' : 'sonnet');
       claudeHeaders.push(new Headers(init.headers));
       claudeStarts.push(Date.now());
       if (body.model === CLASSIFIER_MODEL) return respond(setup.haiku?.(body) ?? { status: 500, body: {} }, init.signal, aborts);
@@ -196,7 +205,7 @@ function world(setup: World = {}) {
     now: () => NOW,
     rand: () => 0.5,
   };
-  return { deps, calls, quotaCalls, jevBodies, claudeBodies, claudeHeaders, claudeStarts, aborts, sonnetBodies, quotaUsed };
+  return { deps, calls, quotaCalls, events, jevBodies, claudeBodies, claudeHeaders, claudeStarts, aborts, sonnetBodies, quotaUsed };
 }
 
 const chat = (text: string, extra: Record<string, unknown> = {}) => ({
@@ -260,26 +269,27 @@ describe('refusals before any model', () => {
     expect(w.claudeBodies).toHaveLength(0);
   });
 
+  // The screening unit is spent beside the profile read, so these spend it and nothing else.
   test('403 ai_off when the profile has the AI off, or there is no profile', async () => {
     for (const profile of [{ user_id: USER_ID, timezone: null, ai_enabled: false }, null]) {
       const w = world({ profile });
       expect(await call(w, chat('hi'))).toEqual({ status: 403, body: { error: 'ai_off' } });
       expect(w.jevBodies).toHaveLength(0);
-      expect(w.quotaCalls).toHaveLength(0);
+      expect(w.quotaCalls).toEqual(['screen']);
     }
   });
 
-  test('a failed profile read answers 503 before any model or quota', async () => {
+  test('a failed profile read answers 503 before any model or companion unit', async () => {
     const w = world({ failTable: 'profiles' });
     expect(await call(w, chat('hi'))).toEqual({ status: 503, body: { error: 'unavailable' } });
     expect(w.jevBodies).toHaveLength(0);
-    expect(w.quotaCalls).toHaveLength(0);
+    expect(w.quotaCalls).toEqual(['screen']);
   });
 
-  test('a failed context read answers 503 before the quota is spent', async () => {
+  test('a failed context read answers 503 before the companion unit is spent', async () => {
     const w = world({ failTable: 'agent_notes' });
     expect(await call(w, chat('hi'))).toEqual({ status: 503, body: { error: 'unavailable' } });
-    expect(w.quotaCalls).toHaveLength(0);
+    expect(w.quotaCalls).toEqual(['screen']);
     expect(w.sonnetBodies()).toHaveLength(0);
   });
 
@@ -293,7 +303,7 @@ describe('refusals before any model', () => {
 });
 
 describe('the input screen', () => {
-  test('a Jev thunderclap of 0.9 answers redFlags with no Claude call and no quota spent', async () => {
+  test('a Jev thunderclap of 0.9 answers redFlags with no Claude call and only the screening unit spent', async () => {
     const w = world({ jev: (request) => ({ status: 200, body: jevAnswersWith(request, { rf_thunderclap: 0.9 }) }) });
     const result = await call(w, chat('the pain came on like a bang'));
     expect(result).toEqual({
@@ -301,10 +311,8 @@ describe('the input screen', () => {
       body: { reply: null, drafts: [], evidence: [], redFlags: ['thunderclap'], intent: 'other', guard: 'ok', replaced: null },
     });
     expect(w.claudeBodies).toHaveLength(0);
-    expect(w.quotaCalls).toHaveLength(0);
-    // The premium check is a read beside the profile; no unit is spent.
-    expect(w.calls.some((entry) => entry.url.pathname.endsWith('/consume_quota'))).toBe(false);
-    expect(logged().at(-1)).toMatchObject({ outcome: 'red_flag', input_source: 'jev' });
+    expect(w.quotaCalls).toEqual(['screen']);
+    expect(logged().at(-1)).toMatchObject({ outcome: 'red_flag', input_source: 'jev', screen_quota: 'ok' });
   });
 
   test('a keyword flag in another language still stops the request with every model down', async () => {
@@ -312,7 +320,66 @@ describe('the input screen', () => {
     const result = await call(w, chat('pior dor da minha vida'));
     expect(result.body.redFlags).toEqual(['thunderclap']);
     expect(w.sonnetBodies()).toHaveLength(0);
-    expect(w.quotaCalls).toHaveLength(0);
+    expect(w.quotaCalls).toEqual(['screen']);
+  });
+});
+
+describe('the screening quota', () => {
+  test('the screening unit is spent before any Jev call, and logged', async () => {
+    const w = world({ sonnet: [() => answer('Hello.')] });
+    expect((await call(w, chat('hi'))).status).toBe(200);
+    expect(w.events.indexOf('quota:screen')).toBe(0);
+    expect(w.events.indexOf('jev')).toBeGreaterThan(0);
+    expect(DAILY_LIMITS.screen).toBe(200);
+    expect(logged().at(-1)).toMatchObject({ outcome: 'answered', screen_quota: 'ok' });
+  });
+
+  test('a red flag spends exactly one screening unit', async () => {
+    const w = world({ jev: (request) => ({ status: 200, body: jevAnswersWith(request, { rf_weakness: 0.9 }) }) });
+    expect((await call(w, chat('my arm feels odd'))).body.redFlags).toEqual(['weakness']);
+    expect(w.quotaCalls).toEqual(['screen']);
+  });
+
+  test('refused, the input screen runs on the keywords alone: a keyword red flag still answers 200 with no model call', async () => {
+    const w = world({ quota: { screen: 0 } });
+    const result = await call(w, chat('worst headache of my life'));
+    expect(result).toEqual({
+      status: 200,
+      body: { reply: null, drafts: [], evidence: [], redFlags: ['thunderclap'], intent: 'other', guard: 'ok', replaced: null },
+    });
+    expect(w.jevBodies).toHaveLength(0);
+    expect(w.claudeBodies).toHaveLength(0);
+    expect(w.quotaCalls).toEqual(['screen']);
+    expect(logged().at(-1)).toMatchObject({ outcome: 'red_flag', input_source: 'keywords', screen_quota: 'out' });
+  });
+
+  test('refused, a plain message makes no input-screen call and comes back degraded', async () => {
+    const w = world({ quota: { screen: 0 }, sonnet: [() => answer('Rest in a dark room.')] });
+    const result = await call(w, chat('hello'));
+    expect(result.status).toBe(200);
+    expect(result.body).toMatchObject({ reply: 'Rest in a dark room.', guard: 'degraded' });
+    // The only Jev call is the reply screen's, which the companion unit pays for; no Haiku at all.
+    expect(w.events).toEqual(['quota:screen', 'quota:companion', 'sonnet', 'jev']);
+    expect(logged().at(-1)).toMatchObject({ outcome: 'degraded', input_source: 'keywords', screen_quota: 'out' });
+  });
+
+  test.each([
+    ['an HTTP error', json(500, {})],
+    ['a network failure', new TypeError('fetch failed')],
+  ])('%s from the screening RPC falls back to the keywords, not a 503', async (_label, failure) => {
+    const w = world({ screenFails: failure, sonnet: [() => answer('Rest in a dark room.')] });
+    const result = await call(w, chat('hello'));
+    expect(result.status).toBe(200);
+    expect(result.body).toMatchObject({ reply: 'Rest in a dark room.', guard: 'degraded' });
+    expect(w.events).toEqual(['quota:screen', 'quota:companion', 'sonnet', 'jev']);
+    expect(logged().at(-1)).toMatchObject({ screen_quota: 'out' });
+  });
+
+  test('screening and companion both used up answers 429 naming companion', async () => {
+    const w = world({ quota: { screen: 0, companion: 0 } });
+    expect(await call(w, chat('hello'))).toEqual({ status: 429, body: { error: 'over_quota', quota: 'companion', limit: DAILY_LIMITS.companion } });
+    expect(w.jevBodies).toHaveLength(0);
+    expect(w.claudeBodies).toHaveLength(0);
   });
 });
 
@@ -323,14 +390,14 @@ describe('the quota', () => {
     expect(result.status).toBe(200);
     expect(result.body).toMatchObject({ reply: 'Your cabinet has one medication.', guard: 'ok', replaced: null, redFlags: [], drafts: [] });
     expect(w.sonnetBodies()).toHaveLength(2);
-    expect(w.quotaCalls).toEqual(['companion']);
+    expect(w.quotaCalls).toEqual(['screen', 'companion']);
     expect(logged().at(-1)).toMatchObject({ outcome: 'answered', rounds: '1', guard_source: 'jev' });
   });
 
   test('a voice message spends a dictation unit, then a companion unit', async () => {
     const w = world({ sonnet: [() => answer('Noted.')] });
     expect((await call(w, chat('hello', { input: 'voice' }))).status).toBe(200);
-    expect(w.quotaCalls).toEqual(['dictation', 'companion']);
+    expect(w.quotaCalls).toEqual(['screen', 'dictation', 'companion']);
   });
 
   test('a refused dictation unit answers 429 dictation, with no companion unit and no Claude call', async () => {
@@ -340,7 +407,7 @@ describe('the quota', () => {
       body: { error: 'over_quota', quota: 'dictation', limit: DAILY_LIMITS.dictation },
     });
     expect(DAILY_LIMITS.dictation).toBe(20);
-    expect(w.quotaCalls).toEqual(['dictation']);
+    expect(w.quotaCalls).toEqual(['screen', 'dictation']);
     expect(w.claudeBodies).toHaveLength(0);
   });
 
@@ -350,12 +417,12 @@ describe('the quota', () => {
       status: 429,
       body: { error: 'over_quota', quota: 'companion', limit: DAILY_LIMITS.companion },
     });
-    expect(w.quotaCalls).toEqual(['dictation', 'companion']);
+    expect(w.quotaCalls).toEqual(['screen', 'dictation', 'companion']);
     expect(w.sonnetBodies()).toHaveLength(0);
   });
 
   test('premium and free callers get their own limits', async () => {
-    const limits = { free: { companion: 1, dictation: 1 }, premium: { companion: 2, dictation: 2 } };
+    const limits = { free: { companion: 1, dictation: 1 }, premium: { companion: 2, dictation: 2 }, screen: 200 };
     for (const [premium, second] of [[true, 200], [false, 429]] as const) {
       const w = world({ premium, sonnet: [() => answer('One.'), () => answer('Two.')] });
       w.deps.limits = limits;
@@ -373,6 +440,8 @@ describe('the quota', () => {
     const w = world({ quotaFails: failure });
     expect(await call(w, chat('hello'))).toEqual({ status: 503, body: { error: 'unavailable' } });
     expect(w.sonnetBodies()).toHaveLength(0);
+    // The screening unit failed too, so the input screen ran on the keywords alone.
+    expect(w.jevBodies).toHaveLength(0);
   });
 });
 
@@ -415,7 +484,7 @@ describe('the tool loop', () => {
     expect(bodies).toHaveLength(4);
     expect(bodies.slice(0, 3).every((body) => !('tool_choice' in body))).toBe(true);
     expect(bodies[3]?.tool_choice).toEqual({ type: 'none' });
-    expect(w.quotaCalls).toEqual(['companion']);
+    expect(w.quotaCalls).toEqual(['screen', 'companion']);
   });
 
   test('Claude down answers 503', async () => {
@@ -459,6 +528,35 @@ describe('the tool loop', () => {
     expect(system[1]?.text).toContain('e1');
   });
 
+  test("block 2 gives the person's local time with the profile's offset, and today on that clock", async () => {
+    // The phone's day is already the 28th; the person's zone still reads the 27th, as the tools do.
+    const w = world({ sonnet: [() => answer('Hello.')] });
+    await call(w, chat('hi', { localDate: '2026-11-28' }));
+    const block = (w.sonnetBodies()[0]?.system as { text: string }[])[1]?.text ?? '';
+    expect(block).toContain("It is now 2026-11-27T12:00:00-05:00 (the person's local time).");
+    expect(block).toContain('Today is Friday, 2026-11-27');
+    const utc = world({ profile: { user_id: USER_ID, timezone: null, ai_enabled: true }, sonnet: [() => answer('Hello.')] });
+    await call(utc, chat('hi'));
+    expect((utc.sonnetBodies()[0]?.system as { text: string }[])[1]?.text).toContain("It is now 2026-11-27T17:00:00+00:00 (the person's local time).");
+  });
+
+  test('a dose taken "just now" round-trips through propose_dose at the current instant', async () => {
+    const w = world({
+      sonnet: [
+        () => toolRound(['get_cabinet', {}]),
+        (body) => {
+          // The model copies the clock block 2 gave it, as the tool's TIME format asks.
+          const block = (body.system as { text: string }[])[1]?.text ?? '';
+          const nowIso = /It is now (\S+) \(/.exec(block)?.[1] ?? 'missing';
+          return toolRound(['propose_dose', { medication_ref: 'm1', taken_at: nowIso }]);
+        },
+        () => answer('A draft of your dose is ready to check.'),
+      ],
+    });
+    const result = await call(w, chat('I just took my sumatriptan'));
+    expect(result.body.drafts).toEqual([{ kind: 'dose', ref: 'd1', medicationId: SUMATRIPTAN, takenAt: new Date(NOW).toISOString(), episodeId: null }]);
+  });
+
   test("an episode id the caller doesn't own is treated as absent", async () => {
     const w = world({ sonnet: [() => answer('Hello.')] });
     await call(w, chat('hi', { mode: 'crisis', episodeId: id(77) }));
@@ -494,7 +592,7 @@ describe('deadlines', () => {
     }
   });
 
-  test('a call that would run into the reserve is cut, so it ends at least 5 s before the loop deadline', async () => {
+  test('a call that would run into the reserve is cut, so it ends the reserve before the loop deadline', async () => {
     try {
       const w = world({ sonnet: [() => ({ ...(toolRound(['get_signals', {}]) as object), delayMs: 12_000 }) as Answer, () => ({ hang: true })] });
       fakeClock(w);

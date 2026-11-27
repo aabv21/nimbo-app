@@ -82,6 +82,7 @@
     "env:local": "node scripts/env-local.ts",
     "catalog:sql": "node scripts/catalog-sql.ts",
     "premium": "node scripts/premium.ts",
+    "calibrate": "node scripts/calibrate.ts",
     "e2e": "node scripts/e2e.ts"
   }
 }

@@ -4,13 +4,28 @@ import Profile from '../app/(tabs)/profile';
 import { translate } from '../i18n';
 import { translatePlural } from '../i18n/plural';
 import type { MessageKey } from '../i18n';
+import { fetchAgentNotes } from '../memory/agentNotesRepository';
 import { setAiConsent, updateProfile } from '../profile/profileRepository';
 import { READY_PROFILE, currentAuth, resetAuth } from '../test/authMock';
 
 jest.mock('../auth/AuthProvider', () => require('../test/authMock'));
 // The cabinet row counts medications from the local store.
 jest.mock('expo-sqlite', () => require('../test/sqliteNode'));
-jest.mock('expo-router', () => ({ router: { push: jest.fn() } }));
+// Focus runs once, on mount: a second press before the screen is focused again is dropped.
+jest.mock('expo-router', () => ({
+  router: { push: jest.fn() },
+  useFocusEffect: (effect: () => void) => {
+    jest.requireActual<typeof import('react')>('react').useEffect(() => {
+      effect();
+    }, []);
+  },
+}));
+// The notes row counts the agent's notes, read online.
+jest.mock('../memory/agentNotesRepository', () => ({
+  ...jest.requireActual<typeof import('../memory/agentNotesRepository')>('../memory/agentNotesRepository'),
+  fetchAgentNotes: jest.fn(),
+}));
+jest.mock('../lib/supabase', () => ({ supabase: {} }));
 jest.mock('../profile/profileRepository', () => ({ updateProfile: jest.fn(), setAiConsent: jest.fn() }));
 // The sync banner's counts, which a test sets to have records still waiting to upload.
 const mockSync = { pending: 0, failed: 0, syncing: false, retry: jest.fn() };
@@ -64,6 +79,7 @@ beforeEach(() => {
   mockSync.failed = 0;
   mockedUpdate.mockImplementation((changes) => Promise.resolve({ ok: true, value: { ...READY_PROFILE, ...changes } }));
   mockedConsent.mockImplementation((enabled) => Promise.resolve({ ok: true, value: { ...READY_PROFILE, aiEnabled: enabled } }));
+  jest.mocked(fetchAgentNotes).mockResolvedValue({ ok: true, value: [] });
 });
 
 test('choosing Português saves the language and the screen re-renders in Portuguese', async () => {
@@ -75,6 +91,39 @@ test('choosing Português saves the language and the screen re-renders in Portug
   expect(mockSetPreference).toHaveBeenCalledWith('pt');
   expect(mockedUpdate).toHaveBeenCalledWith({ language: 'pt' });
   expect(await screen.findByRole('header', { name: translate('pt', 'profile.title') })).toBeOnTheScreen();
+});
+
+test('"What I know about you" counts the notes with the AI off too, and opens once per visit', async () => {
+  resetAuth({ profile: { ...READY_PROFILE, aiEnabled: false } });
+  jest.mocked(fetchAgentNotes).mockResolvedValue({
+    ok: true,
+    value: [
+      { id: 'n2', text: 'Works night shifts on Thursdays', createdAt: '2026-11-20T10:00:00Z' },
+      { id: 'n1', text: 'Prefers short answers', createdAt: '2026-11-10T10:00:00Z' },
+    ],
+  });
+  await render(<Profile />);
+
+  expect(await screen.findByText(translatePlural('en', 'profile.memory.count', 2))).toBeOnTheScreen();
+  expect(screen.getByText(t('profile.memory'))).toBeOnTheScreen();
+  const row = screen.getByTestId('profile-memory');
+  await fireEvent.press(row);
+  await fireEvent.press(row);
+
+  const { router } = jest.requireMock<{ router: { push: jest.Mock } }>('expo-router');
+  expect(router.push).toHaveBeenCalledTimes(1);
+  expect(router.push).toHaveBeenCalledWith('/memory');
+});
+
+test('one note reads in the singular', async () => {
+  jest.mocked(fetchAgentNotes).mockResolvedValue({
+    ok: true,
+    value: [{ id: 'n1', text: 'Prefers short answers', createdAt: '2026-11-10T10:00:00Z' }],
+  });
+  await render(<Profile />);
+
+  expect(await screen.findByText(translatePlural('en', 'profile.memory.count', 1))).toBeOnTheScreen();
+  expect(translatePlural('en', 'profile.memory.count', 1)).toBe('1 note');
 });
 
 test('appearance offers Automatic, Light, Dark and Dim, and Dark applies at once and is saved', async () => {

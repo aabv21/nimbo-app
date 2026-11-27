@@ -75,7 +75,7 @@ export function CheckinCard({ userId, localDate }: CheckinCardProps): React.JSX.
       </Text>
       {done && checkin !== null && checkin.sleepBand !== null && checkin.stress !== null ? (
         <Animated.View entering={entrance(motion, 4)} style={styles.root}>
-          <Text style={[styles.body, { color: color.text }]}>
+          <Text testID="today-checkin-done" style={[styles.body, { color: color.text }]}>
             {t('today.checkin.done', {
               sleep: t(`checkin.sleep.${checkin.sleepBand}`).toLocaleLowerCase(),
               stress: t(`checkin.stress.${checkin.stress}`).toLocaleLowerCase(),

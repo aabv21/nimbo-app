@@ -2,15 +2,15 @@
 
 This page covers where Nimbo runs, what each part does, how the app decides which screen to show,
 how consent is recorded, how it starts offline, how health data is kept and synced offline, crisis mode,
-the red-flag paths, the overuse guard, reminders, premium, the security model, the reasons behind the
-design choices, and how to regenerate the diagrams. Parts that later waves add are drawn as planned
-and marked that way.
+the red-flag paths, the companion and its guards, the overuse guard, reminders, premium, the security
+model, the reasons behind the design choices, and how to regenerate the diagrams. Parts that later waves
+add are drawn as planned and marked that way.
 
-![System context: the Expo app keeps nimbo.db, the outbox and local notifications on the phone, and talks to the Supabase project's Auth and REST API with the user's token and to Apple and Google for native sign-in; Postgres holds the profiles, the tracking tables and entitlements; Edge Functions, the email relay, the AI and data APIs and a GitHub Actions keep-alive call are planned](diagrams/system-context.svg)
+![System context: the Expo app keeps nimbo.db, the outbox and the chat on the phone, and talks to the Supabase project's Auth and REST API and to the companion Edge Function with the user's token, and to Apple and Google for native sign-in; Postgres holds the tracking tables, the agent's notes and the quotas; companion reads the caller's rows with the caller's JWT and calls Anthropic for the tool loop and the fallback screen and TypeSafe's Jev for the screens; the email relay and a GitHub Actions keep-alive call are planned](diagrams/system-context.svg)
 
 System context: [interactive page](diagrams/system-context.html) · [source](diagrams/system-context.json)
 
-The diagram tool [archify](https://github.com/tt-a1i/archify) generates the four diagrams on this
+The diagram tool [archify](https://github.com/tt-a1i/archify) generates the five diagrams on this
 page from their JSON sources; [Regenerating the diagrams](#regenerating-the-diagrams) shows how.
 Each interactive page adds search, focus and both color themes; open it in a browser.
 
@@ -22,33 +22,39 @@ or Portuguese. It is not a medical device and never diagnoses or prescribes.
 - **The phone.** An Expo SDK 58 app (React Native, strict TypeScript, Expo Router) for iOS and
   Android. It keeps the session and the last profile in an on-device key-value store, and the user's
   health records in a local SQLite database, so it opens and logs offline.
-- **One Supabase project.** Auth, Postgres 17 with row-level security, and later Edge Functions.
+- **One Supabase project.** Auth, Postgres 17 with row-level security, and the `companion` Edge Function.
   Today only the local stack in Docker exists (`pnpm db:start`, [`local-stack.md`](local-stack.md)); no
   hosted project is set up yet ([`owner-runbook.md`](owner-runbook.md)). The phone holds only the project
   URL and the anon key, both public by design; every request carries the user's session token.
-- **Planned services.** Edge Functions, an email relay for the hosted project, the AI and data APIs
-  they call, and a daily GitHub Actions call to `keep_alive()` so a free project is not paused. None
-  exists yet. Model calls will run only in Edge Functions, never on the phone.
+- **The model providers.** Anthropic (Claude Sonnet 5.5 converses, Claude Haiku 5.5 is the fallback
+  classifier) and TypeSafe (Jev screens every message and reply), called only from the `companion`
+  function, never from the phone. Locally they are mocks on the host ([`local-stack.md`](local-stack.md#mocks)).
+- **Planned services.** An email relay for the hosted project, the data APIs insights will need, and a
+  daily GitHub Actions call to `keep_alive()` so a free project is not paused.
 
 ## What each component does
 
 | Component | Runs | What it does |
 |---|---|---|
-| Expo app | Phone | Routes in `src/app/`, gated by account state; the three themes; the tab shell, crisis mode, the cabinet, the check-in and History ([`app.md`](app.md)). |
-| Local store and outbox | Phone | `nimbo.db`: mirrors of the four tracking tables, which every screen reads, and the queue of RPC calls that carries each change to the server ([Health data offline](#health-data-offline)). |
+| Expo app | Phone | Routes in `src/app/`, gated by account state; the three themes; the tab shell, crisis mode, the cabinet, the check-in, History and the Companion tab ([`app.md`](app.md)). |
+| Local store and outbox | Phone | `nimbo.db`: mirrors of the four tracking tables, which every screen reads, the queue of RPC calls that carries each change to the server, and the companion chat, kept only on this phone ([Health data offline](#health-data-offline)). |
 | Local reminders | Phone | Preventive medication reminders scheduled on the phone, with no server ([Reminders and lock-screen privacy](#reminders-and-lock-screen-privacy)). |
 | Auth | Supabase | Email and password with a 6-digit email code to confirm and to reset, and Sign in with Apple and Google through native ID tokens. |
-| Postgres 17 | Supabase | The `profiles` table with RLS and column grants, the signup trigger, the consent RPCs, the tracking tables `episodes`, `medications`, `doses` and `checkins`, and `entitlements` ([`database.md`](database.md)). |
+| Postgres 17 | Supabase | The `profiles` table with RLS and column grants, the signup trigger, the consent RPCs, the tracking tables `episodes`, `medications`, `doses` and `checkins` (with the debrief columns), `entitlements`, `agent_notes` and `usage_counters` ([`database.md`](database.md)). |
 | `accept_terms`, `set_ai_consent`, `complete_onboarding` | Postgres | The only writers of the consent columns and the onboarding stamp; they stamp the server clock. |
-| Tracking RPCs | Postgres | The eight `security definer` writers of the tracking tables, called only through the outbox; a create ignores an id it already has ([`database.md`](database.md#tracking-rpcs)). |
+| Tracking RPCs | Postgres | The nine `security definer` writers of the tracking tables (`set_dose_helped` included), called only through the outbox; a create ignores an id it already has ([`database.md`](database.md#tracking-rpcs)). |
+| `save_agent_note`, `delete_agent_note` | Postgres | The only writers of the agent's notes, at most 20 per user ([`database.md`](database.md#companion-data)). |
+| `consume_quota` | Postgres | Spends one AI unit per user, local day and kind; only the service role may call it ([`database.md`](database.md#ai-quotas)). |
 | `has_premium` | Postgres | Whether the caller has premium, from their own `entitlements` row ([Premium](#premium)). |
 | `keep_alive` | Postgres | A no-op the anon key may call. |
-| Condition pack | Shared code | The migraine catalogs, medication classes, overuse limits, red flags and emergency numbers, in `supabase/functions/_shared/condition/`, imported by the app and later by the functions. |
-| Edge Functions, email relay, AI and data APIs, keep-alive workflow | Planned | Not built yet. |
+| Condition pack | Shared code | The migraine catalogs, medication classes, overuse limits, red flags, emergency numbers, dose days and the crisis plan, in `supabase/functions/_shared/condition/`, imported by the app and the functions. |
+| `companion` | Edge Function | One chat message: the input screen, the quota, a bounded Claude tool loop over the caller's own rows and the reply screen ([The companion](#the-companion)). |
+| Anthropic, TypeSafe | External | Claude Sonnet 5.5 and Haiku 5.5, and Jev, called only by `companion` with the function's secrets ([`ai.md`](ai.md)). |
+| Email relay, data APIs, keep-alive workflow | Planned | Not built yet. |
 
 ## Data model
 
-![Data model: the signup trigger inserts a profiles row for each auth.users row; the app updates thirteen settings columns of profiles directly and records consent and the end of onboarding only through the profile RPCs, which stamp the server time; it writes episodes, doses, medications and checkins only through the eight tracking RPCs that the outbox calls, where a dose references its medication and loses its episode when the episode is deleted; has_premium reads the caller's own entitlements row](diagrams/data-model.svg)
+![Data model: the signup trigger inserts a profiles row for each auth.users row; the app updates thirteen settings columns of profiles directly and records consent and the end of onboarding only through the profile RPCs, which stamp the server time; it writes episodes, doses, medications and checkins only through the nine tracking RPCs that the outbox calls, set_dose_helped included, where a dose references its medication and loses its episode when the episode is deleted; has_premium reads the caller's own entitlements row; the note RPCs save_agent_note and delete_agent_note write agent_notes; the companion function spends AI units through consume_quota, the only writer of usage_counters](diagrams/data-model.svg)
 
 Data model: [interactive page](diagrams/data-model.html) · [source](diagrams/data-model.json)
 
@@ -59,8 +65,12 @@ settings, `known_triggers` (keys of the triggers catalog), `priority` (one of `f
 coarse area, `coarse_lat` and `coarse_lon` at one decimal (about 11 km). The app writes the area and never
 reads it back. The tracking tables `episodes`, `medications`, `doses` and `checkins` and the
 `entitlements` table have a read-own policy and no client write grant: every health row is written by a
-tracking RPC, and only the service role writes an entitlement. The columns, policies, grants and RPC
-contracts are in [`database.md`](database.md).
+tracking RPC, and only the service role writes an entitlement. The debrief lives on the tracking tables:
+`episodes.helped` and `did_not_help` (relief keys), `debriefed_at` (stamped by `update_episode`'s `debriefed`
+key), and `doses.helped` (set by `set_dose_helped`). `agent_notes` holds the agent's short notes about how the
+user likes things, written only by `save_agent_note` and `delete_agent_note`. `usage_counters` holds the daily
+AI units; it has no policy and no grant, so only `consume_quota`, called by the function's service role, touches
+it. The columns, policies, grants and RPC contracts are in [`database.md`](database.md).
 
 ## Sign-in and the gate
 
@@ -176,7 +186,7 @@ loses nothing. The modules are in [`app.md`](app.md#local-store-outbox-and-sync-
 - **Two accounts on one phone.** On sign-out or an account switch the previous user's queue is paused
   and, once no send or pull can still write them, their rows are deleted except those still waiting to be
   sent (dirty, or with an unsent or failed call), which stay until that user signs back in; the pull
-  brings the rest back then. Their chat is deleted in full whatever is queued, since nothing waits on it. The cached profile goes with them once nothing of theirs is queued. Signing
+  brings the rest back then. Their chat, the cached agent notes (kv `memory.<userId>`) and the debriefs marked done (kv `debrief.done.<userId>`) are deleted in full whatever is queued, since nothing waits on them. The cached profile goes with them once nothing of theirs is queued. Signing
   out from Profile with records not uploaded asks first, saying how many stay on this phone.
 - **Onboarding offline.** The last setup step queues `complete_onboarding` and stamps the profile on
   the phone, so the gate opens Today at once; the server stamp arrives with the next sync.
@@ -217,8 +227,8 @@ AI off and offline too.
 Two paths open the urgent-care screen. Both run on the phone, offline, with or without the AI, and
 neither involves a model.
 
-- **Text.** Every free text the user writes is matched before anything else; in this wave that is an
-  attack's notes, checked after they are saved. `matchRedFlagsAnyLocale` matches the pack's keywords in
+- **Text.** Every free text the user writes is matched before anything else: an attack's notes, checked
+  after they are saved, every chat message and dictation, and every debrief answer. `matchRedFlagsAnyLocale` matches the pack's keywords in
   English, Spanish and Portuguese at once, whatever the app's language, with case, accents and
   punctuation folded. A fever raises `fever_stiff_neck` only together with a stiff neck or a severe
   headache, because either alone is common in an ordinary attack. "Can't feel" counts only with a body
@@ -268,6 +278,37 @@ Cruz Roja Nicaragüense's line, dissolved in 2023, with no official replacement 
 the table returns `null` too. A region's name on the call button is the catalog key `region.<code>`.
 Before each launch country, spot-check its number ([`owner-runbook.md`](owner-runbook.md)).
 
+## The companion
+
+![Companion message: the Companion tab runs the red-flag keywords on the phone, then posts the turns to companion, which reads the profile, notes and the attack and runs the input screen (keywords, Jev, else Haiku); a red flag returns at once. Otherwise consume_quota spends the units, Claude Sonnet 5.5 runs at most 3 tool rounds whose reads go through PostgREST with the caller's JWT and come back as short refs, the reply passes the local checks and the reply screen (ok, replaced or degraded), and the app shows the reply or its template with the drafts; Confirm writes the records and their outbox calls in one transaction](diagrams/companion-message.svg)
+
+Companion message: [interactive page](diagrams/companion-message.html) · [source](diagrams/companion-message.json)
+
+The Companion tab, "Tell me" in crisis mode and the day-after debrief all talk to one function,
+`companion`. The models, prompts, questions and costs are in [`ai.md`](ai.md), the request and statuses in
+[`api.md`](api.md), and the attacks the guards cover in [`red-team.md`](red-team.md).
+
+- **The chat stays on the phone.** `chat_messages` in `nimbo.db` holds the conversation; each request sends
+  the last answered turns, and nothing of the chat is stored on the server.
+- **Drafts, never writes.** The model proposes attacks, doses and check-ins as drafts. A draft is saved only
+  when the user taps Confirm, through the same stores and outbox as a tap, in one SQLite transaction with the
+  record ids written into the chat message, so a second tap or a replay changes nothing.
+- **Evidence.** Every number in a reply carries a ref to the tool result behind it, which the app shows as a
+  chip with the attacks or doses it counts.
+- **Quotas.** 40 companion messages and 20 dictations a day, per user and local day. A voice message spends a
+  dictation unit and a companion unit, since both reach Claude. Every message also spends a screening unit
+  (200 a day) for its input screen, a red flag included; past it the screen uses the keywords alone.
+- **Agent notes.** "What I know about you" lists the short notes the agent saved (how the user likes things,
+  never health details), which the user can delete. They reach the prompt only inside an untrusted `<notes>`
+  block, escaped so a note cannot close it.
+- **The day-after debrief.** An attack that ended on an earlier local day, up to 3 days ago and not debriefed,
+  gets three questions in the Companion tab (what helped, what did not, what may have set it off). Yesterday's
+  attack is offered from 05:00 local time, so "Good morning" holds. Chip answers save directly; typed answers
+  become a draft. The answers feed the crisis plan ("What helped before").
+- **When a reply is not fully screened.** A reply that no model could screen comes back `degraded`, and the
+  app adds the footer "Nimbo’s safety check is limited right now. If you notice a sudden severe headache,
+  weakness, trouble speaking, a fever with a stiff neck or a severe headache, or vision loss, seek urgent care."
+
 ### The companion's guards
 
 `supabase/functions/_shared/screen.ts` holds the two screens every companion message and reply pass
@@ -303,14 +344,16 @@ checks the caller first). The prompt, tools, refs and reply parsing are in `_sha
 1. The request (`parseCompanionRequest`): the last 12 turns at most, each up to 500 characters and
    4,000 in all, the first and last the user's, plus the mode, the locale, the app's local day and
    whether it was typed or dictated. The profile is read with the caller's token, `timezone` and
-   `ai_enabled` only, beside the premium check: the AI off answers 403, a failed read 503, and a
-   missing zone reads as UTC.
-2. The input screen runs next, with up to 8.5 s, while the notes and the attacks are read beside it.
-   A red flag answers at once with `redFlags`, no model reply and no quota spent, so nothing can
+   `ai_enabled` only, beside the premium check and the message's screening unit (`screen`, 200 a
+   day): the AI off answers 403, a failed read 503, and a missing zone reads as UTC. A refused or
+   failed screening unit is never an error of its own.
+2. The input screen runs next, with up to 8.5 s, while the notes and the attacks are read beside it;
+   without a screening unit it runs on the keywords alone, with no model call. A red flag answers at
+   once with `redFlags`, no model reply and no unit spent beyond the screening one, so nothing can
    contradict the urgent-care screen.
-3. The quota (`consume_quota`) on the request's day: a typed message spends a `companion` unit, a
-   dictated one a `dictation` unit and then a `companion` unit; the first refused answers 429 with its
-   kind and limit. Premium and free callers get their own limits (equal for now). Any failure of the
+3. The quota (`consume_quota`) on the request's day: a typed message spends a `companion` unit (40 a
+   day), a dictated one a `dictation` unit (20 a day) and then a `companion` unit; the first refused
+   answers 429 with its kind and limit. Premium and free callers get their own limits (equal for now). Any failure of the
    quota call answers 503.
 4. A bounded loop with Claude Sonnet 5.5: at most 3 tool rounds (4 calls, the last with
    `tool_choice: none`), within 25 s of the first call and at least 8.5 s before the request's
@@ -396,6 +439,9 @@ No feature is gated yet; the server check is the authority.
 - **No secrets in the bundle.** `EXPO_PUBLIC_*` holds only the Supabase URL, the anon key and the
   Google OAuth client ids. The service-role key is read by `integration/helpers.ts` and scripts
   only, never under `src/`.
+- **AI behind the server.** The Anthropic and TypeSafe keys are function secrets; the phone holds none.
+  `companion` reads only the caller's rows with the caller's token, sends providers no name, email, id or
+  location, and screens every message and reply ([`red-team.md`](red-team.md)).
 - **Sign-in tokens.** Apple and Google sign-in exchange native ID tokens with Supabase Auth. Apple's
   carries a nonce; Google's does not, because the Google Sign-In library cannot send one Supabase
   Auth would match, so a Google ID token has no replay protection beyond its short lifetime
@@ -460,6 +506,24 @@ No feature is gated yet; the server check is the authority.
   variants and the screen below stays visible.
 - **Premium is a server answer, cached.** `has_premium` decides; the phone keeps the last answer per
   user only so an offline launch does not flash the invitation.
+- **Language: the phone decides, the profile follows.** The UI language is a device-wide preference (`system`,
+  `en`, `es` or `pt`), and `useLanguageSync` keeps `profiles.language` on the language the phone resolves, on mount
+  and on resume, one save at a time, so the server knows it for what it sends later. On a fresh install (no stored
+  preference) the first check adopts the profile's language when it differs from the phone's, so a reinstall opens in
+  the language the user had; that check always stores a choice (the adopted language, or `system`), so it runs once
+  and a later change of the phone's language is never pulled back by the profile's synced copy. The companion
+  function never reads `profiles.language`: it answers in the request's `locale`, the language on screen.
+  On a shared phone the device language overwrites the next user's `profiles.language`; that is by design,
+  since the language is chosen once per device and `companion` uses the request's locale.
+- **The model proposes, the user confirms.** No model call writes a health record: tools read with the caller's
+  token and return drafts, and only Confirm on the phone writes, through the stores and the outbox. A
+  reply the guards replace never reaches the phone; the app renders a fixed template instead.
+- **Two classifiers, then code.** Jev screens first because it is fast and returns probabilities the
+  thresholds act on; Haiku answers the same questions as booleans when Jev fails; the local checks run on
+  every reply and decide alone when both are down. A reply is `ok` only after a model screened it, so an
+  unscreened reply is always marked.
+- **Recall first for red flags.** The keywords match the union of the three languages and the models add
+  to them, never subtract; a false hit costs one "I'm safe, continue".
 - **Commits by milestone.** Each wave's branch history has one commit per milestone, each reviewed
   before it is kept, so the history reads as the build order.
 
@@ -478,6 +542,7 @@ install. Keep it outside this repo, so `pnpm lint` does not scan its files, and 
 | `data-model.json` | `architecture` |
 | `gate-flow.json` | `workflow` |
 | `crisis-logging.json` | `sequence` |
+| `companion-message.json` | `sequence` |
 
 Run the commands from the repo root, because each source's `meta.output` path is relative to it.
 For one diagram, with its type and name:
@@ -491,5 +556,5 @@ For one diagram, with its type and name:
 4. `node "$ARCHIFY" visual-check <copy>.html --json` checks a copy of the page in a real browser; it
    writes PNG screenshots next to the page, so run it on a copy outside the repo.
 
-Update the diagrams when the schema, the gate rules, the sync path or a planned service changes, and
+Update the diagrams when the schema, the gate rules, the sync path, the companion's request or a planned service changes, and
 keep the alt text above in step with them.

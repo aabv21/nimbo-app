@@ -8,16 +8,17 @@ import {
   crisisPlan,
   doseDaysForMonth,
   localDateIn,
+  MAX_AHEAD_MS,
   type MedicationClass,
   overuseStatus,
   packs,
 } from '../condition/index.ts';
 import { isRecord, UUID } from '../guards.ts';
 import { rpcClient } from '../rest.ts';
-import { type CheckinDraft, type Draft, type DoseDraft, type EpisodeDraft, type Evidence, isLocalDate } from './contract.ts';
+import { type CheckinDraft, type Draft, type DoseDraft, type EpisodeDraft, type Evidence, isLocalDate, NOTE_MAX_CHARS } from './contract.ts';
 import { addDays, type Caller, type EpisodeSpan, localIso, parseZonedTime, readCountedRows, readRows, type Row, zonedMidnight } from './data.ts';
 import type { RefPrefix, Refs } from './refs.ts';
-import type { ToolCall } from './turns.ts';
+import { spaceInvisible, type ToolCall } from './turns.ts';
 
 const MAX_DRAFTS = 3;
 const EPISODES_DEFAULT_LIMIT = 10;
@@ -29,11 +30,14 @@ const PLAN_ENTRIES = 5;
 // Bounds on what one result puts in the prompt; a cut result says `truncated: true`.
 const MAX_CABINET_MEDICATIONS = 30;
 const MAX_DOSES_PER_EPISODE = 10;
-const NOTE_MAX_CHARS = 200;
 const NAME_MAX_CHARS = 80;
 const DOSE_TEXT_MAX_CHARS = 120;
-// The phone stores refuse a time more than 5 minutes ahead, so a later draft could never be confirmed.
-const FUTURE_SLACK_MS = 5 * 60_000;
+const FUTURE_SLACK_MS = MAX_AHEAD_MS;
+/**
+ * PostgREST's `max_rows` (supabase/config.toml), named on the reads that have no smaller bound so that, with an
+ * explicit order, a cut always drops the same end (the oldest) rather than whichever rows came last.
+ */
+const READ_ROWS = 1000;
 const EARLIEST = Date.UTC(2000, 0, 1);
 const SLEEP_BANDS = ['lt5', '5_6', '6_7', '7_8', 'gt8'] as const;
 const SLEEP_QUALITIES = ['bad', 'ok', 'good'] as const;
@@ -309,11 +313,14 @@ async function getCabinet(env: ToolEnv): Promise<ToolOutcome> {
     readRows(env, 'medications', [
       ['select', 'id,name,kind,class,form,dose_text,min_interval_minutes,archived_at'],
       ['order', 'created_at.asc'],
+      ['limit', String(READ_ROWS)],
     ]),
     readRows(env, 'doses', [
       ['select', 'id,medication_id,taken_at'],
       ['taken_at', `gte.${new Date(zonedMidnight(monthStart, env.timeZone)).toISOString()}`],
       ['taken_at', `lt.${new Date(zonedMidnight(nextMonthStart(today), env.timeZone)).toISOString()}`],
+      ['order', 'taken_at.desc'],
+      ['limit', String(READ_ROWS)],
     ]),
   ]);
 
@@ -388,12 +395,22 @@ async function getCrisisPlan(env: ToolEnv): Promise<ToolOutcome> {
     readRows(env, 'episodes', [
       ['select', 'id,helped,did_not_help,debriefed_at'],
       ['debriefed_at', 'not.is.null'],
+      ['order', 'debriefed_at.desc'],
+      ['limit', String(READ_ROWS)],
     ]),
     readRows(env, 'doses', [
       ['select', 'id,medication_id,episode_id,helped'],
       ['helped', 'not.is.null'],
+      ['order', 'taken_at.desc'],
+      ['limit', String(READ_ROWS)],
     ]),
-    readRows(env, 'medications', [['select', 'id,name']]),
+    // Only medications still in the cabinet, as What helped before shows: an archived one is not theirs to reach for.
+    readRows(env, 'medications', [
+      ['select', 'id,name'],
+      ['archived_at', 'is.null'],
+      ['order', 'created_at.asc'],
+      ['limit', String(READ_ROWS)],
+    ]),
   ]);
   const names = new Map(medications.flatMap((med) => (typeof med.id === 'string' && typeof med.name === 'string' ? [[med.id, med.name]] : [])));
   const plan = crisisPlan(
@@ -548,15 +565,10 @@ function proposeCheckin(call: ToolCall, input: Record<string, unknown>, env: Too
   };
 }
 
-// Control characters and line separators become spaces: the database refuses them, and in the prompt they could fake a line.
-const isControl = (code: number): boolean => code <= 0x1f || (code >= 0x7f && code <= 0x9f) || code === 0x2028 || code === 0x2029;
-
 async function saveNote(input: Record<string, unknown>, env: ToolEnv): Promise<ToolOutcome> {
   if (typeof input.text !== 'string') throw new Invalid('invalid_value');
-  const note = Array.from(input.text, (char) => (isControl(char.codePointAt(0) ?? 0) ? ' ' : char))
-    .join('')
-    .replace(/\s+/g, ' ')
-    .trim();
+  // Control characters and line separators become spaces: the database refuses them, and in the prompt they could fake a line.
+  const note = spaceInvisible(input.text).replace(/\s+/g, ' ').trim();
   if (note === '') throw new Invalid('empty');
   if (Array.from(note).length > NOTE_MAX_CHARS) throw new Invalid('too_long');
   const { data, error } = await rpcClient(env.supabase, env.fetch, env.auth, env.timeoutMs()).rpc('save_agent_note', { p_text: note });

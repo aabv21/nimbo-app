@@ -1,9 +1,9 @@
--- usage_counters and consume_quota: the daily limit, kinds counted apart, the day rule, and no client access.
+-- usage_counters and consume_quota: the daily limit, kinds (screen included) counted apart, the day rule, and no client access.
 begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(20);
+select plan(23);
 
 insert into auth.users (id, instance_id, aud, role, email, encrypted_password, raw_app_meta_data, raw_user_meta_data)
 values
@@ -40,6 +40,22 @@ select is(
   public.consume_quota('11111111-1111-1111-1111-111111111111', 'dictation', 20, (now() at time zone 'utc')::date),
   false,
   'the 21st dictation call is refused'
+);
+
+select is(
+  (select bool_and(public.consume_quota('11111111-1111-1111-1111-111111111111', 'screen', 200, (now() at time zone 'utc')::date)) from generate_series(1, 200)),
+  true,
+  'screen counts apart: 200 screening calls succeed after companion ran out'
+);
+select is(
+  public.consume_quota('11111111-1111-1111-1111-111111111111', 'screen', 200, (now() at time zone 'utc')::date),
+  false,
+  'the 201st screening call is refused'
+);
+select is(
+  (select count from public.usage_counters where user_id = '11111111-1111-1111-1111-111111111111' and kind = 'companion'),
+  40,
+  'screening leaves the companion counter as it was'
 );
 
 select is(

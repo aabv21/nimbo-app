@@ -9,6 +9,7 @@ import { currentUserId } from '../auth/currentUser';
 import { localDateIn } from '../condition';
 import { useI18n } from '../i18n';
 import { kvGet, kvSet } from '../lib/kv';
+import { deviceTimeZone } from '../lib/localDate';
 import { localDb } from '../lib/local/db';
 import { useOnResume } from '../lib/useOnResume';
 import { showUrgentCare } from '../redflags/urgentCare';
@@ -18,7 +19,7 @@ import { appendMessage, readChat, readMessage, updateMessage, useChat } from './
 import type { ChatMessage, ChatPayload } from './chatStore';
 import { askCompanion, historyForRequest } from './companionClient';
 import type { CompanionOutcome } from './companionClient';
-import type { CompanionRequest, CompanionResponse, Draft, Mode, QuotaKind } from './contract';
+import type { ClientQuotaKind, CompanionRequest, CompanionResponse, Draft, Mode } from './contract';
 
 export type CompanionState = 'ready' | 'offline' | 'unavailable' | 'over_quota';
 
@@ -37,13 +38,13 @@ export interface Companion {
 
 /** The device's calendar day, read from its zone at each call so a trip or midnight moves it: the day quotas count on. */
 export function companionDay(): string {
-  return localDateIn(new Date(), Intl.DateTimeFormat().resolvedOptions().timeZone);
+  return localDateIn(new Date(), deviceTimeZone());
 }
 
-const quotaKey = (kind: QuotaKind, userId: string, day: string): string => `companion.quota.${kind}.${userId}.${day}`;
+const quotaKey = (kind: ClientQuotaKind, userId: string, day: string): string => `companion.quota.${kind}.${userId}.${day}`;
 
 /** The limit a 429 reported for `kind` today, or null. kv `companion.quota.<kind>.<userId>.<localDate>`. */
-export function overQuotaToday(userId: string, day: string, kind: QuotaKind): number | null {
+export function overQuotaToday(userId: string, day: string, kind: ClientQuotaKind): number | null {
   const limit = Number(kvGet(quotaKey(kind, userId, day)));
   return Number.isInteger(limit) && limit > 0 ? limit : null;
 }
@@ -58,19 +59,22 @@ function payloadOf(result: CompanionResponse): ChatPayload {
   return { drafts: result.drafts, evidence: result.evidence, guard: result.guard, replaced: result.replaced, confirmed: {} };
 }
 
-/** Stores the answer to user message `id`: the user's status and the assistant's line change together. */
-function storeAnswer(userId: string, id: number, mode: Mode, result: CompanionResponse): void {
+/**
+ * Stores the answer to user message `id`: the user's status and the assistant's line change together. `urgent` is a
+ * red-flag answer whose flag keys this version may not know (`unchecked`), so its list can be empty.
+ */
+function storeAnswer(userId: string, id: number, mode: Mode, result: CompanionResponse, urgent = result.redFlags.length > 0): void {
   // Another account since (a switch while the request was out), or the chat purged by a sign-out: the answer, and any
   // urgent-care screen with the asker's words, belongs to no one here now.
   const asked = currentUserId() === userId ? readMessage(userId, id) : null;
   if (asked === null) return;
   // The question's input, not the request's: a dictated message retried as text was still spoken.
   const assistant = { role: 'assistant' as const, input: asked.input, createdAt: Date.now(), mode };
-  if (result.redFlags.length > 0) {
+  if (urgent) {
     showUrgentCare({ flags: result.redFlags, excerpt: excerptOf(asked.text), source: asked.input, episodeId: null });
   }
   localDb().withTransactionSync(() => {
-    if (result.redFlags.length > 0) {
+    if (urgent) {
       updateMessage(userId, id, { status: 'red_flag' });
       appendMessage(userId, { ...assistant, text: '', template: 'redflag_after', status: 'red_flag', payload: null });
     } else if (result.guard === 'replaced') {
@@ -175,7 +179,7 @@ export function useCompanion(mode: Mode, options: { episodeId?: string } = {}): 
       }
       // Stored even when the screen has gone: the answer belongs to the chat, not to this visit.
       if (outcome.ok) {
-        storeAnswer(user, id, mode, outcome.result);
+        storeAnswer(user, id, mode, outcome.result, outcome.unchecked === true || outcome.result.redFlags.length > 0);
         if (mounted.current) setDown(false);
       } else {
         handleFailure(id, outcome, day);

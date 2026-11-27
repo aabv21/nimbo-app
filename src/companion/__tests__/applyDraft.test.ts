@@ -1,4 +1,4 @@
-import { startEpisode } from '../../episodes/episodeStore';
+import { readEpisode, startEpisode } from '../../episodes/episodeStore';
 import { localDb } from '../../lib/local/db';
 import { listOutbox } from '../../lib/outbox/outbox';
 import { clearLocalDb } from '../../test/localDbTest';
@@ -132,4 +132,59 @@ test('a new episode with no start is a RangeError, and the transaction writes no
     apply({ ...NEW_EPISODE, startedAt: null }, { recordId: RECORD, doseIds: [DOSE] });
   }).toThrow(RangeError);
   expect(ops()).toEqual([]);
+});
+
+test('a dose draft linked to an attack no longer on this phone is a RangeError, and nothing is written', () => {
+  const gone = '00000000-0000-4000-8000-0000000000e7';
+  const draft: DoseDraft = { kind: 'dose', ref: 'd1', medicationId: MED, takenAt: '2026-11-27T17:00:00.000Z', episodeId: gone };
+  expect(() => {
+    apply(draft, { recordId: RECORD, doseIds: [] });
+  }).toThrow(RangeError);
+  expect(ops()).toEqual([]);
+  // Another user's attack reads as gone too.
+  const theirs = startEpisode('user-b', new Date('2026-11-27T15:00:00Z'));
+  expect(() => {
+    apply({ ...draft, episodeId: theirs }, { recordId: RECORD, doseIds: [] });
+  }).toThrow(RangeError);
+  expect(ops()).toEqual([]);
+});
+
+test('a dose draft linked to an attack still on this phone logs with that attack', () => {
+  const open = startEpisode(USER, new Date('2026-11-27T15:00:00Z'));
+  const before = listOutbox(USER).length;
+  apply({ kind: 'dose', ref: 'd1', medicationId: MED, takenAt: '2026-11-27T17:00:00.000Z', episodeId: open }, { recordId: RECORD, doseIds: [] });
+  expect(ops().slice(before)).toEqual([{ kind: 'log_dose', args: { p_id: RECORD, p_medication_id: MED, p_taken_at: '2026-11-27T17:00:00.000Z', p_episode_id: open } }]);
+});
+
+describe('helped and did not help on an attack still open', () => {
+  test('on the open attack: only the lists are patched, never the debrief stamp', () => {
+    const open = startEpisode(USER, new Date('2026-11-27T15:00:00Z'));
+    const before = listOutbox(USER).length;
+    apply(
+      { ...NEW_EPISODE, episodeId: open, startedAt: null, endedAt: null, intensity: null, helped: ['dark_room'], didNotHelp: ['caffeine'], doses: [] },
+      { recordId: RECORD, doseIds: [] },
+    );
+    expect(ops().slice(before)).toEqual([{ kind: 'update_episode', args: { p_id: open, p_fields: { helped: ['dark_room'], did_not_help: ['caffeine'] } } }]);
+    expect(readEpisode(USER, open)).toMatchObject({ helped: ['dark_room'], didNotHelp: ['caffeine'], debriefedAt: null });
+  });
+
+  test('a new attack left open with helped is not stamped either', () => {
+    apply({ ...NEW_EPISODE, endedAt: null, doses: [], helped: ['dark_room'] }, { recordId: RECORD, doseIds: [] });
+    expect(ops().map((op) => op.kind)).toEqual(['log_episode', 'update_episode']);
+    expect(ops()[1]?.args).toEqual({ p_id: RECORD, p_fields: { helped: ['dark_room'], did_not_help: [] } });
+    expect(readEpisode(USER, RECORD)?.debriefedAt).toBeNull();
+  });
+
+  test('a draft that ends the open attack stamps it, as does one on an attack already over', () => {
+    const open = startEpisode(USER, new Date('2026-11-27T15:00:00Z'));
+    apply(
+      { ...NEW_EPISODE, episodeId: open, startedAt: null, endedAt: '2026-11-27T17:00:00.000Z', intensity: null, helped: ['dark_room'], doses: [] },
+      { recordId: RECORD, doseIds: [] },
+    );
+    expect(ops().at(-1)?.args).toMatchObject({ p_id: open, p_fields: { helped: ['dark_room'], debriefed: true } });
+    expect(readEpisode(USER, open)?.debriefedAt).not.toBeNull();
+    // Already over: a later answer stamps too (the stamp is kept once set).
+    apply({ ...NEW_EPISODE, episodeId: open, startedAt: null, endedAt: null, intensity: null, didNotHelp: ['water'], doses: [] }, { recordId: RECORD, doseIds: [] });
+    expect(ops().at(-1)?.args).toMatchObject({ p_id: open, p_fields: { did_not_help: ['water'], debriefed: true } });
+  });
 });

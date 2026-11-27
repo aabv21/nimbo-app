@@ -6,6 +6,10 @@ import { isRecord, UUID } from '../guards.ts';
 import type { QuotaKind } from '../quota.ts';
 
 export type { QuotaKind };
+// For the app, which imports server code only through src/companion/contract.ts.
+export { isRecord };
+/** The kinds a 429 can name: the screening unit never refuses a request, it only leaves the screen to the keywords. */
+export type ClientQuotaKind = Exclude<QuotaKind, 'screen'>;
 
 export const MODES = ['chat', 'crisis', 'debrief'] as const;
 export type Mode = (typeof MODES)[number];
@@ -90,6 +94,9 @@ export const MAX_TURNS = 12;
 export const TURN_MAX_CHARS = 500;
 export const TOTAL_MAX_CHARS = 4000;
 
+/** An agent note's length, as `agent_notes.text`'s check has it. */
+export const NOTE_MAX_CHARS = 200;
+
 export type Turn = { role: 'user' | 'assistant'; text: string };
 
 /** `localDate` is the app's day; `input: 'voice'` also spends a dictation unit. */
@@ -119,7 +126,7 @@ export interface CompanionResponse {
 /** The body of every non-200 answer; `quota` and `limit` only on 429. */
 export interface CompanionErrorBody {
   error: 'invalid_input' | 'unauthorized' | 'method_not_allowed' | 'ai_off' | 'over_quota' | 'unavailable' | 'internal';
-  quota?: QuotaKind;
+  quota?: ClientQuotaKind;
   limit?: number;
 }
 

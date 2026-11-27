@@ -175,15 +175,18 @@ export function purgeUser(userId: string): boolean {
   return !queued;
 }
 
-/** At launch: purges every user but `keepUserId`, which covers a sign-out made while the app was closed (or a row left by one). */
-export function purgeOtherUsers(keepUserId: string | null): void {
+/**
+ * At launch: purges every user but `keepUserId`, which covers a sign-out made while the app was closed (or a row left
+ * by one). Returns the users it purged, so the caller can drop their kv caches too.
+ */
+export function purgeOtherUsers(keepUserId: string | null): string[] {
   const users = localDb().getAllSync<{ user_id: string }>(
     `SELECT user_id FROM episodes UNION SELECT user_id FROM medications UNION SELECT user_id FROM doses
      UNION SELECT user_id FROM checkins UNION SELECT user_id FROM chat_messages;`,
   );
-  for (const { user_id: userId } of users) {
-    if (userId !== keepUserId) purgeUser(userId);
-  }
+  const purged = users.map((row) => row.user_id).filter((userId) => userId !== keepUserId);
+  for (const userId of purged) purgeUser(userId);
+  return purged;
 }
 
 const listeners = new Map<LocalTable, Set<() => void>>();

@@ -30,6 +30,11 @@ export function resolveLocale(languageTags: readonly string[]): Locale {
   return 'en';
 }
 
+/** The phone's language as the app resolves it, whatever this device's stored preference says. */
+export function deviceLocale(): Locale {
+  return resolveLocale(getLocales().map((entry) => entry.languageTag));
+}
+
 export interface I18n {
   locale: Locale;
   t: (key: MessageKey, params?: Params) => string;
@@ -39,11 +44,11 @@ export interface I18n {
 
 export function useI18n(): I18n {
   // NOTE: reads device languages once per mount, not on an OS change; upgrade: expo-localization's `useLocales()`.
-  const deviceLocale = useMemo(() => resolveLocale(getLocales().map((entry) => entry.languageTag)), []);
+  const device = useMemo(() => deviceLocale(), []);
 
-  // `'system'` outside an `I18nProvider` (e.g. an isolated component test), so `locale` is `deviceLocale`.
+  // `'system'` outside an `I18nProvider` (e.g. an isolated component test), so `locale` is the device's.
   const { preference } = useLocalePreference();
-  const locale = useMemo(() => preferenceToLocale(preference, deviceLocale), [preference, deviceLocale]);
+  const locale = useMemo(() => preferenceToLocale(preference, device), [preference, device]);
 
   return useMemo(
     () => ({

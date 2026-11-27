@@ -57,7 +57,9 @@ mock servers on the host, which the Edge Runtime reaches from its container as `
 
 The integration tests start the mock they need and close it ([`testing.md`](testing.md#mocks)). For a
 manual check, `node integration/mockServices.ts --serve` keeps the mock Jev answering "nothing flagged"
-(every Noul 0.02, every Choice `other`) until Ctrl-C. The mocks listen on every interface, since the
+(every Noul 0.02, every Choice `other`) until Ctrl-C, and `node integration/mockAnthropic.ts --serve companion-checkin`
+keeps the mock Claude answering every message with a check-in draft, the scenario the Maestro companion flow uses
+([`testing.md`](testing.md#end-to-end-flows-maestro)). The mocks listen on every interface, since the
 Edge Runtime calls from a container.
 
 With no mock running, a call to either model fails fast with a refused connection, and the functions

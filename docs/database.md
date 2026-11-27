@@ -2,7 +2,7 @@
 
 The backend is Supabase (Postgres 17), run locally through the `db:*` scripts ([`local-stack.md`](local-stack.md)).
 This document covers what the migrations create: `public.profiles`, its policies and grants, the
-signup trigger, the consent RPCs, the tracking tables with their RPCs, entitlements and the AI quotas. Schema changes are new migration files in
+signup trigger, the consent RPCs, the tracking tables with their RPCs, entitlements, the AI quotas and the companion's data (the debrief columns, `set_dose_helped` and `agent_notes`). Schema changes are new migration files in
 `supabase/migrations/`; a merged migration is never edited. The diagram [`diagrams/data-model.svg`](diagrams/data-model.svg) shows how the pieces relate, and [`architecture.md`](architecture.md#the-consent-model) explains why consent is RPC-only.
 
 ## `public.profiles`
@@ -155,13 +155,14 @@ An authenticated caller asking about another user gets `42501`; the service role
 ## AI quotas
 
 `20261128120000_quota.sql` adds the daily limits on the AI calls. `public.usage_counters(user_id, day, kind, count)` holds one
-counter per user, day and `public.quota_kind` (`companion`, `dictation`), with primary key `(user_id, day, kind)`, `count >= 0`
+counter per user, day and `public.quota_kind` (`companion`, `dictation`, and `screen`, added alone by
+`20261128120200_screen_quota.sql` since a new enum value cannot be used in the transaction that adds it), with primary key `(user_id, day, kind)`, `count >= 0`
 and `on delete cascade` from `auth.users`. RLS is on with no policy, and every privilege is revoked from `anon` and
 `authenticated`, so a client can neither read nor write a counter.
 
 `consume_quota(p_user_id uuid, p_kind public.quota_kind, p_limit integer, p_day date) returns boolean` is `security definer`
 with `search_path = ''`, revoked from `public`, `anon` and `authenticated` and granted to `service_role` only: the Edge
-Functions call it through `supabase/functions/_shared/quota.ts` (40 `companion` and 20 `dictation` a day). It adds one to the
+Functions call it through `supabase/functions/_shared/quota.ts` (40 `companion`, 20 `dictation` and 200 `screen` a day). It adds one to the
 counter and returns true while the count is below `p_limit`, else false without counting; a null or zero limit is false.
 `p_day` is the app's local day: it is counted as given when within one day of the UTC date (every time zone is), and on the
 UTC day otherwise or when null, so the quota resets at the user's midnight. The day is a counter key, not a stored time, so

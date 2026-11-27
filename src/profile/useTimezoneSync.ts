@@ -1,12 +1,9 @@
 import { useCallback, useEffect, useRef } from 'react';
 
 import { useAuth } from '../auth/AuthProvider';
+import { deviceTimeZone } from '../lib/localDate';
 import { useOnResume } from '../lib/useOnResume';
 import { updateProfile } from './profileRepository';
-
-function deviceTimeZone(): string {
-  return Intl.DateTimeFormat().resolvedOptions().timeZone;
-}
 
 /**
  * Keeps `profile.timezone` on the phone's zone, which the server needs to tell one local day from the

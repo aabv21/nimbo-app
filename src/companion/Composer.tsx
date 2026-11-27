@@ -67,6 +67,7 @@ export function Composer({ disabled, placeholder, busy, dictationOver, onSend }:
       )}
       <View style={styles.row}>
         <TextInput
+          testID="companion-input"
           accessibilityLabel={t('companion.input.label')}
           value={text}
           onChangeText={(next) => {
@@ -94,6 +95,7 @@ export function Composer({ disabled, placeholder, busy, dictationOver, onSend }:
         />
         <Animated.View style={scaleStyle}>
           <Pressable
+            testID="companion-send"
             accessibilityRole="button"
             accessibilityLabel={t('companion.send')}
             accessibilityState={{ disabled: !canSend }}
