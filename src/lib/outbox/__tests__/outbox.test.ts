@@ -1,6 +1,6 @@
 import { localDb } from '../../local/db';
 import { clearLocalDb, dirtyOf, insertEpisode } from '../../../test/localDbTest';
-import { enqueue, listOutbox, resetFailed } from '../outbox';
+import { enqueue, listOutbox, queuedAt, resetFailed } from '../outbox';
 import { runOutbox } from '../runOutbox';
 import type { SendResult } from '../errors';
 
@@ -97,4 +97,24 @@ test('resetFailed clears failed, the attempts and the backoff of that user only'
 
   expect(listOutbox('user-a')[0]).toMatchObject({ failed: false, attempts: 0, noResponses: 0, nextAttemptAt: 0 });
   expect(listOutbox('user-b')[0]).toMatchObject({ failed: true, attempts: 1 });
+});
+
+test('finishing onboarding queues with no mirror row and is found while unsent, failed or not', async () => {
+  expect(queuedAt('user-a', 'complete_onboarding')).toBeNull();
+  const op = enqueue('user-a', 'complete_onboarding', {});
+
+  expect(listOutbox('user-a')).toEqual([expect.objectContaining({ kind: 'complete_onboarding', args: {}, recordKey: 'profile:onboarding' })]);
+  expect(queuedAt('user-a', 'complete_onboarding')).toBe(op.createdAt);
+  expect(queuedAt('user-b', 'complete_onboarding')).toBeNull();
+
+  await runOutbox('user-a', {
+    send: () => Promise.resolve<SendResult>({ ok: false, permanent: true }),
+    sessionUserId: () => 'user-a',
+  });
+  expect(listOutbox('user-a')[0]?.failed).toBe(true);
+  expect(queuedAt('user-a', 'complete_onboarding')).toBe(op.createdAt);
+
+  resetFailed('user-a');
+  await runOutbox('user-a', { send: () => Promise.resolve<SendResult>({ ok: true }), sessionUserId: () => 'user-a' });
+  expect(queuedAt('user-a', 'complete_onboarding')).toBeNull();
 });

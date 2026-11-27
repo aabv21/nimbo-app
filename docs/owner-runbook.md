@@ -25,7 +25,24 @@ and date when it changes.
 | Enroll in the Apple Developer Program | Pending | Needed for Sign in with Apple on a device and for TestFlight. |
 | Print `{{ .Token }}` in the hosted confirmation and recovery email templates | Pending | The app asks for a 6-digit code; the hosted project's templates must contain it, as `supabase/templates/confirmation.html` and `recovery.html` do locally ([`local-stack.md`](local-stack.md)). |
 
+## Granting premium
+
+No feature is premium yet; this is the mechanism. Run these on your machine against the project you mean to change.
+The script needs the project's service-role key and URL in the shell (it refuses to run without the key, and never sends
+a request in that case); without them it reads the local stack's values from `.env.local`.
+
+```sh
+export EXPO_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co
+export SUPABASE_SERVICE_ROLE_KEY=<service-role-key>
+pnpm premium grant person@example.com --note "beta tester" --until 2027-01-01
+pnpm premium revoke person@example.com
+```
+
+`--note` and `--until` (a date, not in the past) are optional; without `--until` the grant has no end. `--until` ends at 23:59:59 UTC of that date: on UTC-3, `--until 2027-01-01` ends at 20:59 local time on 1 January. A grant without `--note` keeps the stored note; only the dashboard can clear it. The script prints the target host first, so check it before trusting the result. Each run prints the
+entitlement row before and after as JSON. Revoking leaves any purchase untouched. The same change can be made by editing the
+`granted` columns of the user's row in the dashboard's table editor.
+
 ## Live checks deferred until those steps are done
 
 Google sign-in and Apple sign-in on a device, real email delivery of the codes, and the first
-hosted migration. The offline suites cover the logic around each ([`testing.md`](testing.md)).
+hosted migration, and `pnpm premium grant` against the hosted project. The offline suites cover the logic around each ([`testing.md`](testing.md)).

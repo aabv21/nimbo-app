@@ -34,6 +34,14 @@ jest.mock('expo-notifications', () => ({
   scheduleNotificationAsync: jest.fn((request: { identifier: string }) => Promise.resolve(request.identifier)),
 }));
 
+// Location is native: permission denied and no position unless a suite says otherwise.
+jest.mock('expo-location', () => ({
+  Accuracy: { Lowest: 1, Low: 2, Balanced: 3, High: 4, Highest: 5, BestForNavigation: 6 },
+  requestForegroundPermissionsAsync: jest.fn(() => Promise.resolve({ granted: false, status: 'denied', canAskAgain: true, expires: 'never' })),
+  getCurrentPositionAsync: jest.fn(() => Promise.reject(new Error('No position under Jest'))),
+  getLastKnownPositionAsync: jest.fn(() => Promise.resolve(null)),
+}));
+
 // The date-time picker is native too; a stand-in that exposes its props.
 jest.mock('@react-native-community/datetimepicker', () => require('./src/test/datetimepickerMock'));
 jest.mock('react-native-reanimated', () => require('./src/test/reanimatedMock'));

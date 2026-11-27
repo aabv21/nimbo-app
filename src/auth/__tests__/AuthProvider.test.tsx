@@ -30,10 +30,14 @@ jest.mock('../../profile/profileRepository', () => {
 });
 
 jest.mock('expo-router', () => ({ router: { push: jest.fn(), replace: jest.fn(), back: jest.fn() } }));
+jest.mock('expo-sqlite', () => require('../../test/sqliteNode'));
 
 import UrgentCare from '../../app/urgent-care';
 import { translate } from '../../i18n';
 import { kvGet, kvRemove, kvSet } from '../../lib/kv';
+import { completeOp, enqueue, listOutbox } from '../../lib/outbox/outbox';
+import { clearLocalDb } from '../../test/localDbTest';
+import { nextRoute } from '../gate';
 import type { Profile } from '../../profile/profileRepository';
 import { currentUrgentCare, showUrgentCare } from '../../redflags/urgentCare';
 import { AuthProvider, useAuth } from '../AuthProvider';
@@ -68,6 +72,7 @@ beforeEach(() => {
   mockFetchProfile.mockReturnValue(new Promise(() => undefined));
   kvRemove('profile.u1');
   kvRemove('profile.u2');
+  clearLocalDb();
 });
 
 test('offline with a stored session and a cached profile, the first render is signed in and never waits for the network', async () => {
@@ -350,4 +355,83 @@ test('a read that no change overtook is shown and cached', async () => {
   expect(result.current.profile?.theme).toBe('dim');
   expect(JSON.parse(kvGet('profile.u1') ?? 'null')).toMatchObject({ theme: 'dim' });
   expect(mockFetchProfile).toHaveBeenCalledTimes(1);
+});
+
+// Finishing onboarding is queued (it works offline); the server's row says null until the outbox sends it.
+describe('a finish of onboarding still in the outbox', () => {
+  const FINISHED_HERE = '2026-11-27T10:00:00.000Z';
+  const SERVER_STAMP = '2026-11-27T10:00:05.000Z';
+  const SETTING_UP: Profile = { ...PROFILE, aiConsentAnsweredAt: '2026-11-01T10:01:00Z' };
+
+  async function launchWith(fetched: Profile, cached: Profile | null): Promise<{ current: ReturnType<typeof useAuth> }> {
+    mockReadStoredSession.mockReturnValue({ userId: 'u1', email: null });
+    if (cached !== null) kvSet('profile.u1', JSON.stringify(cached));
+    mockFetchProfile.mockResolvedValue({ ok: true, value: fetched });
+    const { result } = await renderHook(() => useAuth(), { wrapper });
+    await act(() => {
+      authStateCallback?.('INITIAL_SESSION', null);
+    });
+    await waitFor(() => {
+      expect(mockFetchProfile).toHaveBeenCalled();
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    return result;
+  }
+
+  test('a read that still says null keeps the stamp made on the phone, so the user stays on Today', async () => {
+    enqueue('u1', 'complete_onboarding', {});
+    const result = await launchWith(SETTING_UP, { ...SETTING_UP, onboardingCompletedAt: FINISHED_HERE });
+
+    expect(result.current.profile?.onboardingCompletedAt).toBe(FINISHED_HERE);
+    expect(nextRoute(result.current, { introSeen: true })).toBe('/today');
+  });
+
+  test('with no cached copy, the queued finish still stamps the profile', async () => {
+    const op = enqueue('u1', 'complete_onboarding', {});
+    const result = await launchWith(SETTING_UP, null);
+
+    expect(result.current.profile?.onboardingCompletedAt).toBe(new Date(op.createdAt).toISOString());
+    expect(nextRoute(result.current, { introSeen: true })).toBe('/today');
+  });
+
+  test('once it is sent, the server stamp replaces the phone one and nothing else changes', async () => {
+    const op = enqueue('u1', 'complete_onboarding', {});
+    completeOp(op);
+    expect(listOutbox('u1')).toEqual([]);
+    const result = await launchWith({ ...SETTING_UP, onboardingCompletedAt: SERVER_STAMP }, { ...SETTING_UP, onboardingCompletedAt: FINISHED_HERE });
+
+    expect(result.current.profile?.onboardingCompletedAt).toBe(SERVER_STAMP);
+    expect(nextRoute(result.current, { introSeen: true })).toBe('/today');
+  });
+
+  test('a call sent while the read is out still leaves the stamp: the read began before the server had it', async () => {
+    const op = enqueue('u1', 'complete_onboarding', {});
+    mockReadStoredSession.mockReturnValue({ userId: 'u1', email: null });
+    kvSet('profile.u1', JSON.stringify({ ...SETTING_UP, onboardingCompletedAt: FINISHED_HERE }));
+    let resolveFetch: (value: Result) => void = () => undefined;
+    mockFetchProfile.mockReturnValue(new Promise((resolve) => (resolveFetch = resolve)));
+    const { result } = await renderHook(() => useAuth(), { wrapper });
+    await act(() => {
+      authStateCallback?.('INITIAL_SESSION', null);
+    });
+    expect(mockFetchProfile).toHaveBeenCalledTimes(1);
+
+    // The outbox delivers and removes the call before the read, which the server answered first, resolves.
+    completeOp(op);
+    await act(async () => {
+      resolveFetch({ ok: true, value: SETTING_UP });
+      await Promise.resolve();
+    });
+
+    expect(result.current.profile?.onboardingCompletedAt).toBe(FINISHED_HERE);
+    expect(nextRoute(result.current, { introSeen: true })).toBe('/today');
+  });
+
+  test('without a queued finish, the server null stands', async () => {
+    const result = await launchWith(SETTING_UP, { ...SETTING_UP, onboardingCompletedAt: FINISHED_HERE });
+
+    expect(result.current.profile?.onboardingCompletedAt).toBeNull();
+  });
 });

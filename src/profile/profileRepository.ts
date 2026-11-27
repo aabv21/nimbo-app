@@ -1,5 +1,6 @@
 import type { Client } from '../auth/emailAuth';
 import { kvGetJson, kvSet } from '../lib/kv';
+import { enqueue } from '../lib/outbox/outbox';
 import { toRequestErrorKind, toThrownErrorKind } from '../lib/requestResult';
 import type { RequestResult } from '../lib/requestResult';
 import { supabase } from '../lib/supabase';
@@ -265,7 +266,12 @@ export function setAiConsent(enabled: boolean, client: Client = supabase): Promi
   return callThenFetch(client, () => client.rpc('set_ai_consent', { p_enabled: enabled }));
 }
 
-/** Stamps `onboarding_completed_at`; the server refuses until both consent gates are answered. */
-export function completeOnboarding(client: Client = supabase): Promise<RequestResult<Profile>> {
-  return callThenFetch(client, () => client.rpc('complete_onboarding'));
+/**
+ * Finishes onboarding on the phone first: queues `complete_onboarding` for the outbox and returns the stamp the
+ * caller shows (`patchProfile`), so the gate opens Today with no network. The server refuses until both consent gates
+ * are answered, which they are by the time the setup steps run; `AuthProvider` keeps the stamp while the call is queued.
+ */
+export function completeOnboarding(userId: string, now: Date = new Date()): string {
+  enqueue(userId, 'complete_onboarding', {});
+  return now.toISOString();
 }

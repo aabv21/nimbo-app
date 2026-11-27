@@ -63,6 +63,20 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"entitlements": {
+                  Row: {
+                    "created_at": string,"granted": boolean,"granted_note": string | null,"granted_until": string | null,"purchase_active": boolean,"purchase_expires_at": string | null,"purchase_source": string | null,"updated_at": string,"user_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string,"granted"?: boolean,"granted_note"?: string | null,"granted_until"?: string | null,"purchase_active"?: boolean,"purchase_expires_at"?: string | null,"purchase_source"?: string | null,"updated_at"?: string,"user_id": string
+                  }
+                  Update: {
+                    "created_at"?: string,"granted"?: boolean,"granted_note"?: string | null,"granted_until"?: string | null,"purchase_active"?: boolean,"purchase_expires_at"?: string | null,"purchase_source"?: string | null,"updated_at"?: string,"user_id"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
                 },"episodes": {
                   Row: {
                     "condition": string,"created_at": string,"ended_at": string | null,"id": string,"intensity": number | null,"notes": string | null,"pain_areas": (string)[],"reliefs": (string)[],"source": Database["public"]['Enums']["episode_source"],"started_at": string,"symptoms": (string)[],"triggers": (string)[],"updated_at": string,"user_id": string
@@ -128,6 +142,9 @@ isOneToOne: false
                            },
 "end_episode":
 { Args: { "p_ended_at": string,"p_id": string }; Returns: undefined
+                           },
+"has_premium":
+{ Args: { "p_user": string }; Returns: boolean
                            },
 "is_catalog_subset":
 { Args: { "p_catalog": string,"p_values": (string)[] }; Returns: boolean

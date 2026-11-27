@@ -11,7 +11,9 @@ export type OutboxKind =
   | 'save_medication'
   | 'log_dose'
   | 'delete_dose'
-  | 'save_checkin';
+  | 'save_checkin'
+  // Idempotent on the server (`coalesce`), so a replay after a lost reply changes nothing.
+  | 'complete_onboarding';
 
 export type OutboxArgs<K extends OutboxKind> = Database['public']['Functions'][K]['Args'];
 
@@ -20,7 +22,7 @@ export interface OutboxOp {
   userId: string;
   kind: OutboxKind;
   args: unknown;
-  /** The record the call writes: its `p_id`, or `checkin:<local_date>`. */
+  /** The record the call writes: its `p_id`, `checkin:<local_date>`, or `profile:onboarding`. */
   recordKey: string;
   /** Sends the server answered with an error, or a kill interrupted; `MAX_ATTEMPTS` ends the operation. */
   attempts: number;
@@ -47,8 +49,10 @@ interface OutboxRow {
 type MirrorTable = Exclude<LocalTable, 'outbox'>;
 
 const CHECKIN_PREFIX = 'checkin:';
+const ONBOARDING_KEY = 'profile:onboarding';
 
-function mirrorTableOf(kind: OutboxKind): MirrorTable {
+/** The mirror table the call's row lives in; null for a profile call, which has no mirror row to mark. */
+function mirrorTableOf(kind: OutboxKind): MirrorTable | null {
   switch (kind) {
     case 'log_episode':
     case 'update_episode':
@@ -62,11 +66,20 @@ function mirrorTableOf(kind: OutboxKind): MirrorTable {
       return 'doses';
     case 'save_checkin':
       return 'checkins';
+    case 'complete_onboarding':
+      return null;
   }
 }
 
 function recordKeyOf<K extends OutboxKind>(kind: K, args: OutboxArgs<K>): string {
-  return 'p_local_date' in args ? `${CHECKIN_PREFIX}${args.p_local_date}` : args.p_id;
+  if ('p_local_date' in args) return `${CHECKIN_PREFIX}${args.p_local_date}`;
+  if ('p_id' in args) return args.p_id;
+  return ONBOARDING_KEY;
+}
+
+/** Changed tables to announce: the outbox, and the mirror table when the call has one. */
+function changedTables(table: MirrorTable | null): LocalTable[] {
+  return table === null ? ['outbox'] : ['outbox', table];
 }
 
 /** Sets the mirror row's `dirty` flag; a deleted row matches nothing, which is fine. */
@@ -103,10 +116,10 @@ export function enqueue<K extends OutboxKind>(userId: string, kind: K, args: Out
     [userId, kind, JSON.stringify(args), recordKey, createdAt],
   );
   const table = mirrorTableOf(kind);
-  setDirty(userId, table, recordKey, true);
+  if (table !== null) setDirty(userId, table, recordKey, true);
   // The caller's transaction is synchronous, so a microtask runs after it commits (or rolls back).
   queueMicrotask(() => {
-    notifyChanged(['outbox', table]);
+    notifyChanged(changedTables(table));
     for (const listener of enqueueListeners) listener();
   });
   return {
@@ -171,6 +184,15 @@ export function unsentRecordKeys(userId: string): Set<string> {
   return new Set(rows.map((row) => row.record_key));
 }
 
+/** When `userId`'s oldest operation of `kind` was queued, while it is unsent (failed ones included); null when none is. */
+export function queuedAt(userId: string, kind: OutboxKind): number | null {
+  const row = localDb().getFirstSync<{ created_at: number }>(
+    'SELECT created_at FROM outbox WHERE user_id = ? AND kind = ? ORDER BY seq LIMIT 1;',
+    [userId, kind],
+  );
+  return row?.created_at ?? null;
+}
+
 /** Saves an attempt: the claim before a send, or the outcome after it. */
 export function saveAttempt(op: OutboxOp): void {
   localDb().runSync('UPDATE outbox SET attempts = ?, no_responses = ?, next_attempt_at = ?, failed = ? WHERE seq = ?;', [
@@ -193,9 +215,9 @@ export function completeOp(op: OutboxOp): void {
       op.userId,
       op.recordKey,
     ]);
-    if (left === null) setDirty(op.userId, table, op.recordKey, false);
+    if (left === null && table !== null) setDirty(op.userId, table, op.recordKey, false);
   });
-  notifyChanged(['outbox', table]);
+  notifyChanged(changedTables(table));
 }
 
 /** "Try again": every operation of `userId`, failed or waiting out a backoff, is due now with fresh attempts. */

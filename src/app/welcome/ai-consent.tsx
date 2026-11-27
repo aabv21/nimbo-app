@@ -4,11 +4,12 @@ import { StyleSheet, Text, View } from 'react-native';
 import { useAuth } from '../../auth/AuthProvider';
 import { useI18n } from '../../i18n';
 import type { MessageKey } from '../../i18n';
+import { SETUP_STEPS, StepProgress } from '../../onboarding/OnboardingStep';
 import { setAiConsent } from '../../profile/profileRepository';
 import { Button } from '../../ui/Button';
 import { Notice } from '../../ui/Notice';
 import { Screen } from '../../ui/Screen';
-import { fonts, radius, space, type } from '../../ui/theme';
+import { controlHeight, fonts, radius, space, type } from '../../ui/theme';
 import { useTheme } from '../../ui/themeContext';
 
 const SECTIONS: readonly (readonly [title: MessageKey, body: MessageKey])[] = [
@@ -33,7 +34,7 @@ export default function AiConsent(): React.JSX.Element {
         setFailed(true);
         return;
       }
-      // Only the consent fields, as in Profile; once they show, the root layout's gate opens the tabs.
+      // Only the consent fields, as in Profile; once they show, the root layout's gate moves on by itself.
       patchProfile({ aiEnabled: result.value.aiEnabled, aiConsentAnsweredAt: result.value.aiConsentAnsweredAt });
     } finally {
       setSaving(undefined);
@@ -42,6 +43,9 @@ export default function AiConsent(): React.JSX.Element {
 
   return (
     <Screen>
+      <View style={styles.top}>
+        <StepProgress done={1} total={SETUP_STEPS} />
+      </View>
       <Text accessibilityRole="header" style={[styles.title, { color: color.text }]}>{t('consent.title')}</Text>
       <Text style={[styles.body, { color: color.text }]}>{t('consent.what')}</Text>
       <View style={[styles.card, { backgroundColor: color.surface }]}>
@@ -80,6 +84,7 @@ export default function AiConsent(): React.JSX.Element {
 }
 
 const styles = StyleSheet.create({
+  top: { minHeight: controlHeight, justifyContent: 'center' },
   title: { fontFamily: fonts.display, fontSize: type.display, lineHeight: 35 },
   body: { fontFamily: fonts.body, fontSize: type.body, lineHeight: 24 },
   card: { gap: space[3], padding: space[3], borderRadius: radius.card },

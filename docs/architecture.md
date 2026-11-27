@@ -56,23 +56,34 @@ user. The columns, policies, grants and RPC contracts are in [`database.md`](dat
 
 Gate flow: [interactive page](diagrams/gate-flow.html) · [source](diagrams/gate-flow.json)
 
-`nextRoute(auth)` in `src/auth/gate.ts` is a pure function of the auth status and the profile. It
-returns one of five routes:
+`nextRoute(auth, device)` in `src/auth/gate.ts` is a pure function of the auth status, the profile and
+whether this phone has shown the intro (`intro.seen` in the kv store, `src/onboarding/introSeen.ts`). It
+returns one of seven routes:
 
 | Account state | Route |
 |---|---|
 | Status `loading`, or signed in with no readable profile | `/loading` |
+| Signed out on a phone that never showed the intro | `/intro` |
 | Signed out | `/sign-in` |
 | `adultConfirmedAt` or `boundaryAcceptedAt` is null | `/welcome/boundary` |
 | `aiConsentAnsweredAt` is null | `/welcome/ai-consent` |
+| `onboardingCompletedAt` is null (the setup steps) | `/welcome/triggers` |
 | Everything answered | `/today` |
+
+The five setup steps (triggers, priority, medications, notifications, location) are registered together
+under `/welcome/triggers`, with the cabinet form for the medications step; the last step calls
+`completeOnboarding`, which stamps the profile on the phone and queues `complete_onboarding` in the outbox, so the
+user moves to Today even offline (`app.md`, local store and outbox). A profile cached by a build from
+before the setup steps (both gates answered, no `onboardingCompletedAt`) runs them once; it never lands on
+the loading view.
 
 The root layout calls it and registers only the allowed screens with `Stack.Protected`, so a deep
 link to a screen the user may not reach never mounts it; `src/app/index.tsx` forwards the landing
 route to the allowed one. While the answer is `/loading` the layout shows a loading view instead of
 the stack; once signed in it offers Try again and Sign out, so a profile that can never be read
 (no row, or a row this build cannot parse) is not a dead end. `src/app/welcome/_layout.tsx` repeats the guard for
-its two screens and turns off the back gesture: the two steps are answered, not skipped.
+its screens, sends a screen that stops being due to the one that is, and turns off the back gesture: the two gates are
+answered, not skipped, and each setup step moves on with its own buttons.
 
 An unreadable profile is not an unanswered consent, so a signed-in user whose profile cannot be
 read stays on loading and never sees the consent screens.

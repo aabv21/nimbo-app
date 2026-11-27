@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { router } from 'expo-router';
 
 import AiConsent from '../app/welcome/ai-consent';
 import { translate } from '../i18n';
@@ -7,6 +8,7 @@ import { setAiConsent } from '../profile/profileRepository';
 import { READY_PROFILE, currentAuth, resetAuth } from '../test/authMock';
 
 jest.mock('../auth/AuthProvider', () => require('../test/authMock'));
+jest.mock('expo-router', () => ({ router: { push: jest.fn(), replace: jest.fn(), back: jest.fn() } }));
 jest.mock('../profile/profileRepository', () => ({ acceptTerms: jest.fn(), setAiConsent: jest.fn() }));
 
 const t = (key: MessageKey): string => translate('en', key);
@@ -55,4 +57,20 @@ test('a failed save shows the error and does not navigate', async () => {
   await fireEvent.press(screen.getByRole('button', { name: t('consent.decline') }));
   expect(await screen.findByText(t('consent.error'))).toBeOnTheScreen();
   expect(currentAuth().patchProfile).not.toHaveBeenCalled();
+});
+
+test('a saved answer never navigates: the gate moves the user on', async () => {
+  await render(<AiConsent />);
+  await fireEvent.press(screen.getByRole('button', { name: t('consent.accept') }));
+  await waitFor(() => {
+    expect(currentAuth().patchProfile).toHaveBeenCalledTimes(1);
+  });
+  expect(router.push).not.toHaveBeenCalled();
+  expect(router.replace).not.toHaveBeenCalled();
+});
+
+test('the screen shows the first of the six onboarding steps', async () => {
+  await render(<AiConsent />);
+  const progress = screen.getByRole('progressbar', { name: t('onb.progress') });
+  expect(progress.props.accessibilityValue).toEqual({ min: 0, max: 6, now: 1 });
 });

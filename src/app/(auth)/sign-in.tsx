@@ -27,7 +27,20 @@ export default function SignIn(): React.JSX.Element {
   const [emailError, setEmailError] = useState<MessageKey | undefined>(undefined);
   const [error, setError] = useState<AuthErrorKey | undefined>(undefined);
   const [pendingEmail, setPendingEmail] = useState<string | undefined>(undefined);
+  // The address a code was last sent to from here, so the code screen opens saying it is on its way.
+  const [codeSentTo, setCodeSentTo] = useState<string | undefined>(undefined);
   const [submitting, setSubmitting] = useState(false);
+
+  const openCodeScreen = (address: string): void => {
+    router.push({ pathname: '/confirm-email', params: address === codeSentTo ? { email: address, sent: '1' } : { email: address } });
+  };
+
+  const resend = async (address: string): Promise<void> => {
+    const result = await resendSignUpCode(address);
+    if (!result.ok) return;
+    setCodeSentTo(address);
+    router.push({ pathname: '/confirm-email', params: { email: address, sent: '1' } });
+  };
 
   const submit = async (): Promise<void> => {
     const trimmed = email.trim();
@@ -46,7 +59,7 @@ export default function SignIn(): React.JSX.Element {
       if (result.error === 'auth.error.emailNotConfirmed') {
         // Signed up but never entered the code: finish that step instead of showing a generic error.
         setPendingEmail(trimmed);
-        router.push({ pathname: '/confirm-email', params: { email: trimmed } });
+        openCodeScreen(trimmed);
       }
       setError(result.error);
     } finally {
@@ -107,7 +120,7 @@ export default function SignIn(): React.JSX.Element {
             action={{
               label: t('auth.confirm.resend'),
               onPress: () => {
-                void resendSignUpCode(pendingEmail);
+                void resend(pendingEmail);
               },
             }}
           />

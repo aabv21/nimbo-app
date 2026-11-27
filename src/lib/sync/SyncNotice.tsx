@@ -52,7 +52,7 @@ export function SyncNotice(): React.JSX.Element | null {
         />
       ) : (
         <Text accessibilityLiveRegion="polite" style={[styles.line, { color: color.textMuted }]}>
-          {`${t('sync.pending')} · ${tp('sync.pending.count', pending)}`}
+          {t('sync.pending.line', { status: t('sync.pending'), count: tp('sync.pending.count', pending) })}
         </Text>
       )}
     </Animated.View>

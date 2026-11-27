@@ -135,12 +135,25 @@ the API does not expose and no API role can use.
 `known_triggers` catalog check and adds `complete_onboarding()` (see Functions). It is a separate migration
 because the profiles migration was already merged.
 
+## Premium access
+
+`20261127120200_entitlements.sql` adds `public.entitlements`, one row per user, created lazily: no row means not premium.
+The grant (`granted`, `granted_until`, `granted_note`) and the purchase (`purchase_active`, `purchase_expires_at`,
+`purchase_source`) are independent, so a lapsed purchase never removes a grant and a revoked grant never removes a purchase.
+RLS lets a user read only their own row; `anon` and `authenticated` have no write grant and there is no write policy, so only the
+service role (the `pnpm premium` script) or an edit in the dashboard changes a row.
+
+`has_premium(p_user uuid) returns boolean` is `stable`, `security definer` with `search_path = ''`, and true when
+`granted and (granted_until is null or granted_until > now())` or `purchase_active and (purchase_expires_at is null or purchase_expires_at > now())`.
+An authenticated caller asking about another user gets `42501`; the service role may ask about anyone. It is granted to
+`authenticated` and `service_role`, not `anon`. Edge Functions call it through `supabase/functions/_shared/premium.ts`.
+
 ## Tests
 
-pgTAP files in `supabase/tests/`, run by `pnpm db:test`. `profiles.test.sql` (37 assertions), `tracking.test.sql` (97) and `onboarding_profile.test.sql` (13). `profiles.test.sql` covers
+pgTAP files in `supabase/tests/`, run by `pnpm db:test`. `profiles.test.sql` (37 assertions), `tracking.test.sql` (97), `onboarding_profile.test.sql` (13) and `entitlements.test.sql` (27). `profiles.test.sql` covers
 the signup row and its defaults, own-row visibility, the update grants and each refused column,
 both RPCs including the repeat and withdrawal cases, the value checks, function privileges for
-`anon` and `authenticated`, and the refused insert and delete. `tracking.test.sql` covers RLS and the refused direct writes on the four tables, each RPC's idempotency, patch semantics (including a moved start, a start ahead of now as `22023` and a start after the end as `23514`), ownership (`P0002`), catalog and range errors, and `anon` privileges. `onboarding_profile.test.sql` covers `complete_onboarding`, the trigger catalog check, the priorities and `track_period`.
+`anon` and `authenticated`, and the refused insert and delete. `tracking.test.sql` covers RLS and the refused direct writes on the four tables, each RPC's idempotency, patch semantics (including a moved start, a start ahead of now as `22023` and a start after the end as `23514`), ownership (`P0002`), catalog and range errors, and `anon` privileges. `onboarding_profile.test.sql` covers `complete_onboarding`, the trigger catalog check, the priorities and `track_period`. `entitlements.test.sql` covers own-row reads, each refused write, the boundary at exactly now, `service_role`, the grant and purchase time cases (an expired purchase beside a grant and the reverse), the `42501` for another user, and `anon`.
 
 ## New table checklist
 

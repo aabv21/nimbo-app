@@ -1,7 +1,10 @@
 jest.mock('../../lib/supabase', () => ({ supabase: {} }));
+jest.mock('expo-sqlite', () => require('../../test/sqliteNode'));
 
 import type { Client } from '../../auth/emailAuth';
 import { kvGet, kvRemove } from '../../lib/kv';
+import { listOutbox } from '../../lib/outbox/outbox';
+import { clearLocalDb } from '../../test/localDbTest';
 import type { Profile } from '../profileRepository';
 import {
   acceptTerms,
@@ -73,6 +76,7 @@ function fakeClient(outcome: Outcome, rpcOutcome: Outcome = { data: null, error:
 beforeEach(() => {
   kvRemove('profile.u1');
   kvRemove('profile.u2');
+  clearLocalDb();
 });
 
 test('fetchProfile maps the columns to the Profile fields and never writes the cache', async () => {
@@ -253,14 +257,12 @@ test('updateProfile sends known triggers as known_triggers', async () => {
   expect(update).toHaveBeenCalledWith({ known_triggers: ['weather'] });
 });
 
-test('completeOnboarding calls the RPC, then refetches', async () => {
-  const { client, rpc, from } = fakeClient(OK);
+// The supabase client is an empty object here, so a request would throw: the finish is the outbox's to send.
+test('completeOnboarding queues the RPC for the outbox and returns the local stamp, with no request', () => {
+  const now = new Date('2026-11-27T10:00:00.000Z');
 
-  const result = await completeOnboarding(client);
-
-  expect(rpc).toHaveBeenCalledWith('complete_onboarding');
-  expect(from).toHaveBeenCalledWith('profiles');
-  expect(result).toEqual({ ok: true, value: PROFILE });
+  expect(completeOnboarding('u1', now)).toBe('2026-11-27T10:00:00.000Z');
+  expect(listOutbox('u1')).toEqual([expect.objectContaining({ kind: 'complete_onboarding', args: {} })]);
 });
 
 test('a priority this build does not know reads as null', async () => {

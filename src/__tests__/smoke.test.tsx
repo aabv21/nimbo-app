@@ -4,6 +4,8 @@ import { fireEvent, renderRouter, screen } from 'expo-router/testing-library';
 
 import { signOut } from '../auth/authService';
 import { translate } from '../i18n';
+import { kvRemove } from '../lib/kv';
+import { markIntroSeen } from '../onboarding/introSeen';
 import { READY_PROFILE, resetAuth, setAuth } from '../test/authMock';
 
 jest.mock('../auth/AuthProvider', () => require('../test/authMock'));
@@ -55,6 +57,14 @@ jest.mock('../app/welcome/ai-consent', () => {
     },
   };
 });
+// A pass-through that records whether each tab scene appeared still (the tab the shell opened on) or rose in.
+const mockScenes: { focused: boolean; still: boolean }[] = [];
+jest.mock('../ui/TabScene', () => ({
+  TabScene: ({ focused, still, children }: { focused: boolean; still: boolean; children: React.ReactNode }) => {
+    mockScenes.push({ focused, still });
+    return children;
+  },
+}));
 // The tab shell saves the phone's time zone on mount; that request never answers here.
 jest.mock('../profile/profileRepository', () => ({
   acceptTerms: jest.fn(),
@@ -68,7 +78,15 @@ const reanimated = jest.requireMock<object>('react-native-reanimated');
 Object.assign(reanimated, jest.requireActual<object>('../test/reanimatedMock'));
 Object.defineProperty(reanimated, '__esModule', { value: true });
 
-test('signed out, the root layout lands on the sign-in screen', async () => {
+test('signed out on a phone that never saw the intro, the root layout opens it', async () => {
+  kvRemove('intro.seen');
+  resetAuth({ status: 'signedOut', userId: null, profile: null });
+  await renderRouter('./src/app', { initialUrl: '/' });
+  expect(await screen.findByRole('header', { name: translate('en', 'onb.value1.title') })).toBeOnTheScreen();
+});
+
+test('signed out once the intro was seen, the root layout lands on the sign-in screen', async () => {
+  markIntroSeen();
   resetAuth({ status: 'signedOut', userId: null, profile: null });
   await renderRouter('./src/app', { initialUrl: '/' });
   expect(await screen.findByRole('header', { name: translate('en', 'auth.signIn.title') })).toBeOnTheScreen();
@@ -80,6 +98,7 @@ test('a launch that goes straight to sign-in cancels the preventive reminders a 
   jest
     .mocked(Notifications.getAllScheduledNotificationsAsync)
     .mockResolvedValueOnce([left('preventive-reminder:user-1:med-1:0'), left('something-else')]);
+  markIntroSeen();
   resetAuth({ status: 'signedOut', userId: null, profile: null });
   await renderRouter('./src/app', { initialUrl: '/' });
   await screen.findByRole('header', { name: translate('en', 'auth.signIn.title') });
@@ -139,6 +158,7 @@ beforeEach(() => {
   mockRenders.today = 0;
   mockRenders.aiConsent = 0;
   mockRenders.companion = 0;
+  mockScenes.length = 0;
 });
 
 const boundaryTitle = (): string => translate('en', 'boundary.title');
@@ -161,6 +181,7 @@ test('a ready user opening the boundary screen lands on Today', async () => {
 });
 
 test('signing in after mount with the gates pending lands on the boundary', async () => {
+  markIntroSeen();
   resetAuth({ status: 'signedOut', userId: null, profile: null });
   await renderRouter('./src/app', { initialUrl: '/' });
   expect(await screen.findByRole('header', { name: translate('en', 'auth.signIn.title') })).toBeOnTheScreen();
@@ -204,12 +225,16 @@ test('with the AI declined, the Nimbo tab is gone and the other three work', asy
   expect(screen.getByRole('tab', { name: 'History' })).toBeSelected();
 });
 
-// The headless tabs register only the routes with a trigger, so no screen-level redirect is needed.
+// The layout's scene renderer draws nothing for a route with no trigger, so no screen-level redirect is needed.
 test('a deep link to the companion with the AI off lands on Today and never mounts it', async () => {
   resetAuth({ profile: { ...READY_PROFILE, aiEnabled: false } });
   await renderRouter('./src/app', { initialUrl: '/companion' });
   expect(await screen.findByText('Today screen')).toBeOnTheScreen();
   expect(mockRenders.companion).toBe(0);
+  // Today is the tab the shell opened on, so it appears as it is rather than rising in.
+  const focused = mockScenes.filter((scene) => scene.focused);
+  expect(focused.length).toBeGreaterThan(0);
+  expect(focused.every((scene) => scene.still)).toBe(true);
 });
 
 test('a deep link to the companion with the AI on opens it', async () => {

@@ -5,10 +5,22 @@ create or edit them by hand. Native behavior lives in `app.json` and its config 
 
 ## Permissions
 
-Nimbo uses no permission beyond the network and, for preventive reminders, notifications. There is no
-camera, microphone, location or contacts access yet, so `app.json` declares no usage strings and no
-`ios.infoPlist` entries. Later waves that add a permission (coarse location for weather) must list it here
-with the reason and the plugin that adds it.
+Nimbo uses the network, notifications for preventive reminders, and an optional approximate location for
+weather. There is no camera, microphone or contacts access yet. A later wave that adds a permission must list it
+here with the reason and the plugin that adds it.
+
+- **Approximate location (`expo-location`):** asked once, on the last onboarding step and only when the user taps
+  "Allow approximate area"; never at launch. The app reads one lowest-accuracy fix, rounds it to one decimal (about
+  11 km) on the phone and saves only that ([`app.md`](app.md#onboarding-and-today-srconboarding-srctoday-srcapptabstodaytsx)).
+  The plugin options keep it coarse on both platforms:
+  - iOS: `locationWhenInUsePermission` is the only usage string ("Nimbo uses your approximate area, never your exact
+    location, …"); `locationAlwaysAndWhenInUsePermission`, `locationAlwaysPermission`, `locationFullAccuracyPermission`
+    and `motionUsagePermission` are `false`, so the Always, temporary full-accuracy and motion strings are left out of
+    `Info.plist`; `isIosReducedAccuracyByDefault` sets `NSLocationDefaultAccuracyReduced`, so the prompt offers
+    approximate location only.
+  - Android: `android.blockedPermissions` lists `android.permission.ACCESS_FINE_LOCATION`, which the library's manifest
+    would otherwise add, so the merged manifest keeps only `ACCESS_COARSE_LOCATION` (a `tools:node="remove"` entry).
+  - No background location, no foreground service.
 
 - **Notifications (`expo-notifications`):** the reminders are local, scheduled on the phone with no server. On
   Android 13 and later the `expo-notifications` plugin adds `POST_NOTIFICATIONS`, and the library's own manifest adds
@@ -44,6 +56,8 @@ with the reason and the plugin that adds it.
   - `expo-notifications`, with `defaultChannel` `preventive-reminders` and `enableRemoteNotifications` false, for the
     local preventive reminders.
   - `@react-native-community/datetimepicker`, for the attack editor's start and end times.
+  - `expo-location`, with the coarse-only options above, for the onboarding location step.
+- **Android permissions:** `blockedPermissions` removes `ACCESS_FINE_LOCATION`.
 - **Experiments:** `typedRoutes` and `reactCompiler`.
 - **Android:** a monochrome adaptive icon, `predictiveBackGestureEnabled: false`, and
   `allowBackup: false`, so Android's cloud and device-transfer backup never copies `nimbo.db` (health

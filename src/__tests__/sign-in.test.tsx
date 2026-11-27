@@ -75,3 +75,25 @@ test('a malformed email is stopped before the request', async () => {
   expect(await screen.findByText(t('auth.error.emailInvalid'))).toBeOnTheScreen();
   expect(mockedSignIn).not.toHaveBeenCalled();
 });
+
+test('a code sent from the notice opens the code screen in its sent state, and so does the next arrival there', async () => {
+  mockedSignIn.mockResolvedValue({ ok: false, error: 'auth.error.emailNotConfirmed' });
+  jest.mocked(resendSignUpCode).mockResolvedValue({ ok: true });
+  await render(<SignIn />);
+  await submit();
+  await waitFor(() => {
+    expect(router.push).toHaveBeenCalledTimes(1);
+  });
+
+  await fireEvent.press(screen.getByRole('button', { name: t('auth.confirm.resend') }));
+  await waitFor(() => {
+    expect(router.push).toHaveBeenLastCalledWith({ pathname: '/confirm-email', params: { email: 'ana@example.com', sent: '1' } });
+  });
+
+  // Back on sign-in, trying again lands on the code screen that already says a code is on its way.
+  await fireEvent.press(screen.getByRole('button', { name: t('auth.signIn.submit') }));
+  await waitFor(() => {
+    expect(router.push).toHaveBeenCalledTimes(3);
+  });
+  expect(router.push).toHaveBeenLastCalledWith({ pathname: '/confirm-email', params: { email: 'ana@example.com', sent: '1' } });
+});

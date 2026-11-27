@@ -20,7 +20,8 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "allowBackup": false
+      "allowBackup": false,
+      "blockedPermissions": ["android.permission.ACCESS_FINE_LOCATION"]
     },
     "plugins": [
       "expo-router",
@@ -36,7 +37,18 @@
       "expo-sqlite",
       "expo-apple-authentication",
       ["expo-notifications", { "defaultChannel": "preventive-reminders", "enableRemoteNotifications": false }],
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Nimbo uses your approximate area, never your exact location, to show weather changes that can set off an attack.",
+          "locationAlwaysAndWhenInUsePermission": false,
+          "locationAlwaysPermission": false,
+          "locationFullAccuracyPermission": false,
+          "motionUsagePermission": false,
+          "isIosReducedAccuracyByDefault": true
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

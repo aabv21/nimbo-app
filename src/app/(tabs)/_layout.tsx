@@ -31,14 +31,14 @@ type ScreenTrigger = Parameters<typeof useTabsWithTriggers>[0]['triggers'][numbe
  * tab animates. A deep link to a hidden tab is briefly in the state before the tabs drop it, so a route
  * with no trigger renders nothing: the account-state gate stays in this layout, not in the screen.
  */
-function sceneRenderer(initialRouteKey: string | undefined, tabs: readonly TabName[]): typeof defaultTabsSlotRender {
+function sceneRenderer(openedOn: TabName, tabs: readonly TabName[]): typeof defaultTabsSlotRender {
   return (descriptor, options: TabsSlotRenderOptions) => {
     if (!isTabName(descriptor.route.name, tabs)) return null;
     return defaultTabsSlotRender(
       {
         ...descriptor,
         render: () => (
-          <TabScene focused={options.isFocused} still={descriptor.route.key === initialRouteKey}>
+          <TabScene focused={options.isFocused} still={descriptor.route.name === openedOn}>
             {descriptor.render()}
           </TabScene>
         ),
@@ -87,13 +87,15 @@ export default function TabsLayout(): React.JSX.Element {
   const { state, NavigationContent } = useTabsWithTriggers({ triggers });
   const focusedRoute = state.routes[state.index];
   const current = isTabName(focusedRoute?.name, tabs) ? focusedRoute.name : 'today';
-  const [initialRouteKey] = useState(focusedRoute?.key);
+  // The tab the shell resolves to, not the first render's focused route: a deep link to a hidden tab is the only
+  // route for one render, and Today's route arrives after it, so a key taken then would make Today rise in.
+  const [openedOn] = useState(current);
 
   return (
     <NavigationContent>
       <View style={[styles.fill, { backgroundColor: color.bg }]}>
         <BlurTargetView ref={blurTarget} style={styles.fill}>
-          <TabSlot renderFn={sceneRenderer(initialRouteKey, tabs)} />
+          <TabSlot renderFn={sceneRenderer(openedOn, tabs)} />
         </BlurTargetView>
         <ShellTabBar tabs={tabs} current={current} blurTarget={blurTarget} />
       </View>

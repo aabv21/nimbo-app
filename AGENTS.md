@@ -24,6 +24,7 @@ Docs for agents: `https://docs.expo.dev/llms.txt`
 - `pnpm start`: the dev server. `pnpm ios` / `pnpm android`: build the app with `expo run:*` and open it.
 - `pnpm typecheck` (`tsc --noEmit`), `pnpm lint` (`eslint .`), `pnpm test` (the `app`, `scripts` and `functions` Jest projects): the gate. `typecheck` and `lint` first run `pnpm routes:types` (`expo customize tsconfig.json`, no server) to generate the gitignored `.expo/types`, so results match CI.
 - `pnpm test:int`: the `integration` Jest project (auth, the profile and the outbox against the running local stack; start it with `pnpm db:start && pnpm env:local`, stop it after). Not part of the gate ([`docs/testing.md`](docs/testing.md)).
+- `pnpm premium grant|revoke <email>`: the owner's premium switch, which needs `SUPABASE_SERVICE_ROLE_KEY` ([`docs/owner-runbook.md`](docs/owner-runbook.md#granting-premium)).
 - `pnpm check:supply-chain`, `pnpm check:expo`: supply-chain checks ([`CONTRIBUTING.md`](CONTRIBUTING.md#supply-chain-hardening)).
 - `pnpm db:start`, `pnpm db:stop`: the local Supabase stack (Docker must be running); `pnpm db:reset` rebuilds it from the migrations, `pnpm db:test` runs the pgTAP suite, `pnpm db:types` regenerates `src/lib/database.types.ts`, `pnpm env:local` writes `.env.local` ([`docs/local-stack.md`](docs/local-stack.md)).
 

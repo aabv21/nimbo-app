@@ -12,9 +12,14 @@ Expo Router routes: every file is a screen and `_layout.tsx` files define naviga
 - `_layout.tsx`: loads the fonts, nests `AuthProvider`, `SyncProvider`, `I18nProvider` and `ThemeProvider`, and
   registers the route groups with `Stack.Protected` from `nextRoute`; while the answer is `/loading` it
   shows a loading view instead (Try again and Sign out once signed in). `index.tsx` forwards the landing route to the allowed screen.
-- `(auth)/`: `sign-in`, `sign-up`, `confirm-email` (the 6-digit code, with resend) and `reset`.
+- `(auth)/`: `intro` (the three value screens a signed-out phone opens on once; every way out marks it seen),
+  `sign-in`, `sign-up`, `confirm-email` (the 6-digit code, with resend) and `reset`.
 - `welcome/`: `boundary` (adult confirmation and the not-a-medical-device boundary, `accept_terms`) and
-  `ai-consent` (`set_ai_consent`), each registered only while it is the one due; no back gesture.
+  `ai-consent` (`set_ai_consent`), each registered only while it is the one due, then the five setup steps together:
+  `triggers` (pack trigger chips, `knownTriggers` in the order picked), `priority` (one of four, orders Today),
+  `medications` (rows and Add, through the cabinet form), `notifications` (the lock-screen choice, the permission, and the
+  hours and daily cap shown read-only) and `location` (an optional rough area; both buttons finish onboarding through the outbox's `complete_onboarding`). No
+  back gesture; a failed save keeps the user on the step with the error.
 - `(tabs)/`: `today`, `companion`, `history`, `profile` behind a headless tab shell with the floating
   bar. The tab list comes from `visibleTabs`, so Companion has no trigger when the AI is off, and the
   shell renders nothing for a route without a trigger.
@@ -101,10 +106,18 @@ transaction, shows the change at once, and the outbox sends it when it can.
   `read` is a new function). Every read filters by the user id, so two accounts on one phone never see
   each other's rows.
 - `outbox/outbox.ts`: `enqueue(userId, kind, args)` is called inside the mirror write's transaction. It
-  queues the call for one of the eight tracking RPCs and marks the row dirty. The row stays dirty while
-  any operation with its record key (the `p_id`, or `checkin:<local_date>`) is unsent, failed ones
-  included. `listOutbox(userId)` returns that user's operations in order, and `resetFailed(userId)` puts
-  them all back in line, due now, with fresh attempts.
+  queues the call for one of the eight tracking RPCs (`log_episode`, `update_episode`, `end_episode`,
+  `delete_episode`, `save_medication`, `log_dose`, `delete_dose`, `save_checkin`) and marks the row dirty. The
+  row stays dirty while any operation with its record key (the `p_id`, or `checkin:<local_date>`) is unsent,
+  failed ones included. `listOutbox(userId)` returns that user's operations in order, and `resetFailed(userId)`
+  puts them all back in line, due now, with fresh attempts.
+- The ninth kind, `complete_onboarding` (args `{}`, record key `profile:onboarding`, no mirror row), finishes
+  onboarding. It is queued rather than called so that a user who left setup unfinished can still reach Today, and
+  crisis mode, offline: `completeOnboarding(userId)` queues it and returns the stamp the screen shows through
+  `patchProfile`, and the gate opens Today at once. The RPC is idempotent (`coalesce`), so a replay is harmless.
+  Until it is sent the server still reads null, so `AuthProvider` keeps the phone's stamp on a fetched profile
+  when `queuedAt(userId, 'complete_onboarding')` found the call unsent or failed as the read began (the outbox may send it
+  while the read is out) or still does as it resolves.
 - `outbox/runOutbox.ts`: `runOutbox(userId, deps)` sends one operation at a time, in order. The attempt is
   claimed (`attempts + 1` and the next backoff, `min(5 s · 2^(n − 1), 10 min)` over every send so far)
   before the send, so a kill mid-send still counts. A send with no answer (offline, a timeout) gives
@@ -275,6 +288,23 @@ Medications and doses live in the local mirrors and reach the server through the
   layout also cancels them at any launch whose gate target is not Today, for a sign-out made while the app was closed.
   `cabinet/nextPreventive.ts` gives the preventive dose still due today, for Today's medication card.
 
+### Onboarding and Today (`src/onboarding/`, `src/today/`, `src/app/(tabs)/today.tsx`)
+
+- `onboarding/introSeen.ts`: the device-wide `intro.seen` flag the gate reads. `onboarding/coarseLocation.ts`: `toCoarse`
+  rounds to one decimal (about 11 km) and `captureCoarseLocation` asks for the foreground permission and reads the lowest
+  accuracy fix, null when denied or unreadable; the area is written through `updateProfile` and never read back.
+  `onboarding/OnboardingStep.tsx` is the frame the intro and the setup steps share (progress bars, Skip, title, docked actions).
+- `today/todaySections.ts`: the section order. The priority sets the base (`fewer` and `triggers`: signals, check-in,
+  medication; `overuse`: medication first; `logging` and none: signals, medication, check-in), a pending check-in moves up
+  first, and medication above `ok` moves above everything. The new order snaps, with no layout animation.
+- `today/StatusLine.tsx`: the status sentence (first day, an attack in progress with its running time, or no attack with when
+  the last one ended), the open attack's card, and from 12 hours the "is it over?" question (`Not yet` waits for the next
+  12-hour multiple, kept per attack in kv). `today/MedicationSummary.tsx`: the month's dose days per class against its limit,
+  the most urgent overuse notice and the next preventive dose due today.
+- `(tabs)/today.tsx` puts them together with the sync line and the AI-off card, and docks Start an attack (or Back to the
+  attack) above the tab bar; starting writes the attack before opening crisis mode. The date follows a minute clock, so it
+  turns over at midnight and on every return to the app.
+
 ### History and the episode screens (`src/history/`, `src/app/(tabs)/history.tsx`, `src/app/episode/`)
 
 - `history/monthGrid.ts` is the calendar's grid: weeks of seven cells, Monday first, `null` outside the month (the month is
@@ -303,6 +333,12 @@ Medications and doses live in the local mirrors and reach the server through the
   inline, never thrown from the press. Save sends only the fields that changed. When the notes changed, Save confirms for a
   second, goes back, and then runs the red-flag check on the saved notes; it still runs if the screen is left during that
   second. Urgent care's "It already ended" and crisis mode's "Fill in now" open this editor.
+
+### Premium (`src/premium/`)
+
+`usePremium()` asks `has_premium` for the signed-in user and keeps the last answer in the kv store under `premium.<userId>`, so an
+offline launch shows the last answer; another user's cache is never read. `PremiumGate` renders its children for a premium user and a
+quiet invitation (`premium.title`, `premium.body`, no price) for everyone else, and nothing while a first answer is out with no cache. The hook caches the last answer per user and refreshes only on mount or a user change; the server check is the authority. No feature is gated yet.
 
 ## Test helpers (`src/test/`)
 

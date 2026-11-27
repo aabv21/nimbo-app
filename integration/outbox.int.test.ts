@@ -178,3 +178,25 @@ test('pullAll reads back exactly what was sent', async () => {
   ]);
   expect(localDb().getAllSync('SELECT id FROM doses;')).toEqual([]);
 });
+
+test('finishing onboarding sent twice through the outbox is fine, and the first stamp stands', async () => {
+  const user = await signedInUser('outbox-onboarding');
+  expect((await user.client.rpc('accept_terms', { p_adult: true, p_boundary: true })).error).toBeNull();
+  expect((await user.client.rpc('set_ai_consent', { p_enabled: false })).error).toBeNull();
+  const stamp = async (): Promise<string | null> => {
+    const { data, error } = await user.client.from('profiles').select('onboarding_completed_at').single();
+    expect(error).toBeNull();
+    return data?.onboarding_completed_at ?? null;
+  };
+
+  // A replay after a lost reply looks like this: the same call queued again.
+  queue(user.id, 'complete_onboarding', {});
+  expect(await drain(user)).toEqual({ sent: 1, failed: 0, waiting: 0 });
+  const first = await stamp();
+  expect(first).not.toBeNull();
+
+  queue(user.id, 'complete_onboarding', {});
+  expect(await drain(user)).toEqual({ sent: 1, failed: 0, waiting: 0 });
+  expect(await stamp()).toBe(first);
+  expect(listOutbox(user.id)).toEqual([]);
+});

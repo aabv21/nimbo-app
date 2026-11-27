@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 
+import { queuedAt } from '../lib/outbox/outbox';
 import { useOnResume } from '../lib/useOnResume';
 import { readStoredSession, startAuthAutoRefresh, supabase } from '../lib/supabase';
 import { fetchProfile, readCachedProfileSync, writeCachedProfile } from '../profile/profileRepository';
@@ -47,6 +48,18 @@ function initialState(): State {
 
 const SIGNED_OUT: State = { status: 'signedOut', userId: null, email: null, profile: null };
 
+/**
+ * Finishing onboarding is queued in the outbox, so a read made before it is sent still says null. If the call was
+ * queued when the read began (`queuedBefore`; it may be sent while the read is out) or still is, the stamp shown on the
+ * phone stands, or the time it was queued when there is none.
+ */
+function withQueuedOnboarding(userId: string, fetched: Profile, shown: Profile | null, queuedBefore: number | null): Profile {
+  if (fetched.onboardingCompletedAt !== null) return fetched;
+  const queued = queuedBefore ?? queuedAt(userId, 'complete_onboarding');
+  if (queued === null) return fetched;
+  return { ...fetched, onboardingCompletedAt: shown?.onboardingCompletedAt ?? new Date(queued).toISOString() };
+}
+
 export function AuthProvider({ children }: { children: ReactNode }): React.JSX.Element {
   const [state, setState] = useState<State>(initialState);
   // Drops a slow read that resolves after a sign-out or an account switch.
@@ -57,8 +70,11 @@ export function AuthProvider({ children }: { children: ReactNode }): React.JSX.E
 
   const loadProfile = useCallback(async (userId: string): Promise<void> => {
     let result: Awaited<ReturnType<typeof fetchProfile>>;
+    let queuedBefore: number | null;
     for (;;) {
       const changes = changesRef.current;
+      // Taken before the read: the outbox can send the call, and drop it, while the read is out.
+      queuedBefore = queuedAt(userId, 'complete_onboarding');
       result = await fetchProfile(supabase);
       if (currentUserIdRef.current !== userId) {
         return;
@@ -72,7 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }): React.JSX.E
       ...previous,
       status: 'signedIn',
       userId,
-      profile: result.ok ? result.value : previous.profile,
+      profile: result.ok ? withQueuedOnboarding(userId, result.value, previous.profile, queuedBefore) : previous.profile,
     }));
   }, []);
 

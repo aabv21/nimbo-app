@@ -37,7 +37,7 @@ test('pending work shows the status line only after 600 ms', async () => {
   await act(() => {
     jest.advanceTimersByTime(1);
   });
-  expect(screen.getByText('Saved on this phone, syncing · 2 records to upload')).toBeTruthy();
+  expect(screen.getByText('Saved on this phone, syncing. 2 records to upload')).toBeTruthy();
 });
 
 test('work that finishes within 600 ms never shows the line', async () => {
