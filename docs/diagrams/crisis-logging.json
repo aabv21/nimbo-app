@@ -1,0 +1,198 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "Nimbo Crisis Logging",
+    "locale": "en",
+    "output": "docs/diagrams/crisis-logging.html",
+    "quality_profile": "showcase",
+    "column_fit": "spread",
+    "viewBox": [
+      1400,
+      700
+    ]
+  },
+  "participants": [
+    {
+      "id": "today",
+      "type": "frontend",
+      "label": "Today tab"
+    },
+    {
+      "id": "local",
+      "type": "database",
+      "label": "nimbo.db"
+    },
+    {
+      "id": "crisis",
+      "type": "frontend",
+      "label": "Crisis mode"
+    },
+    {
+      "id": "sync",
+      "type": "backend",
+      "label": "SyncProvider"
+    },
+    {
+      "id": "rpc",
+      "type": "security",
+      "label": "log_episode()"
+    },
+    {
+      "id": "episodes",
+      "type": "database",
+      "label": "public.episodes"
+    }
+  ],
+  "segments": [
+    {
+      "from": 160,
+      "to": 270,
+      "label": "Tap, offline-safe"
+    },
+    {
+      "from": 282,
+      "to": 494,
+      "label": "Push: runOutbox"
+    },
+    {
+      "from": 506,
+      "to": 624,
+      "label": "Pull: pullAll"
+    }
+  ],
+  "messages": [
+    {
+      "from": "today",
+      "to": "local",
+      "y": 190,
+      "label": "episode row + log_episode op",
+      "variant": "emphasis"
+    },
+    {
+      "from": "today",
+      "to": "crisis",
+      "y": 222,
+      "label": "push with the id only",
+      "variant": "emphasis"
+    },
+    {
+      "from": "crisis",
+      "to": "local",
+      "y": 254,
+      "label": "intensity, dose: write + enqueue"
+    },
+    {
+      "from": "local",
+      "to": "sync",
+      "y": 306,
+      "label": "onEnqueue: sync()",
+      "variant": "dashed"
+    },
+    {
+      "from": "sync",
+      "to": "local",
+      "y": 338,
+      "label": "claim the next op"
+    },
+    {
+      "from": "sync",
+      "to": "rpc",
+      "y": 370,
+      "label": "rpc(log_episode, p_id)",
+      "variant": "emphasis"
+    },
+    {
+      "from": "rpc",
+      "to": "episodes",
+      "y": 402,
+      "label": "insert, on conflict do nothing",
+      "variant": "security"
+    },
+    {
+      "from": "rpc",
+      "to": "sync",
+      "y": 434,
+      "label": "ok, or retry later",
+      "variant": "return"
+    },
+    {
+      "from": "sync",
+      "to": "local",
+      "y": 466,
+      "label": "op sent, row clean"
+    },
+    {
+      "from": "sync",
+      "to": "episodes",
+      "y": 530,
+      "label": "select own rows, 1000 a page"
+    },
+    {
+      "from": "episodes",
+      "to": "sync",
+      "y": 562,
+      "label": "server rows",
+      "variant": "return"
+    },
+    {
+      "from": "sync",
+      "to": "local",
+      "y": 594,
+      "label": "replace clean rows, keep dirty",
+      "variant": "emphasis"
+    }
+  ],
+  "activations": [
+    {
+      "participant": "local",
+      "from": 184,
+      "to": 198,
+      "type": "database"
+    },
+    {
+      "participant": "crisis",
+      "from": 216,
+      "to": 262,
+      "type": "frontend"
+    },
+    {
+      "participant": "sync",
+      "from": 300,
+      "to": 602,
+      "type": "backend"
+    },
+    {
+      "participant": "rpc",
+      "from": 364,
+      "to": 442,
+      "type": "security"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Saved before the push",
+      "items": [
+        "The row and its RPC call commit in one SQLite transaction",
+        "A kill after the tap loses nothing"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Sent once",
+      "items": [
+        "The id is made on the phone, so a replay hits on conflict do nothing",
+        "No answer gives the attempt back; time offline never fails an op"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Pull never undoes",
+      "items": [
+        "Dirty rows and rows with an unsent op are skipped",
+        "Only the signed-in user's rows are read or written"
+      ]
+    }
+  ]
+}

@@ -51,6 +51,7 @@ export default function LocationStep(): React.JSX.Element {
       dock={
         <DockRow>
           <Button
+            testID="location-not-now"
             variant="secondary"
             label={t('common.not_now')}
             loading={busy === 'skip'}

@@ -18,7 +18,22 @@ import { clearLocalDb } from '../test/localDbTest';
 jest.mock('expo-sqlite', () => require('../test/sqliteNode'));
 jest.mock('expo-crypto', () => ({ randomUUID: () => (require('node:crypto') as typeof import('node:crypto')).randomUUID() }));
 jest.mock('../auth/AuthProvider', () => require('../test/authMock'));
-jest.mock('expo-router', () => ({ router: { push: jest.fn(), replace: jest.fn(), back: jest.fn() } }));
+// A screen is focused once, on mount; `mockFocus.again()` focuses it again, as coming back to it does.
+const mockFocus: { effects: Set<() => void>; again: () => void } = {
+  effects: new Set(),
+  again: () => {
+    for (const effect of mockFocus.effects) effect();
+  },
+};
+jest.mock('expo-router', () => ({
+  router: { push: jest.fn(), replace: jest.fn(), back: jest.fn() },
+  useFocusEffect: (effect: () => void) => {
+    mockFocus.effects.add(effect);
+    jest.requireActual<typeof import('react')>('react').useEffect(() => {
+      effect();
+    }, []);
+  },
+}));
 const mockSync = { pending: 0, failed: 0, syncing: false, retry: jest.fn() };
 jest.mock('../lib/sync/SyncProvider', () => ({ useSyncState: () => mockSync }));
 
@@ -181,6 +196,21 @@ test('“Start an attack” starts one on the phone and opens crisis mode on it'
   const open = readOpenEpisode('user-1');
   expect(open).not.toBeNull();
   expect(router.push).toHaveBeenCalledWith({ pathname: '/crisis', params: { id: open?.id } });
+});
+
+test('a double tap on “Start an attack” opens crisis mode once; back on Today, it opens again', async () => {
+  await render(<Today />);
+  const button = screen.getByRole('button', { name: t('today.start') });
+  // The second tap lands on the same button, by then offering to resume the attack the first one started.
+  await fireEvent.press(button);
+  await fireEvent.press(screen.getByRole('button', { name: t('today.resume') }));
+  expect(router.push).toHaveBeenCalledTimes(1);
+
+  await act(() => {
+    mockFocus.again();
+  });
+  await fireEvent.press(screen.getByRole('button', { name: t('today.resume') }));
+  expect(router.push).toHaveBeenCalledTimes(2);
 });
 
 test('after an attack ended today, the status says when', async () => {

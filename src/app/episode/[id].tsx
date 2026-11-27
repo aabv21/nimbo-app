@@ -123,6 +123,7 @@ function Detail({ userId, id }: { userId: string; id: string }): React.JSX.Eleme
       <View style={styles.top}>
         <BackButton label={t('common.back')} onPress={router.back} />
         <TextLink
+          testID="episode-edit"
           label={t('common.edit')}
           onPress={() => {
             router.push({ pathname: '/episode/[id]/edit', params: { id } });

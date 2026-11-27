@@ -32,7 +32,12 @@
     { "text": "el peor dolor que he sentido en mi vida", "expect": ["thunderclap"] },
     { "text": "la peor migraña de mi vida", "expect": ["thunderclap"] },
     { "text": "no puedo ver bien de un ojo", "expect": ["weakness"] },
-    { "text": "fiebre y el cuello rígido", "expect": ["fever_stiff_neck"] }
+    { "text": "fiebre y el cuello rígido", "expect": ["fever_stiff_neck"] },
+    { "text": "no siento el brazo izquierdo", "expect": ["weakness"] },
+    { "text": "no siento la mano desde que empezó el dolor", "expect": ["weakness"] },
+    { "text": "visión doble desde esta mañana", "expect": ["weakness"] },
+    { "text": "veo doble y me duele mucho", "expect": ["weakness"] },
+    { "text": "no siento la cara de un lado", "expect": ["weakness"] }
   ],
   "negatives": [
     { "text": "la migraña de siempre, sien izquierda, nauseas" },

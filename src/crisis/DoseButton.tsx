@@ -132,6 +132,7 @@ export function DoseButton({ userId, episodeId, medication, now, timeZone }: Dos
       {undoable && !editing ? (
         <View style={styles.actions}>
           <Button
+            testID="dose-change"
             variant="secondary"
             size="crisis"
             label={t('common.change')}
@@ -148,6 +149,7 @@ export function DoseButton({ userId, episodeId, medication, now, timeZone }: Dos
 
       {editing && undoable ? null : (
         <Button
+          testID="dose-log"
           variant="secondary"
           size="crisis"
           icon={Pill}

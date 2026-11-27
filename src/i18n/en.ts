@@ -122,6 +122,8 @@ export const en = {
   'profile.companion.confirmOff': 'Turn it off and the Nimbo tab and dictation are hidden. Everything else stays.',
   'profile.account': 'Account',
   'profile.signOut': 'Sign out',
+  'profile.signOut.pending.one': '{n} record hasn’t uploaded yet. It stays on this phone until you sign back in here.',
+  'profile.signOut.pending.other': '{n} records haven’t uploaded yet. They stay on this phone until you sign back in here.',
 
   'today.status.first': 'Your first day with Nimbo',
   'today.status.first_sub': 'Everything you log is saved on this phone first.',

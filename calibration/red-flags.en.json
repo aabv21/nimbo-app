@@ -38,7 +38,12 @@
     { "text": "I can't see out of my left eye", "expect": ["weakness"] },
     { "text": "my leg feels weak", "expect": ["weakness"] },
     { "text": "my aura's been going for two hours", "expect": ["long_aura"] },
-    { "text": "stiff neck and a fever of 39", "expect": ["fever_stiff_neck"] }
+    { "text": "stiff neck and a fever of 39", "expect": ["fever_stiff_neck"] },
+    { "text": "I can't feel my left arm", "expect": ["weakness"] },
+    { "text": "cant feel my hand, it started with the headache", "expect": ["weakness"] },
+    { "text": "double vision since this morning", "expect": ["weakness"] },
+    { "text": "I'm seeing double and the pain is a 7", "expect": ["weakness"] },
+    { "text": "can't feel the left side of my face", "expect": ["weakness"] }
   ],
   "negatives": [
     { "text": "the usual migraine, left temple, nausea" },

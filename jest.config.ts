@@ -66,6 +66,8 @@ const config: Config = {
         '^expo-sqlite$': '<rootDir>/src/test/sqliteNode.ts',
         // `src/lib/kv.ts` wraps a native SQLite store; the profile cache gets a plain in-memory map.
         '^expo-sqlite/kv-store$': '<rootDir>/integration/kv-store.stub.ts',
+        // The stores make their ids with expo-crypto's native module; Node's `randomUUID` stands in.
+        '^expo-crypto$': '<rootDir>/integration/expo-crypto.stub.ts',
       },
     },
   ],

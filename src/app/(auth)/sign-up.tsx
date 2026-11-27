@@ -65,6 +65,7 @@ export default function SignUp(): React.JSX.Element {
         />
         <Text accessibilityRole="header" style={[styles.title, { color: color.text }]}>{t('auth.signUp.title')}</Text>
         <TextField
+          testID="sign-up-email"
           label={t('auth.signUp.email')}
           value={email}
           onChangeText={setEmail}
@@ -78,6 +79,7 @@ export default function SignUp(): React.JSX.Element {
         />
         <View>
           <TextField
+            testID="sign-up-password"
             label={t('auth.signUp.password')}
             value={password}
             onChangeText={setPassword}
@@ -90,6 +92,7 @@ export default function SignUp(): React.JSX.Element {
             {...(passwordError === undefined ? {} : { error: t(passwordError) })}
           />
           <TextLink
+            testID="sign-up-show-password"
             label={t('auth.showPassword')}
             onPress={() => {
               setShowPassword((shown) => !shown);
@@ -98,6 +101,7 @@ export default function SignUp(): React.JSX.Element {
         </View>
         {error === undefined ? null : <Notice tone="danger" title={t(authErrorMessage(error))} />}
         <Button
+          testID="sign-up-submit"
           label={t('auth.signUp.submit')}
           onPress={() => {
             void submit();

@@ -38,6 +38,7 @@ function Step({ step, label, selected, onPress }: StepProps): React.JSX.Element 
   return (
     <Animated.View style={[styles.stepFrame, scaleStyle]}>
       <Pressable
+        testID={`intensity-${String(step)}`}
         accessibilityRole="radio"
         accessibilityLabel={label}
         accessibilityState={{ checked: selected }}

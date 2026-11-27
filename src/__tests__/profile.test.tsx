@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react-nativ
 
 import Profile from '../app/(tabs)/profile';
 import { translate } from '../i18n';
+import { translatePlural } from '../i18n/plural';
 import type { MessageKey } from '../i18n';
 import { setAiConsent, updateProfile } from '../profile/profileRepository';
 import { READY_PROFILE, currentAuth, resetAuth } from '../test/authMock';
@@ -11,6 +12,9 @@ jest.mock('../auth/AuthProvider', () => require('../test/authMock'));
 jest.mock('expo-sqlite', () => require('../test/sqliteNode'));
 jest.mock('expo-router', () => ({ router: { push: jest.fn() } }));
 jest.mock('../profile/profileRepository', () => ({ updateProfile: jest.fn(), setAiConsent: jest.fn() }));
+// The sync banner's counts, which a test sets to have records still waiting to upload.
+const mockSync = { pending: 0, failed: 0, syncing: false, retry: jest.fn() };
+jest.mock('../lib/sync/SyncProvider', () => ({ useSyncState: () => mockSync }));
 const mockSignOut = jest.fn();
 jest.mock('../auth/useSignOut', () => ({
   useSignOut: () => ({ signOut: mockSignOut, signingOut: false, error: undefined }),
@@ -56,6 +60,8 @@ beforeEach(() => {
   jest.clearAllMocks();
   jest.requireMock<{ resetPreference: () => void }>('../i18n/I18nProvider').resetPreference();
   resetAuth();
+  mockSync.pending = 0;
+  mockSync.failed = 0;
   mockedUpdate.mockImplementation((changes) => Promise.resolve({ ok: true, value: { ...READY_PROFILE, ...changes } }));
   mockedConsent.mockImplementation((enabled) => Promise.resolve({ ok: true, value: { ...READY_PROFILE, aiEnabled: enabled } }));
 });
@@ -159,10 +165,48 @@ test('turning the AI on shows the consent text before recording true', async () 
   expect(mockedConsent).toHaveBeenCalledWith(true);
 });
 
-test('the account shows the email, and Sign out calls the sign-out hook', async () => {
+test('the account shows the email, and with nothing waiting to upload Sign out signs out at once', async () => {
   await render(<Profile />);
   expect(screen.getByText(t('profile.signedInAs', { email: 'user-1@example.com' }))).toBeOnTheScreen();
 
   await fireEvent.press(screen.getByRole('button', { name: t('profile.signOut') }));
   expect(mockSignOut).toHaveBeenCalledTimes(1);
+  expect(screen.queryByRole('button', { name: t('common.cancel') })).not.toBeOnTheScreen();
+});
+
+describe('signing out with records not uploaded yet', () => {
+  const warning = (n: number): string => translatePlural('en', 'profile.signOut.pending', n);
+
+  test('asks first, counting the pending and the failed ones, and Sign out then signs out', async () => {
+    mockSync.pending = 2;
+    mockSync.failed = 1;
+    await render(<Profile />);
+
+    await fireEvent.press(screen.getByRole('button', { name: t('profile.signOut') }));
+    expect(mockSignOut).not.toHaveBeenCalled();
+    expect(screen.getByText(warning(3))).toBeOnTheScreen();
+    expect(warning(3)).toContain('3 records');
+
+    await fireEvent.press(screen.getByRole('button', { name: t('profile.signOut') }));
+    expect(mockSignOut).toHaveBeenCalledTimes(1);
+  });
+
+  test('one record reads in the singular', async () => {
+    mockSync.pending = 1;
+    await render(<Profile />);
+    await fireEvent.press(screen.getByRole('button', { name: t('profile.signOut') }));
+    expect(screen.getByText(warning(1))).toBeOnTheScreen();
+    expect(warning(1)).not.toBe(warning(2));
+  });
+
+  test('Cancel keeps the user signed in and puts the button back', async () => {
+    mockSync.pending = 1;
+    await render(<Profile />);
+    await fireEvent.press(screen.getByRole('button', { name: t('profile.signOut') }));
+    await fireEvent.press(screen.getByRole('button', { name: t('common.cancel') }));
+
+    expect(mockSignOut).not.toHaveBeenCalled();
+    expect(screen.queryByText(warning(1))).not.toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: t('profile.signOut') })).toBeOnTheScreen();
+  });
 });

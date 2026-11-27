@@ -114,6 +114,7 @@ export default function Intro(): React.JSX.Element {
   const dock = last ? (
     <>
       <Button
+        testID="intro-start"
         label={t('onb.start')}
         onPress={() => {
           leave('/sign-up');
@@ -129,6 +130,7 @@ export default function Intro(): React.JSX.Element {
     </>
   ) : (
     <Button
+      testID="intro-next"
       label={t('common.next')}
       onPress={() => {
         markIntroSeen();

@@ -220,6 +220,15 @@ export function completeOp(op: OutboxOp): void {
   notifyChanged(changedTables(table));
 }
 
+/**
+ * The network is back: an operation waiting only because its sends got no answer is due now. Its answered attempts
+ * stay, and one held back by a server error keeps its backoff.
+ */
+export function wakeOffline(userId: string): void {
+  localDb().runSync('UPDATE outbox SET next_attempt_at = 0 WHERE user_id = ? AND failed = 0 AND no_responses > 0;', [userId]);
+  notifyChanged(['outbox']);
+}
+
 /** "Try again": every operation of `userId`, failed or waiting out a backoff, is due now with fresh attempts. */
 export function resetFailed(userId: string): void {
   localDb().runSync('UPDATE outbox SET failed = 0, attempts = 0, no_responses = 0, next_attempt_at = 0 WHERE user_id = ?;', [userId]);

@@ -61,6 +61,7 @@ export default function AiConsent(): React.JSX.Element {
       <Text style={[styles.body, { color: color.textMuted }]}>{t('consent.optional')}</Text>
       {failed ? <Notice tone="danger" title={t('consent.error')} /> : null}
       <Button
+        testID="ai-consent-accept"
         label={t('consent.accept')}
         disabled={saving === false}
         loading={saving === true}
@@ -70,6 +71,7 @@ export default function AiConsent(): React.JSX.Element {
         }}
       />
       <Button
+        testID="ai-consent-decline"
         variant="secondary"
         label={t('consent.decline')}
         disabled={saving === true}

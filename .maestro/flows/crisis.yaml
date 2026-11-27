@@ -1,0 +1,65 @@
+# Crisis mode end to end: Start an attack, intensity 7, one dose, It's over, Yes, and the ended view.
+# Runs after onboarding.yaml, signed in as the same user; it adds the medication the dose needs first.
+appId: com.aabv21.nimbo
+---
+- launchApp:
+    stopApp: true
+- extendedWaitUntil:
+    visible:
+      id: "tab-profile"
+    timeout: 60000
+- runFlow: ../subflows/add-medication.yaml
+
+# Start: the attack is written before crisis mode opens on it.
+- tapOn:
+    id: "tab-today"
+- extendedWaitUntil:
+    visible:
+      id: "today-start-attack"
+    timeout: 10000
+- tapOn:
+    id: "today-start-attack"
+- extendedWaitUntil:
+    visible:
+      id: "intensity-7"
+    timeout: 15000
+- tapOn:
+    id: "intensity-7"
+- assertVisible:
+    id: "intensity-7"
+    checked: true
+
+# One dose: the button turns into "Taken at" with Change and Cancel.
+- scrollUntilVisible:
+    element:
+      id: "dose-log"
+    direction: DOWN
+    centerElement: true
+    timeout: 10000
+- tapOn:
+    id: "dose-log"
+- extendedWaitUntil:
+    visible:
+      id: "dose-change"
+    timeout: 10000
+
+# It's over, Yes, and what was recorded.
+- tapOn:
+    id: "crisis-over"
+- extendedWaitUntil:
+    visible:
+      id: "crisis-over-confirm"
+    timeout: 10000
+- tapOn:
+    id: "crisis-over-confirm"
+- extendedWaitUntil:
+    visible:
+      id: "crisis-ended"
+    timeout: 10000
+- assertVisible: "Ibuprofen.*"
+- tapOn:
+    id: "crisis-ended-close"
+- extendedWaitUntil:
+    visible:
+      id: "today-start-attack"
+    timeout: 15000

@@ -7,27 +7,250 @@
     "output": "docs/diagrams/data-model.html",
     "quality_profile": "showcase"
   },
-  "layout": { "mode": "grid", "cols": 4, "cellW": 170, "cellH": 64, "gapX": 90, "gapY": 80, "origin": [40, 80] },
+  "layout": {
+    "mode": "grid",
+    "cols": 5,
+    "cellW": 170,
+    "cellH": 64,
+    "gapX": 70,
+    "gapY": 84,
+    "origin": [
+      40,
+      80
+    ]
+  },
   "components": [
-    { "id": "users", "type": "database", "label": "auth.users", "sublabel": "managed by Supabase Auth", "row": 0, "col": 0 },
-    { "id": "trig", "type": "backend", "label": "handle_new_user()", "sublabel": "after insert trigger", "row": 0, "col": 1 },
-    { "id": "profiles", "type": "database", "label": "public.profiles", "sublabel": "user_id PK, settings, consent", "row": 0, "col": 2, "tag": "RLS" },
-    { "id": "terms", "type": "security", "label": "accept_terms()", "sublabel": "security definer", "row": 1, "col": 1 },
-    { "id": "consent", "type": "security", "label": "set_ai_consent()", "sublabel": "security definer", "row": 1, "col": 3 },
-    { "id": "app", "type": "frontend", "label": "Nimbo app", "sublabel": "role authenticated", "row": 2, "col": 2 }
+    {
+      "id": "users",
+      "type": "database",
+      "label": "auth.users",
+      "sublabel": "Supabase Auth",
+      "row": 0,
+      "col": 0
+    },
+    {
+      "id": "trig",
+      "type": "backend",
+      "label": "handle_new_user()",
+      "sublabel": "after insert trigger",
+      "row": 0,
+      "col": 1
+    },
+    {
+      "id": "profiles",
+      "type": "database",
+      "label": "public.profiles",
+      "sublabel": "settings and consent",
+      "row": 0,
+      "col": 2,
+      "tag": "RLS"
+    },
+    {
+      "id": "profileRpcs",
+      "type": "security",
+      "label": "Profile RPCs",
+      "sublabel": "terms, AI, onboarding",
+      "row": 0,
+      "col": 3
+    },
+    {
+      "id": "entitlements",
+      "type": "database",
+      "label": "public.entitlements",
+      "sublabel": "grant and purchase",
+      "row": 0,
+      "col": 4,
+      "tag": "RLS"
+    },
+    {
+      "id": "checkins",
+      "type": "database",
+      "label": "public.checkins",
+      "sublabel": "one per local date",
+      "row": 1,
+      "col": 0,
+      "tag": "RLS"
+    },
+    {
+      "id": "trackingRpcs",
+      "type": "security",
+      "label": "Tracking RPCs",
+      "sublabel": "log_episode + 7 more",
+      "row": 1,
+      "col": 1
+    },
+    {
+      "id": "app",
+      "type": "frontend",
+      "label": "Nimbo app",
+      "sublabel": "role authenticated",
+      "row": 1,
+      "col": 2
+    },
+    {
+      "id": "premium",
+      "type": "security",
+      "label": "has_premium()",
+      "sublabel": "own row only",
+      "row": 1,
+      "col": 4
+    },
+    {
+      "id": "episodes",
+      "type": "database",
+      "label": "public.episodes",
+      "sublabel": "attacks",
+      "row": 2,
+      "col": 0,
+      "tag": "RLS"
+    },
+    {
+      "id": "doses",
+      "type": "database",
+      "label": "public.doses",
+      "sublabel": "optional episode",
+      "row": 2,
+      "col": 1,
+      "tag": "RLS"
+    },
+    {
+      "id": "medications",
+      "type": "database",
+      "label": "public.medications",
+      "sublabel": "acute and preventive",
+      "row": 2,
+      "col": 2,
+      "tag": "RLS"
+    }
   ],
   "connections": [
-    { "id": "users-trig", "from": "users", "to": "trig", "label": "new user" },
-    { "id": "trig-profiles", "from": "trig", "to": "profiles", "label": "inserts row", "variant": "emphasis" },
-    { "id": "app-profiles", "from": "app", "to": "profiles", "label": "select, update 12 columns", "fromSide": "top", "toSide": "bottom" },
-    { "id": "app-terms", "from": "app", "to": "terms", "fromSide": "left", "toSide": "bottom" },
-    { "id": "app-consent", "from": "app", "to": "consent", "fromSide": "right", "toSide": "bottom" },
-    { "id": "terms-profiles", "from": "terms", "to": "profiles", "label": "stamps terms", "variant": "security", "fromSide": "top", "toSide": "left" },
-    { "id": "consent-profiles", "from": "consent", "to": "profiles", "label": "stamps consent", "variant": "security", "fromSide": "top", "toSide": "right" }
+    {
+      "id": "users-trig",
+      "from": "users",
+      "to": "trig",
+      "label": "new user"
+    },
+    {
+      "id": "trig-profiles",
+      "from": "trig",
+      "to": "profiles",
+      "label": "inserts row",
+      "variant": "emphasis"
+    },
+    {
+      "id": "app-profiles",
+      "from": "app",
+      "to": "profiles",
+      "label": "update 13 columns",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "app-profileRpcs",
+      "from": "app",
+      "to": "profileRpcs"
+    },
+    {
+      "id": "profileRpcs-profiles",
+      "from": "profileRpcs",
+      "to": "profiles",
+      "label": "server time",
+      "variant": "security"
+    },
+    {
+      "id": "app-premium",
+      "from": "app",
+      "to": "premium"
+    },
+    {
+      "id": "premium-entitlements",
+      "from": "premium",
+      "to": "entitlements",
+      "label": "reads"
+    },
+    {
+      "id": "app-trackingRpcs",
+      "from": "app",
+      "to": "trackingRpcs",
+      "label": "outbox",
+      "variant": "emphasis"
+    },
+    {
+      "id": "rpcs-checkins",
+      "from": "trackingRpcs",
+      "to": "checkins",
+      "variant": "security"
+    },
+    {
+      "id": "rpcs-episodes",
+      "from": "trackingRpcs",
+      "to": "episodes",
+      "variant": "security",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "rpcs-doses",
+      "from": "trackingRpcs",
+      "to": "doses",
+      "variant": "security",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "rpcs-medications",
+      "from": "trackingRpcs",
+      "to": "medications",
+      "variant": "security",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "doses-episodes",
+      "from": "doses",
+      "to": "episodes",
+      "label": "set null",
+      "variant": "dashed"
+    },
+    {
+      "id": "doses-medications",
+      "from": "doses",
+      "to": "medications",
+      "label": "references"
+    }
   ],
   "cards": [
-    { "dot": "emerald", "title": "Ownership", "items": ["One row per auth user, deleted with it", "Select and update are limited to the caller's own row"] },
-    { "dot": "rose", "title": "Consent", "items": ["Terms and AI consent timestamps have no column grant", "Only the two RPCs write them, with the server clock"] },
-    { "dot": "amber", "title": "Writers", "items": ["The signup trigger is the only inserter", "No client insert or delete policy exists"] }
+    {
+      "dot": "emerald",
+      "title": "Ownership",
+      "items": [
+        "Every table keys rows to auth.users, deleted with the user",
+        "Each has one read-own select policy for authenticated"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "RPC-only writes",
+      "items": [
+        "Consent, onboarding and every health row are written only by security definer RPCs",
+        "A direct insert, update or delete fails with 42501"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Profile",
+      "items": [
+        "Location is a coarse area: coarse_lat and coarse_lon at one decimal",
+        "priority is one of four, known_triggers are catalog keys, track_period is opt-in"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Premium",
+      "items": [
+        "Only the service role or the dashboard writes entitlements",
+        "A grant and a purchase never cancel each other"
+      ]
+    }
   ]
 }

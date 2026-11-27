@@ -73,8 +73,18 @@ function toMedication(row: MedicationRow): Medication {
   };
 }
 
-/** Creates or edits a medication: the mirror row and the `save_medication` call commit together. */
-export function saveMedication(userId: string, id: string, fields: MedicationInput): void {
+/** The server's limits on the two free-text columns. */
+export const NAME_MAX_LENGTH = 80;
+export const DOSE_MAX_LENGTH = 120;
+
+/**
+ * Creates or edits a medication: the mirror row and the `save_medication` call commit together. The name is trimmed;
+ * an empty or overlong name, or an overlong dose, is a `RangeError` and nothing is written (the server would refuse it for good).
+ */
+export function saveMedication(userId: string, id: string, input: MedicationInput): void {
+  const fields = { ...input, name: input.name.trim() };
+  if (fields.name.length === 0 || fields.name.length > NAME_MAX_LENGTH) throw new RangeError('The name is empty or too long.');
+  if (fields.doseText !== null && fields.doseText.length > DOSE_MAX_LENGTH) throw new RangeError('The dose is too long.');
   const minutes = fields.minIntervalHours === null ? null : Math.round(fields.minIntervalHours * 60);
   const db = localDb();
   db.withTransactionSync(() => {

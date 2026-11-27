@@ -21,6 +21,8 @@ here with the reason and the plugin that adds it.
   - Android: `android.blockedPermissions` lists `android.permission.ACCESS_FINE_LOCATION`, which the library's manifest
     would otherwise add, so the merged manifest keeps only `ACCESS_COARSE_LOCATION` (a `tools:node="remove"` entry).
   - No background location, no foreground service.
+  - The iOS prompt string is English only: `app.json` has no `locales` yet, so Spanish and Portuguese users see the
+    English text. Translating it through `locales` (`InfoPlist.strings` per language) is a later step.
 
 - **Notifications (`expo-notifications`):** the reminders are local, scheduled on the phone with no server. On
   Android 13 and later the `expo-notifications` plugin adds `POST_NOTIFICATIONS`, and the library's own manifest adds
@@ -29,6 +31,8 @@ here with the reason and the plugin that adds it.
   question. Android 12 and later need `SCHEDULE_EXACT_ALARM` for exact times and Android 14 denies it by default; Nimbo
   does not request it, so a reminder may arrive a few minutes late (a reminder is not an alarm). iOS asks for alert and
   sound, never a badge.
+- **Keep awake (`expo-keep-awake`):** crisis mode keeps the screen on while it is open (`useKeepAwake`) and lets it
+  sleep again when it closes. It needs no permission and no config plugin.
 - **Date-time picker (`@react-native-community/datetimepicker`):** the attack editor's time fields. It needs no permission; its
   config plugin carries the library's native setup. iOS shows its picker inline; Android has no date-time mode, so the editor asks
   for the date and then the time.
@@ -45,7 +49,7 @@ here with the reason and the plugin that adds it.
   Android package `com.aabv21.nimbo`. `app.json` never gains `ios.buildNumber` or
   `android.versionCode`.
 - **Appearance:** `userInterfaceStyle: "automatic"`, so the system appearance reaches the app and
-  Automatic can follow it ([`architecture.md`](architecture.md#design-decisions-of-this-wave)).
+  Automatic can follow it ([`architecture.md`](architecture.md#design-decisions)).
 - **Plugins:**
   - `expo-router` and `expo-splash-screen` (the splash image and its background color).
   - `expo-localization` with `supportedLocales` `en`, `es` and `pt`, so the OS offers the app those

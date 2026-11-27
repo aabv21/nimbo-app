@@ -32,6 +32,8 @@ jest.mock('expo-notifications', () => ({
   getAllScheduledNotificationsAsync: jest.fn(() => Promise.resolve([])),
   cancelScheduledNotificationAsync: jest.fn(() => Promise.resolve()),
   scheduleNotificationAsync: jest.fn((request: { identifier: string }) => Promise.resolve(request.identifier)),
+  getPresentedNotificationsAsync: jest.fn(() => Promise.resolve([])),
+  dismissNotificationAsync: jest.fn(() => Promise.resolve()),
 }));
 
 // Location is native: permission denied and no position unless a suite says otherwise.

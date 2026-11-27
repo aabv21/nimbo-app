@@ -84,17 +84,37 @@ describe('purging a user', () => {
     stop();
   });
 
-  test('keeps everything while the user has an unsent or failed operation', () => {
+  test('with operations still queued, keeps only the rows they write and deletes the clean ones', () => {
     seed('user-a');
+    insertEpisode('user-a', 'pending-episode');
+    localDb().runSync("INSERT INTO checkins (user_id, local_date) VALUES ('user-a', '2026-11-26');");
     localDb().withTransactionSync(() => {
-      enqueue('user-a', 'delete_dose', { p_id: 'user-a-dose' });
+      enqueue('user-a', 'update_episode', { p_id: 'pending-episode', p_fields: { intensity: 5 } });
+      enqueue('user-a', 'save_checkin', { p_local_date: '2026-11-26', p_fields: { alcohol: true } });
+      enqueue('user-a', 'complete_onboarding', {});
     });
-    expect(purgeUser('user-a')).toBe(false);
-    expect(rowsOf('user-a')).toBe(4);
+    // A failed operation still waits for this user: its row stays too.
+    localDb().runSync("UPDATE outbox SET failed = 1 WHERE kind = 'save_checkin';");
 
-    localDb().runSync('UPDATE outbox SET failed = 1;');
     expect(purgeUser('user-a')).toBe(false);
-    expect(rowsOf('user-a')).toBe(4);
+
+    const left = (table: string): string[] =>
+      // `table` is one of the literals below.
+      localDb()
+        .getAllSync<{ key: string }>(`SELECT ${table === 'checkins' ? 'local_date' : 'id'} AS key FROM ${table} WHERE user_id = 'user-a';`)
+        .map((row) => row.key);
+    expect(left('episodes')).toEqual(['pending-episode']);
+    expect(left('checkins')).toEqual(['2026-11-26']);
+    expect(left('medications')).toEqual([]);
+    expect(left('doses')).toEqual([]);
+    expect(localDb().getFirstSync<{ n: number }>("SELECT COUNT(*) AS n FROM outbox WHERE user_id = 'user-a';")?.n).toBe(3);
+  });
+
+  test('a row still marked dirty stays even without its operation', () => {
+    seed('user-a');
+    localDb().runSync("UPDATE episodes SET dirty = 1 WHERE id = 'user-a-episode';");
+    expect(purgeUser('user-a')).toBe(true);
+    expect(rowsOf('user-a')).toBe(1);
   });
 
   test('purgeOtherUsers keeps the signed-in user and anyone with queued operations', () => {
@@ -109,7 +129,8 @@ describe('purging a user', () => {
 
     expect(rowsOf('signed-in')).toBe(4);
     expect(rowsOf('clean')).toBe(0);
-    expect(rowsOf('queued')).toBe(4);
+    // Only the episode the queued delete is about is left until that user is back.
+    expect(rowsOf('queued')).toBe(1);
   });
 
   test('signed out, every clean user is purged', () => {

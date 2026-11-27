@@ -104,6 +104,7 @@ export default function ConfirmEmail(): React.JSX.Element {
           />
         )}
         <CodeBoxes
+          testID="confirm-code"
           label={t('auth.confirm.code')}
           value={code}
           length={CODE_LENGTH}
@@ -115,6 +116,7 @@ export default function ConfirmEmail(): React.JSX.Element {
         {error === undefined ? null : <Notice tone="danger" title={t(authErrorMessage(error))} />}
         {resent ? <Text style={[styles.body, { color: color.textMuted }]}>{t('auth.confirm.resent')}</Text> : null}
         <Button
+          testID="confirm-submit"
           variant={sent ? 'primary' : 'secondary'}
           label={t('auth.confirm.submit')}
           onPress={() => {

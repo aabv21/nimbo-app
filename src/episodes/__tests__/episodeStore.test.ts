@@ -161,6 +161,7 @@ describe('updateEpisode', () => {
     ['an end more than 5 minutes ahead', { endedAt: '2026-11-27T18:10:00.000Z' }],
     ['a start before 2000', { startedAt: '1999-12-31T23:00:00.000Z' }],
     ['a start that is not a time', { startedAt: 'yesterday' }],
+    ['notes over 2,000 characters', { notes: 'a'.repeat(2001), intensity: 5 }],
   ])('%s throws RangeError and writes nothing', (_name, patch) => {
     const id = startEpisode('user-a', STARTED);
     endEpisode('user-a', id, new Date('2026-11-27T17:05:00Z'));
@@ -171,6 +172,13 @@ describe('updateEpisode', () => {
     }).toThrow(RangeError);
     expect(episodeRow(id)).toEqual(before);
     expect(listOutbox('user-a').map((op) => op.kind)).toEqual(['log_episode', 'end_episode']);
+  });
+
+  test('notes of exactly 2,000 characters are saved and queued', () => {
+    const id = startEpisode('user-a', STARTED);
+    updateEpisode('user-a', id, { notes: 'a'.repeat(2000) });
+    expect(readOpenEpisode('user-a')?.notes).toHaveLength(2000);
+    expect(listOutbox('user-a')[1]?.args).toEqual({ p_id: id, p_fields: { notes: 'a'.repeat(2000) } });
   });
 
   test('another user’s episode is left alone and nothing is queued', () => {

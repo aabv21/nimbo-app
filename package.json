@@ -79,6 +79,7 @@
     "db:types": "supabase gen types typescript --local > src/lib/database.types.ts",
     "env:local": "node scripts/env-local.ts",
     "catalog:sql": "node scripts/catalog-sql.ts",
-    "premium": "node scripts/premium.ts"
+    "premium": "node scripts/premium.ts",
+    "e2e": "node scripts/e2e.ts"
   }
 }

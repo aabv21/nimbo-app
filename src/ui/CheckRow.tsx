@@ -8,13 +8,16 @@ interface CheckRowProps {
   label: string;
   checked: boolean;
   onChange: (checked: boolean) => void;
+  /** A stable English id for the Maestro flows; never copy. */
+  testID?: string;
 }
 
 /** A labelled checkbox; the whole row is the 48 pt target. */
-export function CheckRow({ label, checked, onChange }: CheckRowProps): React.JSX.Element {
+export function CheckRow({ label, checked, onChange, testID }: CheckRowProps): React.JSX.Element {
   const { color } = useTheme();
   return (
     <Pressable
+      testID={testID}
       accessibilityRole="checkbox"
       accessibilityLabel={label}
       accessibilityState={{ checked }}

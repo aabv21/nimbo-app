@@ -6,7 +6,8 @@ import type { ReactNode } from 'react';
 import { useAuth } from '../../auth/AuthProvider';
 import { useLocalQuery } from '../local/useLocalQuery';
 import { purgeOtherUsers, purgeUser } from '../local/db';
-import { onEnqueue, outboxState, resetFailed } from '../outbox/outbox';
+import { removeCachedProfile } from '../../profile/profileRepository';
+import { onEnqueue, outboxState, resetFailed, wakeOffline } from '../outbox/outbox';
 import { pauseOutbox, resumeOutbox, rpcSender, runOutbox } from '../outbox/runOutbox';
 import type { OutboxDeps } from '../outbox/runOutbox';
 import { readStoredSession, supabase } from '../supabase';
@@ -84,11 +85,12 @@ export function SyncProvider({ children }: { children: ReactNode }): React.JSX.E
     resumeOutbox(userId);
     void sync();
     return () => {
-      // Sign-out or another account: nothing of this user goes out until they are back, and their rows
-      // leave the phone once no send or pull can still write them (and unless one is still queued).
+      // Sign-out or another account: nothing of this user goes out until they are back, and their rows leave
+      // the phone once no send or pull can still write them, all but those still waiting to be sent. The cached
+      // profile goes too once nothing is queued; while something is, it lets them reopen offline to send it.
       const settled = Promise.all([pauseOutbox(userId), cycle.current.catch(() => undefined)]);
       void settled.then(() => {
-        if (userRef.current !== userId) purgeUser(userId);
+        if (userRef.current !== userId && purgeUser(userId)) removeCachedProfile(userId);
       });
     };
   }, [userId, sync]);
@@ -101,7 +103,10 @@ export function SyncProvider({ children }: { children: ReactNode }): React.JSX.E
     [sync],
   );
 
-  useOnResume(() => {
+  useOnResume((reason) => {
+    // A send that got no answer waits out a backoff that only the lost connection caused.
+    const user = userRef.current;
+    if (reason === 'online' && user !== null) wakeOffline(user);
     void sync();
   });
 

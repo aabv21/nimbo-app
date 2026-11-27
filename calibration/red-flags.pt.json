@@ -33,7 +33,12 @@
     { "text": "pior dor que já tive", "expect": ["thunderclap"] },
     { "text": "pior enxaqueca da minha vida", "expect": ["thunderclap"] },
     { "text": "nao consigo ver nada", "expect": ["weakness"] },
-    { "text": "estou com febre e o pescoço duro", "expect": ["fever_stiff_neck"] }
+    { "text": "estou com febre e o pescoço duro", "expect": ["fever_stiff_neck"] },
+    { "text": "não sinto o braço", "expect": ["weakness"] },
+    { "text": "não sinto minha mão desde que começou a dor", "expect": ["weakness"] },
+    { "text": "visão dupla desde de manhã", "expect": ["weakness"] },
+    { "text": "vejo duplo e a dor tá forte", "expect": ["weakness"] },
+    { "text": "não sinto o lado esquerdo do rosto", "expect": ["weakness"] }
   ],
   "negatives": [
     { "text": "a enxaqueca de sempre, tempora esquerda, enjoo" },

@@ -1,5 +1,5 @@
 // The medical emergency number by the phone's region (ISO 3166-1 alpha-2), checked against each
-// country's government or health-ministry source; the sources are listed in docs/app.md#red-flags.
+// country's government or health-ministry source; the sources are listed in docs/architecture.md#red-flags-and-urgent-care.
 const NUMBERS: ReadonlyMap<string, string> = new Map([
   // Latin America: the medical line where it differs from the police one (SAME, SAMU, SEM).
   // argentina.gob.ar/tema/emergencias; minsal.cl; bogota.gov.co and cali.gov.co (Línea 123);

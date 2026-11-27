@@ -11,16 +11,19 @@ interface TextLinkProps {
   disabled?: boolean;
   /** Where it sits in its column: at the start of the text (the default) or centred under a button. */
   align?: 'start' | 'center';
+  /** A stable English id for the Maestro flows; never copy. */
+  testID?: string;
 }
 
 /** A quiet in-text action (forgot password, switch screen): 48 pt tall, labelled as a button. */
-export function TextLink({ label, onPress, disabled = false, align = 'start' }: TextLinkProps): React.JSX.Element {
+export function TextLink({ label, onPress, disabled = false, align = 'start', testID }: TextLinkProps): React.JSX.Element {
   const { color } = useTheme();
   const tones = useTones();
   const { scaleStyle, pressedStyle, onPressIn, onPressOut } = usePressFeedback();
   return (
     <Animated.View style={[align === 'center' ? styles.center : styles.start, scaleStyle]}>
       <Pressable
+        testID={testID}
         accessibilityRole="button"
         accessibilityLabel={label}
         accessibilityState={{ disabled }}

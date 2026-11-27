@@ -124,6 +124,8 @@ export const es: Record<keyof typeof en, string> = {
   'profile.companion.confirmOff': 'Si la apagas, se ocultan la pestaña Nimbo y el dictado. Todo lo demás sigue igual.',
   'profile.account': 'Cuenta',
   'profile.signOut': 'Cerrar sesión',
+  'profile.signOut.pending.one': '{n} registro aún no se ha subido. Se queda en este teléfono hasta que vuelvas a iniciar sesión aquí.',
+  'profile.signOut.pending.other': '{n} registros aún no se han subido. Se quedan en este teléfono hasta que vuelvas a iniciar sesión aquí.',
 
   'today.status.first': 'Tu primer día con Nimbo',
   'today.status.first_sub': 'Todo lo que registres se guarda primero en este teléfono.',

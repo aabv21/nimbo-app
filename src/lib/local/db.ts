@@ -115,22 +115,28 @@ export function localDb(): SQLiteDatabase {
 const MIRROR_TABLES = ['episodes', 'medications', 'doses', 'checkins'] as const;
 
 /**
- * Deletes `userId`'s mirror rows, for a sign-out or another account. Rows with an operation still queued
- * (unsent or failed) stay until that user is back to send it; returns whether anything was purged.
+ * Deletes `userId`'s mirror rows, for a sign-out or another account, except those still waiting to be sent: a row
+ * marked dirty or with an operation queued (unsent or failed) stays until that user is back to send it, and the pull
+ * brings the rest back then. Returns whether nothing of theirs is left queued.
  */
 export function purgeUser(userId: string): boolean {
   const db = localDb();
-  // Synchronous from the check to the delete, so no write lands in between.
-  if (db.getFirstSync('SELECT seq FROM outbox WHERE user_id = ? LIMIT 1;', [userId]) !== null) return false;
+  let queued = false;
+  // Synchronous from the read of the queue to the deletes, so no write lands in between.
   db.withTransactionSync(() => {
-    // Each name comes from the fixed list above.
-    for (const table of MIRROR_TABLES) db.runSync(`DELETE FROM ${table} WHERE user_id = ?;`, [userId]);
+    queued = db.getFirstSync('SELECT seq FROM outbox WHERE user_id = ? LIMIT 1;', [userId]) !== null;
+    const waiting = 'SELECT record_key FROM outbox WHERE user_id = ?';
+    // Each name comes from the fixed list above; a check-in's record key is `checkin:<local_date>`.
+    for (const table of MIRROR_TABLES) {
+      const key = table === 'checkins' ? "'checkin:' || local_date" : 'id';
+      db.runSync(`DELETE FROM ${table} WHERE user_id = ? AND dirty = 0 AND ${key} NOT IN (${waiting});`, [userId, userId]);
+    }
   });
   notifyChanged(MIRROR_TABLES);
-  return true;
+  return !queued;
 }
 
-/** At launch: purges every user but `keepUserId`, which covers a sign-out made while the app was closed. */
+/** At launch: purges every user but `keepUserId`, which covers a sign-out made while the app was closed (or a row left by one). */
 export function purgeOtherUsers(keepUserId: string | null): void {
   const users = localDb().getAllSync<{ user_id: string }>(
     'SELECT user_id FROM episodes UNION SELECT user_id FROM medications UNION SELECT user_id FROM doses UNION SELECT user_id FROM checkins;',

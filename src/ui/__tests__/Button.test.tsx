@@ -15,3 +15,8 @@ test('a disabled button reports its state to assistive technology', async () => 
   await render(<Button label="Next" onPress={() => {}} disabled />);
   expect(screen.getByRole('button')).toBeDisabled();
 });
+
+test('a testID for the Maestro flows lands on the pressable, not on the label', async () => {
+  await render(<Button testID="today-start-attack" label="Start an attack" onPress={() => {}} />);
+  expect(screen.getByTestId('today-start-attack')).toBe(screen.getByRole('button'));
+});

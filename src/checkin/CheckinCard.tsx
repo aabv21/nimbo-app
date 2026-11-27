@@ -7,6 +7,7 @@ import { AccessibilityInfo, Pressable, StyleSheet, Text, View } from 'react-nati
 import Animated from 'react-native-reanimated';
 
 import { useI18n } from '../i18n';
+import { useOncePerFocus } from '../lib/useOncePerFocus';
 import type { MessageKey } from '../i18n';
 import { entrance, useMotion } from '../ui/motion';
 import { fonts, controlHeight, space, type } from '../ui/theme';
@@ -20,10 +21,6 @@ type Stress = NonNullable<Checkin['stress']>;
 export const SLEEP_BANDS: readonly SleepBand[] = ['lt5', '5_6', '6_7', '7_8', 'gt8'];
 export const STRESS_LEVELS: readonly Stress[] = ['low', 'mid', 'high'];
 
-function openSheet(): void {
-  router.push('/checkin');
-}
-
 interface CheckinCardProps {
   userId: string;
   /** The device's calendar day the check-in belongs to. */
@@ -34,6 +31,7 @@ export function CheckinCard({ userId, localDate }: CheckinCardProps): React.JSX.
   const { t } = useI18n();
   const { color } = useTheme();
   const motion = useMotion();
+  const once = useOncePerFocus();
   const checkin = useCheckin(userId, localDate);
   const [editing, setEditing] = useState(false);
   // An answer given in this visit, not saved until its partner is known.
@@ -56,7 +54,15 @@ export function CheckinCard({ userId, localDate }: CheckinCardProps): React.JSX.
   };
 
   const more = (
-    <Pressable accessibilityRole="button" onPress={openSheet} style={styles.link}>
+    <Pressable
+      accessibilityRole="button"
+      onPress={() => {
+        once(() => {
+          router.push('/checkin');
+        });
+      }}
+      style={styles.link}
+    >
       <Text style={[styles.linkLabel, { color: color.accentText }]}>{t('today.checkin.more')}</Text>
       <ChevronRight size={18} color={color.accentText} />
     </Pressable>

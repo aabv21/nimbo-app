@@ -10,7 +10,7 @@ import { Chip } from '../../../checkin/Chip';
 import { packs } from '../../../condition';
 import type { CatalogName } from '../../../condition';
 import { IntensityScale } from '../../../crisis/IntensityScale';
-import { updateEpisode, useEpisode } from '../../../episodes/episodeStore';
+import { NOTES_MAX_LENGTH, updateEpisode, useEpisode } from '../../../episodes/episodeStore';
 import type { Episode, EpisodePatch } from '../../../episodes/episodeStore';
 import { DateTimeField } from '../../../history/DateTimeField';
 import { useI18n } from '../../../i18n';
@@ -220,11 +220,13 @@ function Editor({ userId, episode }: { userId: string; episode: Episode }): Reac
       ))}
 
       <TextField
+        testID="episode-notes"
         label={t('episode.notes')}
         value={form.notes}
         onChangeText={(text) => {
           set('notes', text);
         }}
+        maxLength={NOTES_MAX_LENGTH}
         multiline
       />
 
@@ -236,6 +238,7 @@ function Editor({ userId, episode }: { userId: string; episode: Episode }): Reac
       <View style={styles.actions}>
         <Button variant="secondary" label={t('common.cancel')} onPress={leave} />
         <Button
+          testID="episode-save"
           swap
           label={done ? t('common.done') : t('common.save')}
           {...(done ? { icon: Check } : {})}

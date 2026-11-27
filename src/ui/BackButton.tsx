@@ -4,10 +4,11 @@ import { Pressable, StyleSheet } from 'react-native';
 import { controlHeight } from './theme';
 import { useTheme } from './themeContext';
 
-export function BackButton({ label, onPress }: { label: string; onPress: () => void }): React.JSX.Element {
+/** `testID` is a stable English id for the Maestro flows; never copy. */
+export function BackButton({ label, onPress, testID }: { label: string; onPress: () => void; testID?: string }): React.JSX.Element {
   const { color } = useTheme();
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={styles.back}>
+    <Pressable testID={testID} accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={styles.back}>
       <ChevronLeft size={28} color={color.text} />
     </Pressable>
   );

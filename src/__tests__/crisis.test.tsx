@@ -1,4 +1,6 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { BackHandler } from 'react-native';
+import * as Reanimated from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { useKeepAwake } from 'expo-keep-awake';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -22,7 +24,7 @@ jest.mock('expo-crypto', () => ({ randomUUID: () => (require('node:crypto') as t
 jest.mock('expo-keep-awake', () => ({ useKeepAwake: jest.fn() }));
 jest.mock('../auth/AuthProvider', () => require('../test/authMock'));
 jest.mock('expo-router', () => ({
-  router: { push: jest.fn(), replace: jest.fn(), back: jest.fn() },
+  router: { push: jest.fn(), replace: jest.fn(), back: jest.fn(), canGoBack: jest.fn(() => true) },
   useLocalSearchParams: jest.fn(),
 }));
 
@@ -279,6 +281,78 @@ test('"Where it hurts" opens the head map, and Done returns with the areas saved
 
   expect(readOpenEpisode('user-1')?.painAreas).toEqual(['temple_left']);
   expect(screen.getByText(t('condition.painAreas.temple_left'))).toBeOnTheScreen();
+});
+
+describe('the Android back button', () => {
+  // The handlers crisis mode registers, so a test presses back as the system would: the latest one first.
+  type Handler = Parameters<typeof BackHandler.addEventListener>[1];
+  const handlers: Handler[] = [];
+  async function pressBack(): Promise<boolean | null | undefined> {
+    let handled: boolean | null | undefined;
+    await act(() => {
+      handled = handlers.at(-1)?.({} as never);
+    });
+    return handled;
+  }
+
+  const spies: { mockRestore: () => void }[] = [];
+  beforeEach(() => {
+    handlers.length = 0;
+    spies.push(
+      jest.spyOn(BackHandler, 'addEventListener').mockImplementation((_event, handler) => {
+        handlers.push(handler);
+        return {
+          remove: () => {
+            handlers.splice(handlers.indexOf(handler), 1);
+          },
+        };
+      }),
+    );
+  });
+
+  afterEach(() => {
+    for (const spy of spies.splice(0)) spy.mockRestore();
+  });
+
+  test('fades out like Hide, turning the app below back first, and goes back once', async () => {
+    await open();
+    forceDim.mockClear();
+    expect(await pressBack()).toBe(true);
+    expect(forceDim).toHaveBeenCalledWith(false);
+    expect(router.back).toHaveBeenCalledTimes(1);
+    // A second press while it is leaving does nothing more.
+    await pressBack();
+    expect(router.back).toHaveBeenCalledTimes(1);
+  });
+
+  test('with the head map open, it closes the map and stays', async () => {
+    await open();
+    await fireEvent.press(screen.getByRole('button', { name: /^Mark it on the head/ }));
+    expect(await pressBack()).toBe(true);
+    expect(router.back).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: t('crisis.hide.aria') })).toBeOnTheScreen();
+  });
+
+  test('a fade that reports its end twice still goes back once', async () => {
+    spies.push(
+      jest.spyOn(Reanimated, 'withTiming').mockImplementation((toValue, _config, callback) => {
+      callback?.(true);
+      callback?.(true);
+        return toValue;
+      }),
+    );
+    await open();
+    await fireEvent.press(screen.getByRole('button', { name: t('crisis.hide.aria') }));
+    expect(router.back).toHaveBeenCalledTimes(1);
+  });
+
+  test('opened with nothing to go back to, closing lands on Today', async () => {
+    jest.mocked(router.canGoBack).mockReturnValueOnce(false);
+    await open();
+    await pressBack();
+    expect(router.back).not.toHaveBeenCalled();
+    expect(router.replace).toHaveBeenCalledWith('/today');
+  });
 });
 
 test('without the AI this wave, "Tell me" and "What helped before" are absent', async () => {

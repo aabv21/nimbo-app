@@ -69,17 +69,19 @@ begin
 end;
 $$;
 
--- A phone clock can be wrong, but not by hours: this keeps a future or pre-2000 time out.
-create function private.check_time(p_at timestamptz)
-returns void
+-- A phone clock can run a few minutes fast, and refusing its time would fail the write for good (and every later
+-- write to that record): up to a day ahead it is stored as now. Further ahead, or before 2000, it is an error.
+create function private.client_time(p_at timestamptz)
+returns timestamptz
 language plpgsql
 stable
 set search_path = ''
 as $$
 begin
-  if p_at is null or p_at > pg_catalog.now() + interval '5 minutes' or p_at < timestamptz '2000-01-01 00:00:00+00' then
+  if p_at is null or p_at > pg_catalog.now() + interval '24 hours' or p_at < timestamptz '2000-01-01 00:00:00+00' then
     raise exception 'time out of range' using errcode = '22023';
   end if;
+  return least(p_at, pg_catalog.now());
 end;
 $$;
 
@@ -100,7 +102,7 @@ begin
 end;
 $$;
 
-revoke execute on function private.check_keys(jsonb, text[]), private.check_time(timestamptz), private.to_text_array(jsonb) from public, anon, authenticated;
+revoke execute on function private.check_keys(jsonb, text[]), private.client_time(timestamptz), private.to_text_array(jsonb) from public, anon, authenticated;
 
 create table public.episodes (
   id uuid primary key,
@@ -209,20 +211,23 @@ set search_path = ''
 as $$
 declare
   v_user uuid := (select auth.uid());
+  v_started timestamptz;
+  v_ended timestamptz;
 begin
   if v_user is null then
     raise exception 'not signed in' using errcode = '42501';
   end if;
   perform private.check_keys(p_fields, array['ended_at', 'intensity', 'pain_areas', 'symptoms', 'triggers', 'reliefs', 'notes', 'source']);
-  perform private.check_time(p_started_at);
+  -- Clamping keeps the order of the two times, so an end at or after the start still is.
+  v_started := private.client_time(p_started_at);
   if p_fields ->> 'ended_at' is not null then
-    perform private.check_time((p_fields ->> 'ended_at')::timestamptz);
+    v_ended := private.client_time((p_fields ->> 'ended_at')::timestamptz);
   end if;
 
   insert into public.episodes (id, user_id, started_at, ended_at, intensity, pain_areas, symptoms, triggers, reliefs, notes, source)
   values (
-    p_id, v_user, p_started_at,
-    (p_fields ->> 'ended_at')::timestamptz,
+    p_id, v_user, v_started,
+    v_ended,
     (p_fields ->> 'intensity')::smallint,
     private.to_text_array(p_fields -> 'pain_areas'),
     private.to_text_array(p_fields -> 'symptoms'),
@@ -243,6 +248,9 @@ set search_path = ''
 as $$
 declare
   v_user uuid := (select auth.uid());
+  v_started timestamptz;
+  v_start_clamped boolean := false;
+  v_ended timestamptz;
 begin
   if v_user is null then
     raise exception 'not signed in' using errcode = '42501';
@@ -250,15 +258,22 @@ begin
   perform private.check_keys(p_fields, array['started_at', 'ended_at', 'intensity', 'pain_areas', 'symptoms', 'triggers', 'reliefs', 'notes', 'source']);
   -- A start can be moved (people log late) but never cleared: a json null fails the time check.
   if p_fields ? 'started_at' then
-    perform private.check_time((p_fields ->> 'started_at')::timestamptz);
+    v_started := private.client_time((p_fields ->> 'started_at')::timestamptz);
+    v_start_clamped := v_started < (p_fields ->> 'started_at')::timestamptz;
   end if;
   if p_fields ->> 'ended_at' is not null then
-    perform private.check_time((p_fields ->> 'ended_at')::timestamptz);
+    v_ended := private.client_time((p_fields ->> 'ended_at')::timestamptz);
   end if;
 
+  -- A start clamped to now may pass an end stored earlier, which the phone saw as later: it stops at that end.
+  -- An unclamped start after the end is still the client's error (23514).
   update public.episodes
-  set started_at = case when p_fields ? 'started_at' then (p_fields ->> 'started_at')::timestamptz else started_at end,
-      ended_at = case when p_fields ? 'ended_at' then (p_fields ->> 'ended_at')::timestamptz else ended_at end,
+  set started_at = case
+        when not (p_fields ? 'started_at') then started_at
+        when v_start_clamped then least(v_started, coalesce(case when p_fields ? 'ended_at' then v_ended else ended_at end, v_started))
+        else v_started
+      end,
+      ended_at = case when p_fields ? 'ended_at' then v_ended else ended_at end,
       intensity = case when p_fields ? 'intensity' then (p_fields ->> 'intensity')::smallint else intensity end,
       pain_areas = case when p_fields ? 'pain_areas' then private.to_text_array(p_fields -> 'pain_areas') else pain_areas end,
       symptoms = case when p_fields ? 'symptoms' then private.to_text_array(p_fields -> 'symptoms') else symptoms end,
@@ -282,13 +297,15 @@ set search_path = ''
 as $$
 declare
   v_user uuid := (select auth.uid());
+  v_ended timestamptz;
 begin
   if v_user is null then
     raise exception 'not signed in' using errcode = '42501';
   end if;
-  perform private.check_time(p_ended_at);
+  -- A stored start is never later than now, so a clamped end still comes after it.
+  v_ended := private.client_time(p_ended_at);
 
-  update public.episodes set ended_at = p_ended_at where id = p_id and user_id = v_user;
+  update public.episodes set ended_at = v_ended where id = p_id and user_id = v_user;
 
   if not found then
     raise exception 'episode not found' using errcode = 'P0002';
@@ -387,11 +404,12 @@ set search_path = ''
 as $$
 declare
   v_user uuid := (select auth.uid());
+  v_taken timestamptz;
 begin
   if v_user is null then
     raise exception 'not signed in' using errcode = '42501';
   end if;
-  perform private.check_time(p_taken_at);
+  v_taken := private.client_time(p_taken_at);
   if not exists (select 1 from public.medications where id = p_medication_id and user_id = v_user) then
     raise exception 'medication not found' using errcode = 'P0002';
   end if;
@@ -400,7 +418,7 @@ begin
   end if;
 
   insert into public.doses (id, user_id, medication_id, episode_id, taken_at)
-  values (p_id, v_user, p_medication_id, p_episode_id, p_taken_at)
+  values (p_id, v_user, p_medication_id, p_episode_id, v_taken)
   on conflict (id) do nothing;
 end;
 $$;
@@ -421,7 +439,8 @@ begin
 end;
 $$;
 
--- The date is the user's local day, so it may be a day ahead of UTC (and a day behind it).
+-- The date is the user's local day, so it may be a day ahead of UTC (and a day behind it), and a day more on a
+-- clock running fast, as `private.client_time` allows.
 create function public.save_checkin(p_local_date date, p_fields jsonb)
 returns void
 language plpgsql
@@ -439,7 +458,7 @@ begin
     'alcohol', 'skipped_meal', 'screen_heavy', 'period_started'
   ]);
   if p_local_date is null
-    or p_local_date > (pg_catalog.now() at time zone 'utc')::date + 1
+    or p_local_date > ((pg_catalog.now() + interval '24 hours') at time zone 'utc')::date + 1
     or p_local_date < date '2000-01-01' then
     raise exception 'date out of range' using errcode = '22023';
   end if;

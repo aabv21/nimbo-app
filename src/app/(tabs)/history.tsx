@@ -31,13 +31,14 @@ const VIEWS: readonly { name: ViewName; label: MessageKey }[] = [
 // The overuse notice's action: the attacks that had a dose this month, near enough as the last 30 days.
 const DOSES_FILTER: EpisodeFilter = { ...EMPTY_FILTER, doses: 'with', period: '30d' };
 
-function Segment({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }): React.JSX.Element {
+function Segment({ name, label, selected, onPress }: { name: ViewName; label: string; selected: boolean; onPress: () => void }): React.JSX.Element {
   const { color } = useTheme();
   const tones = useTones();
   const { scaleStyle, pressedStyle, onPressIn, onPressOut } = usePressFeedback();
   return (
     <Animated.View style={[styles.segmentFrame, scaleStyle]}>
       <Pressable
+        testID={`history-view-${name}`}
         accessibilityRole="tab"
         accessibilityLabel={label}
         accessibilityState={{ selected }}
@@ -91,7 +92,7 @@ function HistoryBody({ userId }: { userId: string }): React.JSX.Element {
       </Text>
       <View accessibilityRole="tablist" accessibilityLabel={t('history.views')} style={[styles.switch, { borderColor: color.border }]}>
         {VIEWS.map(({ name, label }) => (
-          <Segment key={name} label={t(label)} selected={view === name} onPress={() => { setView(name); }} />
+          <Segment key={name} name={name} label={t(label)} selected={view === name} onPress={() => { setView(name); }} />
         ))}
       </View>
     </View>

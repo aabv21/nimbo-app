@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { router } from 'expo-router';
 
 import { translate } from '../../i18n';
@@ -11,7 +11,22 @@ import { CheckinCard } from '../CheckinCard';
 import * as store from '../checkinStore';
 
 jest.mock('expo-sqlite', () => require('../../test/sqliteNode'));
-jest.mock('expo-router', () => ({ router: { push: jest.fn() } }));
+// A screen is focused once, on mount; `mockFocus.again()` focuses it again, as coming back to it does.
+const mockFocus: { effects: Set<() => void>; again: () => void } = {
+  effects: new Set(),
+  again: () => {
+    for (const effect of mockFocus.effects) effect();
+  },
+};
+jest.mock('expo-router', () => ({
+  router: { push: jest.fn() },
+  useFocusEffect: (effect: () => void) => {
+    mockFocus.effects.add(effect);
+    jest.requireActual<typeof import('react')>('react').useEffect(() => {
+      effect();
+    }, []);
+  },
+}));
 
 const t = (key: MessageKey, params?: Params): string => translate('en', key, params);
 const TODAY = localDate();
@@ -79,6 +94,20 @@ test('More details opens the check-in sheet', async () => {
   await render(<CheckinCard userId="user-1" localDate={TODAY} />);
   await fireEvent.press(screen.getByRole('button', { name: t('today.checkin.more') }));
   expect(router.push).toHaveBeenCalledWith('/checkin');
+});
+
+test('a double tap on More details opens the sheet once; back on Today, it opens again', async () => {
+  await render(<CheckinCard userId="user-1" localDate={TODAY} />);
+  const more = screen.getByRole('button', { name: t('today.checkin.more') });
+  await fireEvent.press(more);
+  await fireEvent.press(more);
+  expect(router.push).toHaveBeenCalledTimes(1);
+
+  await act(() => {
+    mockFocus.again();
+  });
+  await fireEvent.press(more);
+  expect(router.push).toHaveBeenCalledTimes(2);
 });
 
 test('a day answered only on the sheet (no stress) still asks the two questions', async () => {

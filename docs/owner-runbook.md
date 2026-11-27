@@ -1,7 +1,7 @@
 # Owner runbook
 
 The steps that need the owner's accounts or hardware, each with its status. Everything else in this
-repo runs offline ([`testing.md`](testing.md)). Statuses are as of 2026-11-26; update a step's status
+repo runs offline ([`testing.md`](testing.md)). Statuses are as of 2026-11-27; update a step's status
 and date when it changes.
 
 **Status words:** Done, Pending (not started or not finished), Blocked (waiting on someone else).
@@ -23,6 +23,8 @@ and date when it changes.
 | Add the Google Sign-In config plugin | Pending | After the OAuth clients exist: add `["@react-native-google-signin/google-signin", { "iosUrlScheme": "com.googleusercontent.apps.<ios-client-id>" }]` to `app.json`'s `plugins`, with Nimbo's iOS client id reversed as the URL scheme, then `pnpm expo prebuild --clean` and a rebuild ([`native-config.md`](native-config.md)). |
 | Create the EAS project | Pending | Sets `owner` and `extra.eas.projectId` in `app.json`; builds are made only from merged code. |
 | Enroll in the Apple Developer Program | Pending | Needed for Sign in with Apple on a device and for TestFlight. |
+| Review the notification texts | Pending | Before the first build that ships reminders: the notifications setup step (`onb.notif.*`), the lock-screen choice (`notif.lock.*`), the reminder's neutral line (`push.neutral`) and detail line (`reminder.detail`) and the Android channel name (`reminder.channel`) in `src/i18n/en.ts`, `es.ts` and `pt.ts`, and the iOS location prompt in `app.json` (English only for now, [`native-config.md`](native-config.md#permissions)). |
+| Spot-check the emergency number for each launch country | Pending | Before launching in a country, call up its source in the emergency table ([`architecture.md`](architecture.md#red-flags-and-urgent-care)) and confirm the number still stands; a country missing from the table gets "Call your local emergency number". Bolivia, Paraguay and Nicaragua are left out on purpose. |
 | Print `{{ .Token }}` in the hosted confirmation and recovery email templates | Pending | The app asks for a 6-digit code; the hosted project's templates must contain it, as `supabase/templates/confirmation.html` and `recovery.html` do locally ([`local-stack.md`](local-stack.md)). |
 
 ## Granting premium
@@ -42,7 +44,12 @@ pnpm premium revoke person@example.com
 entitlement row before and after as JSON. Revoking leaves any purchase untouched. The same change can be made by editing the
 `granted` columns of the user's row in the dashboard's table editor.
 
+The user can read their own entitlement row, `granted_note` included, so never put a private remark in the note.
+
 ## Live checks deferred until those steps are done
 
-Google sign-in and Apple sign-in on a device, real email delivery of the codes, and the first
-hosted migration, and `pnpm premium grant` against the hosted project. The offline suites cover the logic around each ([`testing.md`](testing.md)).
+Google sign-in and Apple sign-in on a device, real email delivery of the codes, the first hosted
+migration, every tracking RPC and `has_premium` against the hosted project, and `pnpm premium grant`
+against it. The Maestro flows (`pnpm e2e`) run on the Android emulator against the local stack, and
+on the iOS simulator once the iOS dev build exists; a preview build is made only after a merge. The
+offline suites cover the logic around each ([`testing.md`](testing.md)).

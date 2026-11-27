@@ -32,9 +32,13 @@
       "id": "app",
       "type": "frontend",
       "label": "Nimbo app",
-      "sublabel": "Expo \u00b7 cached profile",
+      "sublabel": "nimbo.db \u00b7 outbox \u00b7 local notifications",
       "row": 1,
-      "col": 0
+      "col": 0,
+      "size": [
+        210,
+        64
+      ]
     },
     {
       "id": "auth",
@@ -48,9 +52,13 @@
       "id": "pg",
       "type": "database",
       "label": "Postgres 17",
-      "sublabel": "profiles \u00b7 RLS \u00b7 RPCs",
+      "sublabel": "profiles \u00b7 tracking \u00b7 entitlements",
       "row": 1,
-      "col": 2
+      "col": 2,
+      "size": [
+        180,
+        64
+      ]
     },
     {
       "id": "fn",
@@ -82,7 +90,11 @@
       "label": "GitHub Actions",
       "sublabel": "keep-alive, planned",
       "row": 2,
-      "col": 2
+      "col": 2,
+      "size": [
+        180,
+        64
+      ]
     }
   ],
   "boundaries": [
@@ -155,8 +167,8 @@
       "dot": "emerald",
       "title": "Today",
       "items": [
-        "The phone talks only to Auth and the REST API",
-        "RLS and column grants scope every row",
+        "The phone saves to nimbo.db first and queues each write",
+        "RLS and column grants scope every row; health writes go through RPCs",
         "Consent is written only by two RPCs"
       ]
     },

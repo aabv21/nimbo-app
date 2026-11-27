@@ -4,7 +4,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(97);
+select plan(106);
 
 insert into auth.users (id, instance_id, aud, role, email, encrypted_password, raw_app_meta_data, raw_user_meta_data)
 values
@@ -78,9 +78,19 @@ select is(
 
 -- log_episode validation.
 select throws_ok($$ select public.log_episode('aaaaaaaa-0000-0000-0000-000000000002', now(), '{"bogus": 1}') $$, '22023', null, 'an unknown key raises 22023');
-select throws_ok($$ select public.log_episode('aaaaaaaa-0000-0000-0000-000000000002', now() + interval '1 hour', '{}') $$, '22023', null, 'a start an hour ahead raises 22023');
+select throws_ok($$ select public.log_episode('aaaaaaaa-0000-0000-0000-000000000002', now() + interval '2 days', '{}') $$, '22023', null, 'a start two days ahead raises 22023');
 select throws_ok($$ select public.log_episode('aaaaaaaa-0000-0000-0000-000000000002', '1999-12-31T00:00:00Z', '{}') $$, '22023', null, 'a start before 2000 raises 22023');
 select lives_ok($$ select public.log_episode('aaaaaaaa-0000-0000-0000-000000000002', now() + interval '3 minutes', '{}') $$, 'a start three minutes ahead is within the clock skew');
+-- A phone clock running fast: its times are stored as now rather than refused for good.
+select lives_ok(
+  $$ select public.log_episode('aaaaaaaa-0000-0000-0000-000000000004', now() + interval '10 minutes', jsonb_build_object('ended_at', now() + interval '12 minutes')) $$,
+  'a start and an end ten minutes ahead are accepted'
+);
+select is(
+  (select started_at = now() and ended_at = now() from public.episodes where id = 'aaaaaaaa-0000-0000-0000-000000000004'),
+  true,
+  'both are stored as now, which keeps the end at the start'
+);
 select throws_ok($$ select public.log_episode('aaaaaaaa-0000-0000-0000-000000000003', now(), '{"triggers": ["not_a_key"]}') $$, '23514', null, 'a trigger outside the pack raises 23514');
 select throws_ok($$ select public.log_episode('aaaaaaaa-0000-0000-0000-000000000003', now(), '{"symptoms": ["nausea", "nausea"]}') $$, '23514', null, 'a duplicate symptom raises 23514');
 select throws_ok($$ select public.log_episode('aaaaaaaa-0000-0000-0000-000000000003', now(), '{"intensity": 11}') $$, '23514', null, 'an intensity of 11 raises 23514');
@@ -105,8 +115,8 @@ select is(
   'the start is the one given'
 );
 select throws_ok(
-  $$ select public.update_episode('aaaaaaaa-0000-0000-0000-000000000001', jsonb_build_object('started_at', now() + interval '1 hour')) $$,
-  '22023', null, 'a start an hour ahead raises 22023'
+  $$ select public.update_episode('aaaaaaaa-0000-0000-0000-000000000001', jsonb_build_object('started_at', now() + interval '2 days')) $$,
+  '22023', null, 'a start two days ahead raises 22023'
 );
 select throws_ok($$ select public.update_episode('aaaaaaaa-0000-0000-0000-000000000001', '{"bogus": 1}') $$, '22023', null, 'update_episode rejects an unknown key');
 select throws_ok($$ select public.update_episode('aaaaaaaa-0000-0000-0000-0000000000ff', '{"intensity": 1}') $$, 'P0002', null, 'update_episode on a missing id raises P0002');
@@ -124,15 +134,27 @@ set local role authenticated;
 
 -- end_episode.
 select throws_ok($$ select public.end_episode('aaaaaaaa-0000-0000-0000-000000000001', now() - interval '3 hours') $$, '23514', null, 'ending before the start raises 23514');
-select lives_ok($$ select public.end_episode('aaaaaaaa-0000-0000-0000-000000000001', now()) $$, 'end_episode succeeds');
+select lives_ok($$ select public.end_episode('aaaaaaaa-0000-0000-0000-000000000001', now() - interval '10 minutes') $$, 'end_episode succeeds');
 select lives_ok(
   $$ select public.end_episode('aaaaaaaa-0000-0000-0000-000000000001', (select ended_at from public.episodes where id = 'aaaaaaaa-0000-0000-0000-000000000001')) $$,
   'a repeat with the same value succeeds'
 );
-select throws_ok($$ select public.end_episode('aaaaaaaa-0000-0000-0000-000000000001', now() + interval '1 hour') $$, '22023', null, 'an end an hour ahead raises 22023');
+select throws_ok($$ select public.end_episode('aaaaaaaa-0000-0000-0000-000000000001', now() + interval '2 days') $$, '22023', null, 'an end two days ahead raises 22023');
 select throws_ok(
-  $$ select public.update_episode('aaaaaaaa-0000-0000-0000-000000000001', jsonb_build_object('started_at', now() + interval '2 minutes')) $$,
+  $$ select public.update_episode('aaaaaaaa-0000-0000-0000-000000000001', jsonb_build_object('started_at', now() - interval '5 minutes')) $$,
   '23514', null, 'a start after the end raises 23514'
+);
+select lives_ok($$ select public.end_episode('aaaaaaaa-0000-0000-0000-000000000002', now() + interval '10 minutes') $$, 'an end ten minutes ahead is accepted');
+select is((select ended_at from public.episodes where id = 'aaaaaaaa-0000-0000-0000-000000000002'), now(), 'the end ten minutes ahead is stored as now');
+-- The phone saw this start before its end; clamped to now it would pass the end stored earlier, so it stops there.
+select lives_ok(
+  $$ select public.update_episode('aaaaaaaa-0000-0000-0000-000000000001', jsonb_build_object('started_at', now() + interval '10 minutes')) $$,
+  'a start ten minutes ahead of an attack that already ended is accepted'
+);
+select is(
+  (select started_at = ended_at and ended_at = now() - interval '10 minutes' from public.episodes where id = 'aaaaaaaa-0000-0000-0000-000000000001'),
+  true,
+  'the clamped start stops at the stored end'
 );
 
 -- save_medication (runs before the dose tests, which need a medication of A's).
@@ -154,7 +176,9 @@ select throws_ok($$ select public.save_medication('aaaaaaaa-1000-0000-0000-00000
 select lives_ok($$ select public.log_dose('aaaaaaaa-2000-0000-0000-000000000001', 'aaaaaaaa-1000-0000-0000-000000000001', now(), 'aaaaaaaa-0000-0000-0000-000000000001') $$, 'log_dose accepts A''s medication and episode');
 select lives_ok($$ select public.log_dose('aaaaaaaa-2000-0000-0000-000000000001', 'aaaaaaaa-1000-0000-0000-000000000001', now() - interval '5 hours', null) $$, 'a repeated dose id succeeds');
 select is((select count(*)::int || ',' || (episode_id is not null)::text from public.doses where id = 'aaaaaaaa-2000-0000-0000-000000000001' group by episode_id), '1,true', 'a repeated id leaves one dose with the first fields');
-select throws_ok($$ select public.log_dose('aaaaaaaa-2000-0000-0000-000000000002', 'aaaaaaaa-1000-0000-0000-000000000001', now() + interval '1 hour', null) $$, '22023', null, 'a dose an hour ahead raises 22023');
+select throws_ok($$ select public.log_dose('aaaaaaaa-2000-0000-0000-000000000002', 'aaaaaaaa-1000-0000-0000-000000000001', now() + interval '2 days', null) $$, '22023', null, 'a dose two days ahead raises 22023');
+select lives_ok($$ select public.log_dose('aaaaaaaa-2000-0000-0000-000000000003', 'aaaaaaaa-1000-0000-0000-000000000001', now() + interval '10 minutes', null) $$, 'a dose ten minutes ahead is accepted');
+select is((select taken_at from public.doses where id = 'aaaaaaaa-2000-0000-0000-000000000003'), now(), 'the dose ten minutes ahead is stored as now');
 
 select lives_ok($$ select public.delete_episode('aaaaaaaa-0000-0000-0000-000000000001') $$, 'delete_episode succeeds');
 select is((select count(*)::int from public.episodes where id = 'aaaaaaaa-0000-0000-0000-000000000001'), 0, 'the episode is gone');
@@ -193,7 +217,9 @@ select is(
   '1,5_6,high,true',
   'both calls landed in one row'
 );
-select throws_ok($$ select public.save_checkin((now() at time zone 'utc')::date + 2, '{}') $$, '22023', null, 'a date two days ahead raises 22023');
+-- A local day ahead of UTC, plus a day for a clock running fast.
+select lives_ok($$ select public.save_checkin((now() at time zone 'utc')::date + 2, '{}') $$, 'a date two days ahead is accepted');
+select throws_ok($$ select public.save_checkin((now() at time zone 'utc')::date + 3, '{}') $$, '22023', null, 'a date three days ahead raises 22023');
 select throws_ok($$ select public.save_checkin('2026-11-22', '{"bogus": true}') $$, '22023', null, 'save_checkin rejects an unknown key');
 
 -- Function and schema privileges.

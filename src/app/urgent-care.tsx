@@ -48,6 +48,7 @@ function CallButton({ label, sub, disabled, onPress }: CallButtonProps): React.J
   return (
     <Animated.View style={scaleStyle}>
       <Pressable
+        testID="urgent-care-call"
         accessibilityRole="button"
         accessibilityLabel={sub === null ? label : `${label}, ${sub}`}
         accessibilityState={{ disabled }}
@@ -197,7 +198,7 @@ export default function UrgentCare(): React.JSX.Element {
               }}
             />
           ) : null}
-          <Button variant="secondary" size="crisis" label={t('redflag.safe')} disabled={leaving} onPress={close} />
+          <Button testID="urgent-care-safe" variant="secondary" size="crisis" label={t('redflag.safe')} disabled={leaving} onPress={close} />
         </View>
       </Screen>
     </Animated.View>

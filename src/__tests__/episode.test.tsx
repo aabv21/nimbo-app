@@ -272,6 +272,12 @@ describe('edit', () => {
     expect(router.push).toHaveBeenCalledWith('/urgent-care');
   });
 
+  test('the notes field stops at the 2,000 characters the server keeps', async () => {
+    seed();
+    await render(<EpisodeEdit />);
+    expect(screen.getByLabelText(t('episode.notes'))).toHaveProp('maxLength', 2000);
+  });
+
   test('an ordinary description does not open urgent care', async () => {
     jest.useFakeTimers();
     seed();

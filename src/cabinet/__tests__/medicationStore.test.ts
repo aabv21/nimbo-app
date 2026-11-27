@@ -139,3 +139,25 @@ test('useMedications maps a row to a Medication and re-reads after a save', asyn
     },
   ]);
 });
+
+// The server refuses these for good (23514), so the store refuses them before anything is written.
+test.each([
+  ['an empty name', { name: '' }],
+  ['a name of spaces', { name: '   ' }],
+  ['a name over 80 characters', { name: 'a'.repeat(81) }],
+  ['a dose over 120 characters', { doseText: 'a'.repeat(121) }],
+])('%s throws RangeError and writes nothing', (_name, change) => {
+  expect(() => {
+    saveMedication('user-1', ID, { ...TRIPTAN, ...change });
+  }).toThrow(RangeError);
+  expect(rows()).toEqual([]);
+  expect(listOutbox('user-1')).toEqual([]);
+});
+
+test('the name and dose are saved trimmed, at their longest allowed', () => {
+  saveMedication('user-1', ID, { ...TRIPTAN, name: ` ${'a'.repeat(80)} `, doseText: 'b'.repeat(120) });
+  expect(rows()[0]?.name).toBe('a'.repeat(80));
+  const fields = (listOutbox('user-1')[0]?.args as { p_fields: Record<string, unknown> } | undefined)?.p_fields;
+  expect(fields?.['name']).toBe('a'.repeat(80));
+  expect(fields?.['dose_text']).toBe('b'.repeat(120));
+});

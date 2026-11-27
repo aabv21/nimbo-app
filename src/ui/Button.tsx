@@ -34,6 +34,8 @@ interface ButtonProps {
   style?: StyleProp<ViewStyle>;
   /** The label cross-fades when it changes (a saved confirmation), and in Day its icon settles from 0.9 to 1. */
   swap?: boolean;
+  /** A stable English id for the Maestro flows; never copy. */
+  testID?: string;
 }
 
 /** A check that settles from scale 0.9 on a spring; only at full motion, as the other levels have no scale. */
@@ -67,6 +69,7 @@ export function Button({
   accessibilityLabel,
   style,
   swap = false,
+  testID,
 }: ButtonProps): React.JSX.Element {
   const { color } = useTheme();
   const tone = useTones();
@@ -87,6 +90,7 @@ export function Button({
   return (
     <Animated.View style={[scaleStyle, style]}>
       <Pressable
+        testID={testID}
         accessibilityRole="button"
         accessibilityLabel={loading ? shown : (accessibilityLabel ?? shown)}
         accessibilityState={{ disabled: disabled || loading, busy: loading }}

@@ -40,12 +40,14 @@ const redFlags: readonly RedFlag[] = Object.freeze([
       'explodir', 'explodiu', 'explodindo', 'explosão', 'em segundos',
     ],
   }),
-  flag('weakness', 'redflag.why.weakness', 'Does the message mention new weakness, numbness, a drooping face, trouble speaking, confusion or vision loss?', {
+  flag('weakness', 'redflag.why.weakness', 'Does the message mention new weakness, numbness, a drooping face, trouble speaking, confusion, vision loss or double vision?', {
     en: [
       'numb', 'numbness', 'drooping', 'droopy', 'slurred', 'slurring', "can't speak", 'cant speak', 'cannot speak',
       "can't talk", 'cant talk', 'trouble speaking', "words won't come out", 'feels weak', 'arm is weak', 'leg is weak',
       'weakness', "can't move my", 'paralyzed', 'confused', 'confusion', "can't see", 'cant see', 'cannot see',
       'lost the vision', 'lost my vision', 'lost vision', 'blind in one eye', 'went blind',
+      "can't feel my", 'cant feel my', 'cannot feel my', "can't feel the", 'cant feel the', 'no feeling in',
+      'lost feeling', 'double vision', 'seeing double', 'see double',
     ],
     es: [
       'adormecida', 'adormecido', 'adormecimiento', 'se me adormeció', 'se me duerme', 'se me durmió', 'entumida',
@@ -53,12 +55,18 @@ const redFlags: readonly RedFlag[] = Object.freeze([
       'no me salen las palabras', 'hablo raro', 'hablo todo raro', 'arrastro las palabras', 'me cuesta hablar',
       'sin fuerza', 'debilidad', 'no puedo mover', 'confundida', 'confundido', 'confusión', 'no puedo ver', 'no veo nada', 'no veo bien', 'no veo de un ojo',
       'perdí la vista', 'me quedé ciega', 'me quedé ciego',
+      'no siento el brazo', 'no siento la mano', 'no siento la pierna', 'no siento el pie', 'no siento la cara',
+      'no siento los dedos', 'no siento el lado', 'no siento la mitad', 'perdí la sensibilidad', 'visión doble',
+      'veo doble', 'viendo doble',
     ],
     pt: [
       'dormente', 'dormência', 'adormecido', 'adormecida', 'boca torta', 'boca ficou torta', 'rosto caído',
       'não consigo falar', 'fala enrolada', 'enrolando pra falar', 'enrolando para falar', 'as palavras não saem',
       'sem força', 'fraqueza', 'não consigo mexer', 'confusa', 'confuso', 'confusão', 'não consigo ver', 'não enxergo',
       'perdi a visão', 'fiquei cega', 'fiquei cego',
+      'não sinto o braço', 'não sinto meu braço', 'não sinto a mão', 'não sinto minha mão', 'não sinto a perna',
+      'não sinto minha perna', 'não sinto o rosto', 'não sinto o lado', 'não sinto a metade', 'não sinto os dedos',
+      'visão dupla', 'vista dupla', 'vejo duplo', 'vendo duplo', 'vejo dobrado', 'vendo dobrado',
     ],
   }),
   // Neck pain or stiffness is common in an ordinary attack, so it raises this flag only with a fever term.

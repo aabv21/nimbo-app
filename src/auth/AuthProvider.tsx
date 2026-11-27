@@ -110,7 +110,8 @@ export function AuthProvider({ children }: { children: ReactNode }): React.JSX.E
         failedReadRef.current = false;
         // A pending urgent-care request holds what the user wrote; it never outlives their session.
         clearUrgentCare();
-        // The kv copy stays for an offline reopen; only the in-memory profile goes.
+        // Only the in-memory profile goes here: the kv copy leaves with the sign-out cleanup in `SyncProvider`,
+        // which keeps it while something of the user's is still queued, for an offline reopen to send it.
         setState(SIGNED_OUT);
         return;
       }

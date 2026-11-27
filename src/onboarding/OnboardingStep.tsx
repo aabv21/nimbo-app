@@ -46,7 +46,7 @@ export function OnboardingStep({ done, total, onSkip, title, lede, error, childr
     <DockedScreen dock={dock}>
       <View style={styles.top}>
         <StepProgress done={done} total={total} />
-        {onSkip === undefined ? null : <TextLink label={t('common.skip')} onPress={onSkip} />}
+        {onSkip === undefined ? null : <TextLink testID="onboarding-skip" label={t('common.skip')} onPress={onSkip} />}
       </View>
       <View style={styles.head}>
         <Text accessibilityRole="header" style={[styles.title, { color: color.text }]}>

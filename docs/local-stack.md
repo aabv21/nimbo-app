@@ -36,12 +36,12 @@ the stack needs.
 ## Auth and email
 
 - Email confirmation is on (`enable_confirmations = true`) with a 6-digit code (`otp_length = 6`). The code emails are `supabase/templates/confirmation.html` (sign-up) and `supabase/templates/recovery.html` (password reset); both print `{{ .Token }}` instead of a link.
-- Mailpit catches local email instead of sending it; read the code there.
+- Mailpit catches local email instead of sending it; read the code there. The integration suite and the Maestro sign-up flow read it through Mailpit's API (`/api/v1/messages`).
 - `site_url` is the app scheme, `nimbo://`.
 - `[auth.rate_limit].email_sent` is raised to 100 locally so sign-up and resend tests never hit the hourly cap (confirmation emails count against it); the hosted project keeps its own limit in its Auth settings.
 
 ## What is not here
 
-No mock servers and no Edge Function secrets yet: `supabase/functions/` holds only the shared
-condition pack. `supabase/seed.sql` seeds nothing, because profiles are created by the signup
+No mock servers and no Edge Function secrets yet: `supabase/functions/` holds only shared code, the
+condition pack and the premium check. `supabase/seed.sql` seeds nothing, because profiles are created by the signup
 trigger and the app has no reference data in the database.

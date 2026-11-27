@@ -11,6 +11,7 @@ import { useMinuteClock } from '../../crisis/useMinuteClock';
 import { startEpisode, useEpisodes, useOpenEpisode } from '../../episodes/episodeStore';
 import { useI18n } from '../../i18n';
 import { localDate } from '../../lib/localDate';
+import { useOncePerFocus } from '../../lib/useOncePerFocus';
 import { SyncNotice } from '../../lib/sync/SyncNotice';
 import { MedicationSummary, useMedicationMonth } from '../../today/MedicationSummary';
 import { AttackCard, OverQuestion, StatusLine, lastEnd } from '../../today/StatusLine';
@@ -44,6 +45,8 @@ function TodayScreen({ userId }: { userId: string }): React.JSX.Element {
   const { color } = useTheme();
   const { profile } = useAuth();
   const tabInset = useTabBarInset();
+  // A second tap before crisis mode covers Today would open it twice (and fade twice).
+  const once = useOncePerFocus();
   // Ticks each minute and on every return to the app, so the date turns over at midnight and after a night away.
   const now = useMinuteClock();
   const day = localDate(now);
@@ -88,17 +91,22 @@ function TodayScreen({ userId }: { userId: string }): React.JSX.Element {
   const dock =
     open === null ? (
       <Button
+        testID="today-start-attack"
         label={t('today.start')}
         onPress={() => {
           // Written before the push, so crisis mode opens on a saved attack even if the app dies right after.
-          openCrisis(startEpisode(userId));
+          once(() => {
+            openCrisis(startEpisode(userId));
+          });
         }}
       />
     ) : (
       <Button
         label={t('today.resume')}
         onPress={() => {
-          openCrisis(open.id);
+          once(() => {
+            openCrisis(open.id);
+          });
         }}
       />
     );

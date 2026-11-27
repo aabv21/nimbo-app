@@ -25,7 +25,7 @@ function at(hours: number): void {
 /** What the app does on returning to the foreground: the latest callback passed to `useOnResume`. */
 function resume(): void {
   const calls = jest.mocked(useOnResume).mock.calls;
-  calls[calls.length - 1]?.[0]();
+  calls[calls.length - 1]?.[0]('foreground');
 }
 
 beforeEach(() => {

@@ -112,8 +112,11 @@ NOTE: removing a catalog key does not recheck existing rows, so a later `update_
 All are `security definer`, set `search_path = ''`, filter by the caller themselves (the owner role skips RLS),
 and are granted to `authenticated` only. Errors: no signed-in user `42501`; an unknown `p_fields` key or a
 non-object `22023`; a record that is not the caller's `P0002`; a value outside a catalog, a duplicate or an
-out-of-range number `23514`; a missing required column `23502`; text that is not a valid enum value, number, date, time or boolean `22P02` (raised by the cast); a number too large for its column `22003`. A client time later than now plus 5 minutes or
-before 2000-01-01 raises `22023`. `p_fields` keys are column names.
+out-of-range number `23514`; a missing required column `23502`; text that is not a valid enum value, number, date, time or boolean `22P02` (raised by the cast); a number too large for its column `22003`. A client time up to 24 hours ahead of the server's clock is
+stored as now (`least(time, now())`), because a phone clock running fast would otherwise fail the write for good and
+every later write to that record with `P0002`; a time more than 24 hours ahead, or before 2000-01-01, raises `22023`.
+Clamping keeps the order of a start and an end sent together; a start clamped by `update_episode` stops at an end
+stored earlier. `p_fields` keys are column names.
 
 | Function | Contract |
 | --- | --- |
@@ -124,9 +127,9 @@ before 2000-01-01 raises `22023`. `p_fields` keys are column names.
 | `save_medication(p_id, p_fields)` | Patches the caller's row, else inserts it. Keys: `name, kind, form, class, dose_text, min_interval_minutes, schedule, schedule_time, schedule_anchor, archived`; `archived: true` stamps `archived_at` (keeping an earlier stamp) and `false` clears it. An id that belongs to someone else is `P0002`. |
 | `log_dose(p_id, p_medication_id, p_taken_at, p_episode_id)` | Inserts, idempotent on the id. `P0002` when the medication, or the episode when given, is not the caller's. |
 | `delete_dose(p_id)` | Deletes; a missing or foreign row is not an error. |
-| `save_checkin(p_local_date, p_fields)` | Upserts on `(user_id, local_date)`, merging only the keys present. A date later than the UTC date plus one day, or before 2000, is `22023`. Keys: `sleep_band, sleep_quality, stress, low_water, extra_caffeine, alcohol, skipped_meal, screen_heavy, period_started`. |
+| `save_checkin(p_local_date, p_fields)` | Upserts on `(user_id, local_date)`, merging only the keys present. A date later than the UTC date in 24 hours plus one day (a local day ahead of UTC, on a clock up to a day fast), or before 2000, is `22023`. Keys: `sleep_band, sleep_quality, stress, low_water, extra_caffeine, alcohol, skipped_meal, screen_heavy, period_started`. |
 
-The key check, the time check and the json-to-array conversion are functions in a `private` schema that
+The key check, the time clamp (`client_time`) and the json-to-array conversion are functions in a `private` schema that
 the API does not expose and no API role can use.
 
 ## Profile changes for onboarding
@@ -141,7 +144,8 @@ because the profiles migration was already merged.
 The grant (`granted`, `granted_until`, `granted_note`) and the purchase (`purchase_active`, `purchase_expires_at`,
 `purchase_source`) are independent, so a lapsed purchase never removes a grant and a revoked grant never removes a purchase.
 RLS lets a user read only their own row; `anon` and `authenticated` have no write grant and there is no write policy, so only the
-service role (the `pnpm premium` script) or an edit in the dashboard changes a row.
+service role (the `pnpm premium` script) or an edit in the dashboard changes a row. The `set_updated_at` trigger stamps
+`updated_at` on every change, as on the other tables.
 
 `has_premium(p_user uuid) returns boolean` is `stable`, `security definer` with `search_path = ''`, and true when
 `granted and (granted_until is null or granted_until > now())` or `purchase_active and (purchase_expires_at is null or purchase_expires_at > now())`.
@@ -150,10 +154,10 @@ An authenticated caller asking about another user gets `42501`; the service role
 
 ## Tests
 
-pgTAP files in `supabase/tests/`, run by `pnpm db:test`. `profiles.test.sql` (37 assertions), `tracking.test.sql` (97), `onboarding_profile.test.sql` (13) and `entitlements.test.sql` (27). `profiles.test.sql` covers
+pgTAP files in `supabase/tests/`, run by `pnpm db:test`. `profiles.test.sql` (37 assertions), `tracking.test.sql` (106), `onboarding_profile.test.sql` (13) and `entitlements.test.sql` (29). `profiles.test.sql` covers
 the signup row and its defaults, own-row visibility, the update grants and each refused column,
 both RPCs including the repeat and withdrawal cases, the value checks, function privileges for
-`anon` and `authenticated`, and the refused insert and delete. `tracking.test.sql` covers RLS and the refused direct writes on the four tables, each RPC's idempotency, patch semantics (including a moved start, a start ahead of now as `22023` and a start after the end as `23514`), ownership (`P0002`), catalog and range errors, and `anon` privileges. `onboarding_profile.test.sql` covers `complete_onboarding`, the trigger catalog check, the priorities and `track_period`. `entitlements.test.sql` covers own-row reads, each refused write, the boundary at exactly now, `service_role`, the grant and purchase time cases (an expired purchase beside a grant and the reverse), the `42501` for another user, and `anon`.
+`anon` and `authenticated`, and the refused insert and delete. `tracking.test.sql` covers RLS and the refused direct writes on the four tables, each RPC's idempotency, patch semantics (including a moved start, a start after the end as `23514`, times ten minutes ahead stored as now, a clamped start stopping at the stored end, and times two days ahead as `22023`), ownership (`P0002`), catalog and range errors, and `anon` privileges. `onboarding_profile.test.sql` covers `complete_onboarding`, the trigger catalog check, the priorities and `track_period`. `entitlements.test.sql` covers own-row reads, the `updated_at` trigger, each refused write, the boundary at exactly now, `service_role`, the grant and purchase time cases (an expired purchase beside a grant and the reverse), the `42501` for another user, and `anon`.
 
 ## New table checklist
 

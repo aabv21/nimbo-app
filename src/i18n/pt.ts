@@ -124,6 +124,8 @@ export const pt: Record<keyof typeof en, string> = {
   'profile.companion.confirmOff': 'Se desligar, a aba Nimbo e o ditado somem. Todo o resto continua igual.',
   'profile.account': 'Conta',
   'profile.signOut': 'Sair',
+  'profile.signOut.pending.one': '{n} registro ainda não foi enviado. Ele fica neste celular até você entrar de novo aqui.',
+  'profile.signOut.pending.other': '{n} registros ainda não foram enviados. Eles ficam neste celular até você entrar de novo aqui.',
 
   'today.status.first': 'Seu primeiro dia com o Nimbo',
   'today.status.first_sub': 'Tudo o que você registrar fica salvo primeiro neste celular.',

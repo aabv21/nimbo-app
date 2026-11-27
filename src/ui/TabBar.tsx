@@ -163,6 +163,7 @@ function Tab<K extends string>({ tab, selected, onSelect, motion, paint }: TabPr
   return (
     <Animated.View style={[styles.tabFrame, scaleStyle]}>
       <Pressable
+        testID={`tab-${tab.key}`}
         accessibilityRole="tab"
         accessibilityState={{ selected }}
         accessibilityLabel={tab.label}

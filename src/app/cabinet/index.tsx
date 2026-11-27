@@ -119,7 +119,7 @@ function CabinetList({ userId }: { userId: string }): React.JSX.Element {
   return (
     <Screen>
       <View style={styles.top}>
-        <BackButton label={t('common.back')} onPress={() => { router.back(); }} />
+        <BackButton testID="cabinet-back" label={t('common.back')} onPress={() => { router.back(); }} />
         <Text accessibilityRole="header" style={[styles.title, { color: color.text }]}>
           {t('cabinet.title')}
         </Text>
@@ -131,7 +131,7 @@ function CabinetList({ userId }: { userId: string }): React.JSX.Element {
             {t('cabinet.empty.title')}
           </Text>
           <Text style={[styles.body, { color: color.text }]}>{t('cabinet.empty.body')}</Text>
-          <Button label={t('cabinet.add')} icon={Plus} onPress={add} />
+          <Button testID="cabinet-add" label={t('cabinet.add')} icon={Plus} onPress={add} />
         </View>
       ) : (
         <>
@@ -150,7 +150,7 @@ function CabinetList({ userId }: { userId: string }): React.JSX.Element {
               ))}
             </Group>
           )}
-          <Button variant="secondary" label={t('cabinet.add')} icon={Plus} onPress={add} />
+          <Button testID="cabinet-add" variant="secondary" label={t('cabinet.add')} icon={Plus} onPress={add} />
           <Text style={[styles.caption, { color: color.textMuted }]}>{t('cabinet.limits.source')}</Text>
         </>
       )}

@@ -20,6 +20,8 @@ jest.mock('expo-sqlite', () => require('../test/sqliteNode'));
 jest.mock('expo-crypto', () => ({ randomUUID: () => (require('node:crypto') as typeof import('node:crypto')).randomUUID() }));
 jest.mock('../cabinet/reminders', () => ({ askNotificationPermission: jest.fn(() => Promise.resolve(true)) }));
 jest.mock('../auth/AuthProvider', () => require('../test/authMock'));
+// Profile reads the sync counts for its sign-out question.
+jest.mock('../lib/sync/SyncProvider', () => require('../test/syncMock'));
 jest.mock('../auth/useSignOut', () => ({ useSignOut: () => ({ signOut: jest.fn(), signingOut: false, error: undefined }) }));
 jest.mock('../profile/profileRepository', () => ({ updateProfile: jest.fn(), setAiConsent: jest.fn() }));
 jest.mock('expo-router', () => ({

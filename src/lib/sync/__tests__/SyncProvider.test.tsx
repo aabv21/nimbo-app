@@ -1,6 +1,8 @@
 import { act, render } from '@testing-library/react-native';
 import { useEffect } from 'react';
 
+import { kvGet, kvSet } from '../../kv';
+import { readStoredSession } from '../../supabase';
 import { resetAuth, setAuth } from '../../../test/authMock';
 import { clearLocalDb, insertEpisode } from '../../../test/localDbTest';
 import { localDb } from '../../local/db';
@@ -11,7 +13,19 @@ import { SyncProvider, useSyncState } from '../SyncProvider';
 
 jest.mock('expo-sqlite', () => require('../../../test/sqliteNode'));
 jest.mock('../../../auth/AuthProvider', () => require('../../../test/authMock'));
-jest.mock('../../supabase', () => ({ supabase: { rpc: jest.fn() }, readStoredSession: jest.fn(() => null) }));
+const mockRpc = jest.fn();
+jest.mock('../../supabase', () => ({
+  supabase: { rpc: (...args: unknown[]): unknown => mockRpc(...args) },
+  readStoredSession: jest.fn(() => null),
+}));
+// The network listener is kept, so a test can drop and restore the connection.
+const mockNetwork: { listener: ((event: { isConnected: boolean; isInternetReachable: boolean }) => void) | null } = { listener: null };
+jest.mock('expo-network', () => ({
+  addNetworkStateListener: (listener: (event: { isConnected: boolean; isInternetReachable: boolean }) => void) => {
+    mockNetwork.listener = listener;
+    return { remove: () => undefined };
+  },
+}));
 jest.mock('../pull', () => ({ pullAll: jest.fn(() => Promise.resolve({ ok: true, value: undefined })) }));
 jest.mock('../../outbox/runOutbox', () => {
   const actual = jest.requireActual<typeof import('../../outbox/runOutbox')>('../../outbox/runOutbox');
@@ -176,7 +190,9 @@ describe('rows left on the phone', () => {
     expect(episodeCount('user-1')).toBe(0);
   });
 
-  test('sign-out with an unsent operation keeps the rows for when the user is back', async () => {
+  test('sign-out with an unsent operation keeps that row and the cached profile, and purges the clean rows', async () => {
+    kvSet('profile.user-1', '{}');
+    insertEpisode('user-1', 'clean');
     localDb().withTransactionSync(() => {
       insertEpisode('user-1', 'e1');
       enqueue('user-1', 'log_episode', { p_id: 'e1', p_started_at: '2026-11-27T10:00:00Z', p_fields: {} });
@@ -193,7 +209,27 @@ describe('rows left on the phone', () => {
     });
     await flush();
 
-    expect(episodeCount('user-1')).toBe(1);
+    expect(localDb().getAllSync<{ id: string }>("SELECT id FROM episodes WHERE user_id = 'user-1';")).toEqual([{ id: 'e1' }]);
+    expect(kvGet('profile.user-1')).toBe('{}');
+  });
+
+  test('sign-out with nothing queued drops the cached profile with the rows', async () => {
+    kvSet('profile.user-1', '{}');
+    insertEpisode('user-1', 'e1');
+    await render(
+      <SyncProvider>
+        <Probe />
+      </SyncProvider>,
+    );
+    await flush();
+
+    await act(() => {
+      setAuth({ status: 'signedOut', userId: null });
+    });
+    await flush();
+
+    expect(episodeCount('user-1')).toBe(0);
+    expect(kvGet('profile.user-1')).toBeNull();
   });
 
   test("an account switch purges the previous user's clean rows", async () => {
@@ -231,6 +267,65 @@ describe('rows left on the phone', () => {
     expect(episodeCount('user-1')).toBe(1);
     expect(episodeCount('earlier')).toBe(0);
     expect(episodeCount('queued')).toBe(1);
+  });
+});
+
+describe('a reconnect', () => {
+  afterEach(() => {
+    jest.useRealTimers();
+    jest.mocked(runOutbox).mockImplementation(() => Promise.resolve({ sent: 0, failed: 0, waiting: 0 }));
+    jest.mocked(readStoredSession).mockReturnValue(null);
+  });
+
+  test('sends an operation waiting out an offline backoff at once, without waiting for its time', async () => {
+    jest.useFakeTimers({ now: 1_000_000, doNotFake: ['queueMicrotask'] });
+    const actual = jest.requireActual<typeof import('../../outbox/runOutbox')>('../../outbox/runOutbox');
+    jest.mocked(runOutbox).mockImplementation(actual.runOutbox);
+    jest.mocked(readStoredSession).mockReturnValue({ userId: 'user-1', email: null });
+    mockRpc.mockResolvedValue({ error: null, status: 204 });
+    localDb().withTransactionSync(() => {
+      enqueue('user-1', 'delete_episode', { p_id: 'e1' });
+    });
+    // Two sends got no answer: the next is ten minutes out, and the answered attempts are untouched.
+    localDb().runSync('UPDATE outbox SET no_responses = 2, attempts = 1, next_attempt_at = ?;', [1_000_000 + 600_000]);
+    await render(
+      <SyncProvider>
+        <Probe />
+      </SyncProvider>,
+    );
+    await flush();
+    expect(mockRpc).not.toHaveBeenCalled();
+    expect(listOutbox('user-1')).toHaveLength(1);
+
+    await act(() => {
+      mockNetwork.listener?.({ isConnected: false, isInternetReachable: false });
+      mockNetwork.listener?.({ isConnected: true, isInternetReachable: true });
+    });
+    await flush();
+
+    expect(mockRpc).toHaveBeenCalledWith('delete_episode', { p_id: 'e1' });
+    expect(listOutbox('user-1')).toEqual([]);
+  });
+
+  test('leaves an operation that is waiting after an answered error to its backoff', async () => {
+    localDb().withTransactionSync(() => {
+      enqueue('user-1', 'delete_episode', { p_id: 'e1' });
+    });
+    localDb().runSync('UPDATE outbox SET no_responses = 0, attempts = 2, next_attempt_at = ?;', [Date.now() + 600_000]);
+    await render(
+      <SyncProvider>
+        <Probe />
+      </SyncProvider>,
+    );
+    await flush();
+
+    await act(() => {
+      mockNetwork.listener?.({ isConnected: false, isInternetReachable: false });
+      mockNetwork.listener?.({ isConnected: true, isInternetReachable: true });
+    });
+    await flush();
+
+    expect(listOutbox('user-1')[0]?.nextAttemptAt).toBeGreaterThan(Date.now());
   });
 });
 

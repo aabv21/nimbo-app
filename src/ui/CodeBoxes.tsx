@@ -10,13 +10,15 @@ interface CodeBoxesProps {
   value: string;
   length: number;
   onChangeText: (text: string) => void;
+  /** On the real input; a stable English id for the Maestro flows. */
+  testID?: string;
 }
 
 /**
  * Six cells drawn over one real input, so one-time-code autofill and screen readers keep working: the
  * input carries the label and the digits, the cells are decoration that mirror it.
  */
-export function CodeBoxes({ label, value, length, onChangeText }: CodeBoxesProps): React.JSX.Element {
+export function CodeBoxes({ label, value, length, onChangeText, testID }: CodeBoxesProps): React.JSX.Element {
   const { name, color } = useTheme();
   const input = useRef<TextInputInstance>(null);
   const [focused, setFocused] = useState(false);
@@ -49,6 +51,7 @@ export function CodeBoxes({ label, value, length, onChangeText }: CodeBoxesProps
         </View>
         <TextInput
           ref={input}
+          testID={testID}
           value={value}
           onChangeText={onChangeText}
           accessibilityLabel={label}

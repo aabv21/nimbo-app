@@ -65,9 +65,13 @@ function toEpisode(row: EpisodeRow): Episode {
   };
 }
 
-// The server's time check (`private.check_time`): an operation it would refuse fails here, before it is queued.
+// Stricter than the server, which stores a time up to a day ahead as now (`private.client_time`) for a clock running
+// fast: a time typed more than 5 minutes ahead is a mistake to show here, not one to clamp in silence.
 const CLOCK_SKEW_MS = 5 * 60 * 1000;
 const EARLIEST_MS = Date.UTC(2000, 0, 1);
+
+/** The server's `char_length(notes) <= 2000`; UTF-16 units count at least as many, so this never lets a refused note through. */
+export const NOTES_MAX_LENGTH = 2000;
 
 /** The instant of `value`; a `RangeError` for anything the server would refuse with 22023. */
 function checkedTime(value: string | Date): number {
@@ -115,9 +119,11 @@ export function startEpisode(userId: string, now: Date = new Date()): EpisodeId 
 
 /**
  * Patches only the keys present, on the phone and in the queued `update_episode` (column names, as the RPC
- * takes them). A time out of range, or an end before the start, is a `RangeError` and nothing is written.
+ * takes them). A time out of range, an end before the start or notes over `NOTES_MAX_LENGTH` is a `RangeError`
+ * and nothing is written: the server would refuse the whole patch for good.
  */
 export function updateEpisode(userId: string, id: EpisodeId, patch: EpisodePatch): void {
+  if (typeof patch.notes === 'string' && patch.notes.length > NOTES_MAX_LENGTH) throw new RangeError('The notes are too long.');
   const fields: Record<string, Json> = {};
   if (patch.startedAt !== undefined) fields.started_at = new Date(checkedTime(patch.startedAt)).toISOString();
   if (patch.endedAt !== undefined) fields.ended_at = patch.endedAt === null ? null : new Date(checkedTime(patch.endedAt)).toISOString();

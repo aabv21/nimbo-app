@@ -1,5 +1,5 @@
 import type { Client } from '../auth/emailAuth';
-import { kvGetJson, kvSet } from '../lib/kv';
+import { kvGetJson, kvRemove, kvSet } from '../lib/kv';
 import { enqueue } from '../lib/outbox/outbox';
 import { toRequestErrorKind, toThrownErrorKind } from '../lib/requestResult';
 import type { RequestResult } from '../lib/requestResult';
@@ -180,6 +180,11 @@ export function readCachedProfileSync(userId: string): Profile | null {
 /** Stores `profile` as `userId`'s cached copy (the app keeps it equal to what it shows). */
 export function writeCachedProfile(userId: string, profile: Profile): void {
   kvSet(cacheKey(userId), JSON.stringify(profile));
+}
+
+/** Drops `userId`'s cached copy, once their sign-out has left nothing of theirs queued on the phone. */
+export function removeCachedProfile(userId: string): void {
+  kvRemove(cacheKey(userId));
 }
 
 type Outcome = { data: Row | null; error: { code?: string; message?: string } | null; status: number };

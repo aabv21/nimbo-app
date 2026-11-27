@@ -4,8 +4,10 @@ import * as Network from 'expo-network';
 import { useEffect, useRef } from 'react';
 import { AppState } from 'react-native';
 
-/** The latest `callback` runs; the first network report only sets the baseline. */
-export function useOnResume(callback: () => void): void {
+export type ResumeReason = 'foreground' | 'online';
+
+/** The latest `callback` runs, told which moment it is; the first network report only sets the baseline. */
+export function useOnResume(callback: (reason: ResumeReason) => void): void {
   const latest = useRef(callback);
   useEffect(() => {
     latest.current = callback;
@@ -13,12 +15,12 @@ export function useOnResume(callback: () => void): void {
 
   useEffect(() => {
     const appState = AppState.addEventListener('change', (state) => {
-      if (state === 'active') latest.current();
+      if (state === 'active') latest.current('foreground');
     });
     let wasOnline: boolean | null = null;
     const network = Network.addNetworkStateListener((event) => {
       const online = event.isConnected === true && event.isInternetReachable !== false;
-      if (online && wasOnline === false) latest.current();
+      if (online && wasOnline === false) latest.current('online');
       wasOnline = online;
     });
     return () => {

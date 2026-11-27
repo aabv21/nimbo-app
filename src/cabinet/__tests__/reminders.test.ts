@@ -12,6 +12,8 @@ interface Scheduled {
 }
 
 const mockScheduled: Scheduled[] = [];
+/** Identifiers of the notifications in the tray. */
+const mockPresented: string[] = [];
 const mockPermission = { granted: true, canAskAgain: true };
 
 jest.mock('expo-notifications', () => ({
@@ -28,6 +30,14 @@ jest.mock('expo-notifications', () => ({
   cancelScheduledNotificationAsync: jest.fn((identifier: string) => {
     const at = mockScheduled.findIndex((entry) => entry.identifier === identifier);
     if (at >= 0) mockScheduled.splice(at, 1);
+    return Promise.resolve();
+  }),
+  getPresentedNotificationsAsync: jest.fn(() =>
+    Promise.resolve(mockPresented.map((identifier) => ({ date: 0, request: { identifier, content: { title: 'Nimbo', body: '' }, trigger: null } }))),
+  ),
+  dismissNotificationAsync: jest.fn((identifier: string) => {
+    const at = mockPresented.indexOf(identifier);
+    if (at >= 0) mockPresented.splice(at, 1);
     return Promise.resolve();
   }),
   scheduleNotificationAsync: jest.fn((request: { identifier: string } & Omit<Scheduled, 'identifier'>) => {
@@ -65,6 +75,7 @@ function medication(patch: Partial<Medication> = {}): Medication {
 beforeEach(() => {
   jest.clearAllMocks();
   mockScheduled.length = 0;
+  mockPresented.length = 0;
   mockPermission.granted = true;
   mockPermission.canAskAgain = true;
 });
@@ -173,6 +184,19 @@ describe('syncReminders', () => {
 
   test('clearReminders cancels every reminder of the app', async () => {
     await syncReminders('user-1', [medication(), medication({ id: 'med-2', name: 'Topiramate' })], { detail: false, locale: 'en' });
+    await clearReminders();
+    expect(mockScheduled).toEqual([]);
+  });
+
+  test('clearReminders also takes the delivered reminders out of the tray, and nothing else', async () => {
+    mockPresented.push('preventive-reminder:user-1:med-1:0', 'another-app-alert', 'preventive-reminder:user-1:med-2:1');
+    await clearReminders();
+    expect(mockPresented).toEqual(['another-app-alert']);
+  });
+
+  test('a tray the OS cannot read still lets clearReminders cancel the scheduled ones', async () => {
+    await syncReminders('user-1', [medication()], { detail: false, locale: 'en' });
+    jest.mocked(Notifications.getPresentedNotificationsAsync).mockRejectedValueOnce(new Error('unsupported'));
     await clearReminders();
     expect(mockScheduled).toEqual([]);
   });

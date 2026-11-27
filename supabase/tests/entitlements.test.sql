@@ -3,7 +3,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(27);
+select plan(29);
 
 insert into auth.users (id, instance_id, aud, role, email, encrypted_password, raw_app_meta_data, raw_user_meta_data)
 values
@@ -28,6 +28,11 @@ select ok(not public.has_premium('11111111-1111-1111-1111-111111111111'), 'an ex
 
 update public.entitlements set purchase_active = false, purchase_expires_at = null where user_id = '11111111-1111-1111-1111-111111111111';
 select ok(not public.has_premium('11111111-1111-1111-1111-111111111111'), 'nothing active is not premium');
+
+-- `updated_at` follows every change, as on the other tables, whatever the writer sends.
+select has_trigger('public', 'entitlements', 'entitlements_set_updated_at', 'entitlements has the set_updated_at trigger');
+update public.entitlements set granted_note = 'c', updated_at = '2000-01-01T00:00:00Z' where user_id = '22222222-2222-2222-2222-222222222222';
+select is((select updated_at from public.entitlements where user_id = '22222222-2222-2222-2222-222222222222'), now(), 'an update stamps updated_at with the server time');
 
 update public.entitlements set purchase_active = true, purchase_expires_at = null where user_id = '11111111-1111-1111-1111-111111111111';
 select ok(public.has_premium('11111111-1111-1111-1111-111111111111'), 'a purchase with no end is premium');

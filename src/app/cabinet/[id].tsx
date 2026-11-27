@@ -5,7 +5,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { useAuth } from '../../auth/AuthProvider';
 import { classLabelKey } from '../../cabinet/medicationLabels';
-import { saveMedication, useMedication } from '../../cabinet/medicationStore';
+import { DOSE_MAX_LENGTH, NAME_MAX_LENGTH, saveMedication, useMedication } from '../../cabinet/medicationStore';
 import type { Medication, MedicationInput } from '../../cabinet/medicationStore';
 import { askNotificationPermission } from '../../cabinet/reminders';
 import { packs } from '../../condition';
@@ -90,7 +90,7 @@ function MedicationForm({ userId, id, medication }: FormProps): React.JSX.Elemen
   const [archiving, setArchiving] = useState(false);
 
   const creating = medication === undefined;
-  const nameValid = name.trim().length > 0 && name.trim().length <= 80;
+  const nameValid = name.trim().length > 0 && name.trim().length <= NAME_MAX_LENGTH;
   const hours = kind === 'acute' ? parseHours(interval) : null;
   const intervalValid = hours === null || !Number.isNaN(hours);
   const clock = parseClock(time);
@@ -149,10 +149,11 @@ function MedicationForm({ userId, id, medication }: FormProps): React.JSX.Elemen
       </View>
 
       <TextField
+        testID="medication-name"
         label={t('cabinet.name')}
         value={name}
         onChangeText={setName}
-        maxLength={80}
+        maxLength={NAME_MAX_LENGTH}
         autoCapitalize="sentences"
         {...(submitted && !nameValid ? { error: t('cabinet.name.error') } : {})}
       />
@@ -198,10 +199,11 @@ function MedicationForm({ userId, id, medication }: FormProps): React.JSX.Elemen
         <Text style={[styles.help, { color: color.textMuted }]}>{t('cabinet.form.help')}</Text>
       </View>
 
-      <TextField label={t('cabinet.dose')} value={doseText} onChangeText={setDoseText} maxLength={120} />
+      <TextField label={t('cabinet.dose')} value={doseText} onChangeText={setDoseText} maxLength={DOSE_MAX_LENGTH} />
 
       {kind === 'acute' ? (
         <TextField
+          testID="medication-interval"
           label={t('cabinet.interval')}
           value={interval}
           onChangeText={setInterval}
@@ -243,7 +245,7 @@ function MedicationForm({ userId, id, medication }: FormProps): React.JSX.Elemen
         </View>
       )}
 
-      <Button label={t('common.save')} onPress={save} />
+      <Button testID="medication-save" label={t('common.save')} onPress={save} />
 
       {creating ? null : archiving ? (
         <View style={[styles.confirm, { backgroundColor: color.surface, borderColor: color.border }]}>

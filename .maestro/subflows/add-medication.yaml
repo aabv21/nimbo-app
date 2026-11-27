@@ -1,0 +1,57 @@
+# From the tabs: add an acute medication (the form's default kind) with a 6-hour interval through
+# Profile's medicine cabinet, then go back to Profile. Crisis mode shows a dose button per acute one.
+appId: com.aabv21.nimbo
+---
+- tapOn:
+    id: "tab-profile"
+# Centered, since the last rows can stop just under the floating tab bar, where a tap lands on a tab.
+- scrollUntilVisible:
+    element:
+      id: "profile-cabinet"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn:
+    id: "profile-cabinet"
+- extendedWaitUntil:
+    visible:
+      id: "cabinet-add"
+    timeout: 10000
+- tapOn:
+    id: "cabinet-add"
+- extendedWaitUntil:
+    visible:
+      id: "medication-name"
+    timeout: 10000
+- tapOn:
+    id: "medication-name"
+- inputText: "Ibuprofen"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: "medication-interval"
+    direction: DOWN
+    centerElement: true
+    timeout: 10000
+- tapOn:
+    id: "medication-interval"
+- inputText: "6"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: "medication-save"
+    direction: DOWN
+    centerElement: true
+    timeout: 10000
+- tapOn:
+    id: "medication-save"
+- extendedWaitUntil:
+    visible:
+      id: "cabinet-back"
+    timeout: 10000
+- tapOn:
+    id: "cabinet-back"
+- extendedWaitUntil:
+    visible:
+      id: "tab-today"
+    timeout: 10000

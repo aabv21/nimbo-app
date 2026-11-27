@@ -104,7 +104,7 @@ export function EndSheet({ startedAt, timeZone, onConfirm, onNotYet }: EndSheetP
         )}
         <View style={styles.actions}>
           <Button variant="secondary" size="crisis" label={t('crisis.over.not_yet')} style={styles.grow} onPress={onNotYet} />
-          <Button size="crisis" label={t('crisis.over.confirm')} style={styles.grow} onPress={confirm} />
+          <Button testID="crisis-over-confirm" size="crisis" label={t('crisis.over.confirm')} style={styles.grow} onPress={confirm} />
         </View>
       </Animated.View>
     </View>
@@ -136,7 +136,7 @@ export function EndedView({ episode, doses, medicationName, onFill, onClose }: E
   ];
 
   return (
-    <Animated.View entering={entrance(motion, 8)} style={styles.ended}>
+    <Animated.View testID="crisis-ended" entering={entrance(motion, 8)} style={styles.ended}>
       <View style={styles.endedBody}>
         <View style={styles.saved}>
           <Check size={20} color={color.text} />
@@ -156,7 +156,7 @@ export function EndedView({ episode, doses, medicationName, onFill, onClose }: E
       </View>
       <View style={styles.actions}>
         <Button variant="secondary" size="crisis" label={t('crisis.ended.fill')} style={styles.grow} onPress={onFill} />
-        <Button size="crisis" label={t('common.close')} style={styles.grow} onPress={onClose} />
+        <Button testID="crisis-ended-close" size="crisis" label={t('common.close')} style={styles.grow} onPress={onClose} />
       </View>
     </Animated.View>
   );

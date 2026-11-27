@@ -50,11 +50,12 @@ export default function Boundary(): React.JSX.Element {
         ))}
       </View>
       <View>
-        <CheckRow label={t('boundary.age')} checked={adult} onChange={setAdult} />
-        <CheckRow label={t('boundary.notMedical')} checked={understood} onChange={setUnderstood} />
+        <CheckRow testID="boundary-adult" label={t('boundary.age')} checked={adult} onChange={setAdult} />
+        <CheckRow testID="boundary-not-medical" label={t('boundary.notMedical')} checked={understood} onChange={setUnderstood} />
       </View>
       {failed ? <Notice tone="danger" title={t('boundary.error')} /> : null}
       <Button
+        testID="boundary-continue"
         label={t('boundary.continue')}
         disabled={!adult || !understood}
         loading={saving}

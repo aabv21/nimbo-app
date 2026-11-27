@@ -14,6 +14,10 @@ create table public.entitlements (
   updated_at timestamptz not null default now()
 );
 
+-- The same helper as profiles and the tracking tables, so `updated_at` dates the latest grant or purchase change.
+create trigger entitlements_set_updated_at before update on public.entitlements
+  for each row execute function public.set_updated_at();
+
 alter table public.entitlements enable row level security;
 
 create policy "entitlements_select_own" on public.entitlements

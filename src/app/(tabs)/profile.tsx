@@ -13,6 +13,7 @@ import type { MessageKey } from '../../i18n';
 import { useLocalePreference } from '../../i18n/I18nProvider';
 import type { LocalePreference } from '../../i18n/I18nProvider';
 import type { RequestErrorKind } from '../../lib/requestResult';
+import { useSyncState } from '../../lib/sync/SyncProvider';
 import { setAiConsent } from '../../profile/profileRepository';
 import type { ThemePreference } from '../../profile/profileRepository';
 import { useProfileChange } from '../../profile/useProfileChange';
@@ -51,6 +52,7 @@ function CabinetRow({ userId }: { userId: string }): React.JSX.Element {
   const count = useMedications(userId).length;
   return (
     <Pressable
+      testID="profile-cabinet"
       accessibilityRole="button"
       onPress={() => {
         router.push('/cabinet');
@@ -129,13 +131,61 @@ function CompanionSetting({ enabled }: { enabled: boolean }): React.JSX.Element 
   );
 }
 
+/**
+ * Sign out, asking first while records have not uploaded: the purge keeps them on this phone, but only this
+ * account signing back in here can send them.
+ */
+function SignOutButton(): React.JSX.Element {
+  const { t, tp } = useI18n();
+  const { color } = useTheme();
+  const signOut = useSignOut();
+  const { pending, failed } = useSyncState();
+  const [asking, setAsking] = useState(false);
+  const waiting = pending + failed;
+
+  return (
+    <>
+      {signOut.error === undefined ? null : <Notice tone="danger" title={t(authErrorMessage(signOut.error))} />}
+      {asking && waiting > 0 ? (
+        <View style={[styles.confirm, { backgroundColor: color.surface, borderColor: color.border }]}>
+          <Text style={[styles.body, { color: color.text }]}>{tp('profile.signOut.pending', waiting)}</Text>
+          <Button
+            label={t('profile.signOut')}
+            loading={signOut.signingOut}
+            loadingLabel={t('common.loading')}
+            onPress={signOut.signOut}
+          />
+          <Button
+            variant="secondary"
+            label={t('common.cancel')}
+            disabled={signOut.signingOut}
+            onPress={() => {
+              setAsking(false);
+            }}
+          />
+        </View>
+      ) : (
+        <Button
+          variant="secondary"
+          label={t('profile.signOut')}
+          loading={signOut.signingOut}
+          loadingLabel={t('common.loading')}
+          onPress={() => {
+            if (waiting > 0) setAsking(true);
+            else signOut.signOut();
+          }}
+        />
+      )}
+    </>
+  );
+}
+
 export default function Profile(): React.JSX.Element | null {
   const { t } = useI18n();
   const { color } = useTheme();
   const { profile, email, userId } = useAuth();
   const { preference, setPreference } = useLocalePreference();
   const { change, error } = useProfileChange();
-  const signOut = useSignOut();
   const bottomInset = useTabBarInset();
 
   // The tabs mount only with a profile; this keeps the types honest.
@@ -216,14 +266,7 @@ export default function Profile(): React.JSX.Element | null {
         {email === null ? null : (
           <Text style={[styles.sub, { color: color.textMuted }]}>{t('profile.signedInAs', { email })}</Text>
         )}
-        {signOut.error === undefined ? null : <Notice tone="danger" title={t(authErrorMessage(signOut.error))} />}
-        <Button
-          variant="secondary"
-          label={t('profile.signOut')}
-          loading={signOut.signingOut}
-          loadingLabel={t('common.loading')}
-          onPress={signOut.signOut}
-        />
+        <SignOutButton />
       </Section>
     </Screen>
   );

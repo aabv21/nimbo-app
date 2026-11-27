@@ -3,8 +3,8 @@
 import { useKeepAwake } from 'expo-keep-awake';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Check, ChevronDown, ChevronRight, CircleCheck, HardDrive, MapPin, Plus } from 'lucide-react-native';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { BackHandler, Pressable, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import Animated, { ReduceMotion, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
@@ -30,10 +30,6 @@ import { ThemeContext, toSystemScheme, useTheme, useThemeState, useTones } from 
 
 // The device's zone: the one `formatClock` shows times in, so a typed time means what the screen says.
 const TIME_ZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
-
-function goBack(): void {
-  router.back();
-}
 
 function labelOf(t: ReturnType<typeof useI18n>['t'], catalog: 'painAreas' | 'symptoms', key: string): string {
   const messageKey = `condition.${catalog}.${key}`;
@@ -88,11 +84,22 @@ function CrisisMode({ forceDim }: { forceDim: (on: boolean) => void }): React.JS
   const [leaving, setLeaving] = useState(false);
   const opacity = useSharedValue(1);
   const fadeStyle = useAnimatedStyle(() => ({ opacity: opacity.get() }));
+  // Refs, not state: the system back can fire again before a render, and the fade's end must leave only once.
+  const leavingRef = useRef(false);
+  const goneRef = useRef(false);
+  const goBack = useCallback((): void => {
+    if (goneRef.current) return;
+    goneRef.current = true;
+    // Opened from a notification or a deep link, there is no screen below to go back to.
+    if (router.canGoBack()) router.back();
+    else router.replace('/today');
+  }, []);
 
   // Brightness comes back slowly when the screen below is Day: the one exit slower than its entrance.
   const belowIsDay = resolveTheme(profile?.theme ?? 'system', toSystemScheme(scheme), false) === 'day';
   const close = (): void => {
-    if (leaving) return;
+    if (leavingRef.current) return;
+    leavingRef.current = true;
     setLeaving(true);
     // The app below turns back while this layer, Dim on its own, fades over it.
     forceDim(false);
@@ -107,6 +114,25 @@ function CrisisMode({ forceDim }: { forceDim: (on: boolean) => void }): React.JS
       ),
     );
   };
+  // Android's back runs the same fade as Hide; a sub-view (the head map, the end question) closes first.
+  const onBack = useRef(close);
+  useEffect(() => {
+    onBack.current = () => {
+      if (mapOpen) setMapOpen(false);
+      else if (asking) setAsking(false);
+      else close();
+    };
+  });
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      onBack.current();
+      return true;
+    });
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+
   const medicationName = useCallback(
     (medicationId: string) => allMedications.find((medication) => medication.id === medicationId)?.name ?? '',
     [allMedications],
@@ -287,6 +313,7 @@ function CrisisMode({ forceDim }: { forceDim: (on: boolean) => void }): React.JS
 
         <View style={[styles.dock, { borderTopColor: color.border }]}>
           <Button
+            testID="crisis-over"
             variant="secondary"
             size="crisis"
             icon={CircleCheck}

@@ -63,7 +63,7 @@ export default function NotificationsStep(): React.JSX.Element {
       error={error === undefined ? undefined : t('consent.error')}
       dock={
         <DockRow>
-          <Button variant="secondary" label={t('common.not_now')} disabled={asking} onPress={next} style={dockStyles.half} />
+          <Button testID="notifications-not-now" variant="secondary" label={t('common.not_now')} disabled={asking} onPress={next} style={dockStyles.half} />
           <Button
             label={t('onb.notif.allow')}
             loading={asking}

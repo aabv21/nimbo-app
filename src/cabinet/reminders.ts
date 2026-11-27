@@ -170,9 +170,30 @@ async function cancelAll(): Promise<void> {
   }
 }
 
-/** Cancels every preventive reminder, for a session that ended. */
+// A reminder already in the tray can carry a medication name (lock-screen detail): it leaves with the session too.
+async function dismissDelivered(): Promise<void> {
+  let presented: Notifications.Notification[] = [];
+  try {
+    presented = await Notifications.getPresentedNotificationsAsync();
+  } catch {
+    // The OS can't list the tray: nothing more can be done from here.
+  }
+  for (const entry of presented) {
+    if (!entry.request.identifier.startsWith(ID_PREFIX)) continue;
+    try {
+      await Notifications.dismissNotificationAsync(entry.request.identifier);
+    } catch {
+      // Already swiped away.
+    }
+  }
+}
+
+/** Cancels every preventive reminder and dismisses those already delivered, for a session that ended. */
 export function clearReminders(): Promise<void> {
-  return serial(cancelAll);
+  return serial(async () => {
+    await cancelAll();
+    await dismissDelivered();
+  });
 }
 
 /**
