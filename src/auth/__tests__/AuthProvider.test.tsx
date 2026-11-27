@@ -47,6 +47,9 @@ const PROFILE: Profile = {
   aiConsentAnsweredAt: null,
   aiEnabled: false,
   onboardingCompletedAt: null,
+  knownTriggers: [],
+  priority: null,
+  trackPeriod: false,
 };
 
 function wrapper({ children }: { children: ReactNode }) {

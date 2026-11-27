@@ -23,7 +23,7 @@ Docs for agents: `https://docs.expo.dev/llms.txt`
 - `pnpm install`: install dependencies. `pnpm expo install <package>`: add a package with native code (SDK-compatible version); `pnpm add` only for pure-JS tooling.
 - `pnpm start`: the dev server. `pnpm ios` / `pnpm android`: build the app with `expo run:*` and open it.
 - `pnpm typecheck` (`tsc --noEmit`), `pnpm lint` (`eslint .`), `pnpm test` (the `app`, `scripts` and `functions` Jest projects): the gate. `typecheck` and `lint` first run `pnpm routes:types` (`expo customize tsconfig.json`, no server) to generate the gitignored `.expo/types`, so results match CI.
-- `pnpm test:int`: the `integration` Jest project (auth and the profile against the running local stack; start it with `pnpm db:start && pnpm env:local`, stop it after). Not part of the gate ([`docs/testing.md`](docs/testing.md)).
+- `pnpm test:int`: the `integration` Jest project (auth, the profile and the outbox against the running local stack; start it with `pnpm db:start && pnpm env:local`, stop it after). Not part of the gate ([`docs/testing.md`](docs/testing.md)).
 - `pnpm check:supply-chain`, `pnpm check:expo`: supply-chain checks ([`CONTRIBUTING.md`](CONTRIBUTING.md#supply-chain-hardening)).
 - `pnpm db:start`, `pnpm db:stop`: the local Supabase stack (Docker must be running); `pnpm db:reset` rebuilds it from the migrations, `pnpm db:test` runs the pgTAP suite, `pnpm db:types` regenerates `src/lib/database.types.ts`, `pnpm env:local` writes `.env.local` ([`docs/local-stack.md`](docs/local-stack.md)).
 
@@ -31,7 +31,7 @@ Docs for agents: `https://docs.expo.dev/llms.txt`
 
 - `src/app/`: Expo Router routes only; the root layout gates the route groups with `nextRoute` and `Stack.Protected`. `src/__tests__/`: tests that span routes. Each module: [`docs/app.md`](docs/app.md).
 - `src/ui/`: the theme tokens, motion tokens and base components (`Screen`, `Button`, `TextField`, `Notice`, `TabBar`, `TabScene`, `ChoiceGroup`, `SwitchRow`) and `usePressFeedback`; components read colours only from `useTheme()` and durations only from `useMotion()`.
-- `src/auth/`, `src/profile/`: sign-in, the session, the gate (`gate.ts`) and the profile; `AuthProvider` is the only writer of the profile cache. `src/i18n/`: the `en`, `es` and `pt` catalogs. `src/condition/`: re-exports the condition pack in `supabase/functions/_shared/condition/`. `src/lib/`: the Supabase client, kv store and request helpers. `src/test/`: shared test mocks. `integration/`: tests against the local stack.
+- `src/auth/`, `src/profile/`: sign-in, the session, the gate (`gate.ts`) and the profile; `AuthProvider` is the only writer of the profile cache. `src/i18n/`: the `en`, `es` and `pt` catalogs. `src/condition/`: re-exports the condition pack in `supabase/functions/_shared/condition/`. `src/lib/`: the Supabase client, kv store, request helpers, and the local store, outbox and sync (`local/`, `outbox/`, `sync/`). `src/test/`: shared test mocks. `integration/`: tests against the local stack.
 - `scripts/`: repo tooling in TypeScript, run with Node's type stripping.
 - `supabase/`: `config.toml`, `migrations/`, pgTAP `tests/`, the auth email `templates/` and the Edge Function code (`functions/`).
 - `docs/`: the documentation map below; `docs/diagrams/`: the archify sources (`*.json`), pages (`*.html`) and images (`*.svg`).

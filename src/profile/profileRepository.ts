@@ -11,6 +11,9 @@ export type ThemeName = 'day' | 'dark' | 'dim';
 /** What the user chose in Profile; `system` follows the phone between `day` and `dark`. */
 export type ThemePreference = 'system' | ThemeName;
 
+/** What the user wants most from the app; chosen in onboarding. */
+export type Priority = 'fewer' | 'triggers' | 'overuse' | 'logging';
+
 export interface Profile {
   language: Locale | null;
   timezone: string | null;
@@ -25,14 +28,52 @@ export interface Profile {
   aiConsentAnsweredAt: string | null;
   aiEnabled: boolean;
   onboardingCompletedAt: string | null;
+  knownTriggers: readonly string[];
+  priority: Priority | null;
+  trackPeriod: boolean;
 }
 
 export type EditableProfile = Pick<
   Profile,
-  'language' | 'timezone' | 'theme' | 'reduceMotion' | 'notifyStart' | 'notifyEnd' | 'notifyDailyCap' | 'lockScreenDetail'
+  | 'language'
+  | 'timezone'
+  | 'theme'
+  | 'reduceMotion'
+  | 'notifyStart'
+  | 'notifyEnd'
+  | 'notifyDailyCap'
+  | 'lockScreenDetail'
+  | 'knownTriggers'
+  | 'priority'
+  | 'trackPeriod'
 >;
 
-type Row = Tables<'profiles'>;
+/** The coarse location is written but never read back, so it is not part of what `Profile` holds. */
+export type ProfileChanges = Partial<EditableProfile> & { coarseLocation?: { lat: number; lon: number } | null };
+
+/** Explicit on purpose: never `*`, so the coarse location and the condition never reach the profile cache. */
+export const PROFILE_COLUMNS =
+  'language,timezone,theme,reduce_motion,notify_start,notify_end,notify_daily_cap,lock_screen_detail,adult_confirmed_at,boundary_accepted_at,ai_consent_answered_at,ai_enabled,onboarding_completed_at,known_triggers,priority,track_period';
+
+type Row = Pick<
+  Tables<'profiles'>,
+  | 'language'
+  | 'timezone'
+  | 'theme'
+  | 'reduce_motion'
+  | 'notify_start'
+  | 'notify_end'
+  | 'notify_daily_cap'
+  | 'lock_screen_detail'
+  | 'adult_confirmed_at'
+  | 'boundary_accepted_at'
+  | 'ai_consent_answered_at'
+  | 'ai_enabled'
+  | 'onboarding_completed_at'
+  | 'known_triggers'
+  | 'priority'
+  | 'track_period'
+>;
 
 // Row-level security scopes every query below to the signed-in user's own row, so none filters by id.
 // The one exception to "no filter" is that the API rejects an UPDATE with no WHERE clause, so
@@ -52,6 +93,11 @@ function isNullableString(value: unknown): value is string | null {
 
 const THEMES: readonly ThemePreference[] = ['system', 'day', 'dark', 'dim'];
 const LANGUAGES: readonly Locale[] = ['en', 'es', 'pt'];
+const PRIORITIES: readonly Priority[] = ['fewer', 'triggers', 'overuse', 'logging'];
+
+function isStringArray(value: unknown): value is readonly string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === 'string');
+}
 
 function isProfile(value: unknown): value is Profile {
   if (typeof value !== 'object' || value === null) return false;
@@ -69,7 +115,10 @@ function isProfile(value: unknown): value is Profile {
     isNullableString(v['boundaryAcceptedAt']) &&
     isNullableString(v['aiConsentAnsweredAt']) &&
     typeof v['aiEnabled'] === 'boolean' &&
-    isNullableString(v['onboardingCompletedAt'])
+    isNullableString(v['onboardingCompletedAt']) &&
+    isStringArray(v['knownTriggers']) &&
+    (v['priority'] === null || isOneOf(v['priority'], PRIORITIES)) &&
+    typeof v['trackPeriod'] === 'boolean'
   );
 }
 
@@ -81,6 +130,7 @@ function isProfile(value: unknown): value is Profile {
 function toProfile(row: Row): Profile | null {
   const theme: unknown = row.theme;
   const language: unknown = row.language;
+  const priority: unknown = row.priority;
   const profile = {
     language: isOneOf(language, LANGUAGES) ? language : null,
     timezone: row.timezone,
@@ -95,13 +145,35 @@ function toProfile(row: Row): Profile | null {
     aiConsentAnsweredAt: row.ai_consent_answered_at,
     aiEnabled: row.ai_enabled,
     onboardingCompletedAt: row.onboarding_completed_at,
+    knownTriggers: row.known_triggers,
+    priority: isOneOf(priority, PRIORITIES) ? priority : null,
+    trackPeriod: row.track_period,
   };
   return isProfile(profile) ? profile : null;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * A copy cached by an older build lacks the newer fields; filling them in keeps a phone that upgraded
+ * and opens offline on Today instead of the loading view.
+ */
+function upgradeCached(value: Record<string, unknown>): Profile | null {
+  const upgraded = {
+    ...value,
+    knownTriggers: isStringArray(value['knownTriggers']) ? value['knownTriggers'] : [],
+    priority: isOneOf(value['priority'], PRIORITIES) ? value['priority'] : null,
+    trackPeriod: typeof value['trackPeriod'] === 'boolean' ? value['trackPeriod'] : false,
+  };
+  return isProfile(upgraded) ? upgraded : null;
+}
+
 /** The cached profile of `userId` (never another user's), read synchronously so a first render can use it. */
 export function readCachedProfileSync(userId: string): Profile | null {
-  return kvGetJson(cacheKey(userId), isProfile);
+  const cached = kvGetJson(cacheKey(userId), isRecord);
+  return cached === null ? null : upgradeCached(cached);
 }
 
 /** Stores `profile` as `userId`'s cached copy (the app keeps it equal to what it shows). */
@@ -126,14 +198,14 @@ function settle({ data, error, status }: Outcome): RequestResult<Profile> {
 /** Never caches: the provider may drop an answer a newer local change overtook, so it caches only what it shows. */
 export async function fetchProfile(client: Client = supabase): Promise<RequestResult<Profile>> {
   try {
-    return settle(await client.from('profiles').select('*').single());
+    return settle(await client.from('profiles').select(PROFILE_COLUMNS).single());
   } catch (error) {
     return { ok: false, kind: toThrownErrorKind(error) };
   }
 }
 
 /** Column names for the fields a client may change (the column grants in `docs/database.md`). */
-function toColumns(changes: Partial<EditableProfile>): TablesUpdate<'profiles'> {
+function toColumns(changes: ProfileChanges): TablesUpdate<'profiles'> {
   const columns: TablesUpdate<'profiles'> = {};
   if (changes.language !== undefined) columns.language = changes.language;
   if (changes.timezone !== undefined) columns.timezone = changes.timezone;
@@ -143,6 +215,13 @@ function toColumns(changes: Partial<EditableProfile>): TablesUpdate<'profiles'> 
   if (changes.notifyEnd !== undefined) columns.notify_end = changes.notifyEnd;
   if (changes.notifyDailyCap !== undefined) columns.notify_daily_cap = changes.notifyDailyCap;
   if (changes.lockScreenDetail !== undefined) columns.lock_screen_detail = changes.lockScreenDetail;
+  if (changes.knownTriggers !== undefined) columns.known_triggers = [...changes.knownTriggers];
+  if (changes.priority !== undefined) columns.priority = changes.priority;
+  if (changes.trackPeriod !== undefined) columns.track_period = changes.trackPeriod;
+  if (changes.coarseLocation !== undefined) {
+    columns.coarse_lat = changes.coarseLocation?.lat ?? null;
+    columns.coarse_lon = changes.coarseLocation?.lon ?? null;
+  }
   return columns;
 }
 
@@ -151,11 +230,11 @@ function toColumns(changes: Partial<EditableProfile>): TablesUpdate<'profiles'> 
  * fields are still current, and the cache follows what the app shows (`AuthProvider`).
  */
 export async function updateProfile(
-  changes: Partial<EditableProfile>,
+  changes: ProfileChanges,
   client: Client = supabase,
 ): Promise<RequestResult<Profile>> {
   try {
-    return settle(await client.from('profiles').update(toColumns(changes)).not('user_id', 'is', null).select('*').single());
+    return settle(await client.from('profiles').update(toColumns(changes)).not('user_id', 'is', null).select(PROFILE_COLUMNS).single());
   } catch (error) {
     return { ok: false, kind: toThrownErrorKind(error) };
   }
@@ -184,4 +263,9 @@ export function acceptTerms(client: Client = supabase): Promise<RequestResult<Pr
 
 export function setAiConsent(enabled: boolean, client: Client = supabase): Promise<RequestResult<Profile>> {
   return callThenFetch(client, () => client.rpc('set_ai_consent', { p_enabled: enabled }));
+}
+
+/** Stamps `onboarding_completed_at`; the server refuses until both consent gates are answered. */
+export function completeOnboarding(client: Client = supabase): Promise<RequestResult<Profile>> {
+  return callThenFetch(client, () => client.rpc('complete_onboarding'));
 }

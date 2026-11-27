@@ -25,6 +25,12 @@ environment. `jest.setup.ts` mocks what has no native module under Jest:
 - `expo-network`: online and reachable; a suite that tests connectivity mocks the module itself.
 - `expo-haptics`: resolved no-ops.
 - `expo-sqlite/kv-store`: an in-memory map behind the same synchronous API `src/lib/kv.ts` calls.
+- `expo-sqlite` itself is not mocked globally: a suite that touches the local store runs it on
+  `src/test/sqliteNode.ts` with `jest.mock('expo-sqlite', () => require('<path>/test/sqliteNode'))`. The
+  adapter implements `openDatabaseSync`, `execSync`, `runSync`, `getFirstSync`, `getAllSync` and
+  `withTransactionSync` over `node:sqlite`'s `DatabaseSync(':memory:')`, so the real SQL, constraints and
+  transactions run. Each open is a new empty database, and a nested transaction fails as on a device.
+  `src/test/localDbTest.ts` empties the store between tests and inserts mirror rows.
 - `Dimensions`: `fontScale` 1, since React Native's preset reports 2 and would render every large-text layout.
 - `react-native-reanimated`: `src/test/reanimatedMock.ts`, since Reanimated's own mock loads the worklets native module. Animations settle at once on their target; a shared value written with `.set()` reaches a style only through `useAnimatedStyle`, as on a device.
 - `expo-glass-effect` and `expo-blur`: plain views; `isLiquidGlassAvailable` is a `jest.fn()` returning `false`, so a suite can reach the iOS 26 glass branch.
@@ -33,8 +39,17 @@ Tests use `@testing-library/react-native` v14, where `render`, `renderHook` and 
 
 What the suites cover:
 
-- `src/i18n/__tests__/`: the catalogs have the same keys, and the locale resolves from the device and the stored preference.
-- `src/lib/__tests__/`: `kv`; `fetchWithTimeout` (12 s by default, 45 s for a POST to an Edge Function, a caller's own abort still cancels); `storedSession` (the user id and email read from the persisted session, and no session without a refresh token); `supabase` (client options, the missing-variable errors, auto refresh only in the foreground); `useOnResume`; `requestResult` (which database errors are `network`, `invalid` or `unknown`).
+- `src/i18n/__tests__/`: the catalogs have the same keys, and the locale resolves from the device and the stored preference. `plural`: one and other in all three languages, CLDR's pt `one` for 0 and `many` for whole millions in es and pt, and a missing `.many` falling back to `.other`. `format`: `formatDuration` (0, 45 min, hours, days), `formatClock` per locale, and `parseClock` accepting `22:10` and `7:05` and rejecting `25:00`, `2210` and the empty string.
+- `src/lib/local/__tests__/`: `db` (schema version 1, the five tables, `user_id` and a 0/1 `dirty` on every mirror table, change listeners per table); `useLocalQuery` (re-reads only when a listed table changes or the read function is new); `purgeUser` and `purgeOtherUsers` (a user's rows go only with an empty outbox, never another user's, and a signed-out launch purges every clean user).
+- `src/lib/outbox/__tests__/`:
+  - `outbox`: `enqueue` in a transaction marks the row dirty, and a rolled-back one queues nothing. A check-in is keyed by its date. The row turns clean only when its last operation is sent. `listOutbox('B')` never returns A's operations, and `resetFailed` clears one user's failures, attempts and backoff.
+  - `runOutbox`: the backoff values; creation order; a retryable failure holding back the operation after it, with `nextAttemptAt = now + 5 s`; a permanent failure marked while the pass goes on; a network throw retried without spending an attempt (any other throw spends one); the 8th failure marked failed. Offline: 10 passes with no answer leave the operation pending with a growing, capped wait, and it is sent once the network returns; a server that keeps answering with errors still ends at 8. For an app killed mid-send: the attempt is claimed before the send, the next launch sends it after the backoff, and 8 kills end it. With two accounts on one phone, A's operations are never sent while the session is B's (and spend no attempt), and a switch mid-pass stops before the next send. Concurrent calls share one pass, and a pause holds sends until resumed, waiting for the one in flight.
+  - `errors`: each permanent code (at the status PostgREST gives it), no response flagged `noResponse`, and each other retryable case.
+- `src/lib/sync/__tests__/`:
+  - `pull`: against a fake client, the pull replaces clean rows, keeps a dirty row's local version, deletes a clean row the server lost but not one with an unsent delete, writes only the signed-in user's rows, uses an explicit column list for every table, stores booleans and arrays as SQLite values, reads past the 1000-row page, and changes nothing on a failed read.
+  - `SyncProvider`: sign-in resumes and runs push then pull; an enqueue syncs again and the counts are the user's own; an account switch pauses the previous user; sign-out pauses and syncs nothing; `retry` resets the failures and syncs. Sign-out purges the user's rows only after the pause settles, keeps them while an operation is unsent, an account switch purges the previous user, and a launch purges another user's clean rows. A timer runs a pass when the head of the queue is due, and an account switch clears it.
+  - `SyncNotice`: nothing while synced, the pending line only after 600 ms (never for work done sooner), and the failure notice whose Try again calls `retry`.
+- `src/lib/__tests__/`: `localDate`; `kv`; `fetchWithTimeout` (12 s by default, 45 s for a POST to an Edge Function, a caller's own abort still cancels); `storedSession` (the user id and email read from the persisted session, and no session without a refresh token); `supabase` (client options, the missing-variable errors, auto refresh only in the foreground); `useOnResume`; `requestResult` (which database errors are `network`, `invalid` or `unknown`).
 - `src/auth/__tests__/`:
   - `authService`: each call against a fake client, with the Apple and Google ID-token sign-in mocked (this is the only coverage of ID-token sign-in; a live provider check is deferred). It covers the sign-up code (`verifyOtp` type `signup`) and its resend, the reset flow, and the "email not confirmed" sign-in as its own error kind.
   - `errors`: every Supabase auth error code and the native cancel codes map to a message key.
@@ -63,6 +78,9 @@ What the suites cover:
   - `sign-in`, `confirm-email`: sign-in's Back only when there is a screen to return to and the unconfirmed-email path; the code screen arriving from sign-in (no code claimed sent, sending one first) and from sign-up (cooldown), and code entry.
   - `profile`: language, appearance (applied at once, put back on a failed save), reduce motion, the AI switch's confirmation and consent text, and sign-out.
 
+`src/test/syncMock.ts` stands in for `SyncProvider` in the suites that render the root layout (`smoke`,
+`consent-gate`): nothing syncs and the banner state is empty.
+
 `src/test/authMock.ts` stands in for `AuthProvider` in screen suites:
 `jest.mock('../auth/AuthProvider', () => require('../test/authMock'))`. `resetAuth()` in
 `beforeEach` signs in `user-1` (`user-1@example.com`) with a fully consented profile, and `setAuth` changes it;
@@ -76,11 +94,11 @@ explicit `.ts` imports and no Deno or React Native API in anything a test import
 
 ## `integration`
 
-`integration/*.int.test.ts` exercise `src/auth/emailAuth.ts` and `src/profile/profileRepository.ts`
-against the real local stack, over HTTP, as an anon-key client like the app's. Plain Node again;
-two module mappings replace what is native: `src/lib/supabase.ts` becomes a stub that throws if a
-default client is ever used (each test passes its own), and `expo-sqlite/kv-store` becomes an
-in-memory map.
+`integration/*.int.test.ts` exercise `src/auth/emailAuth.ts`, `src/profile/profileRepository.ts` and
+the outbox and pull against the real local stack, over HTTP, as an anon-key client like the app's.
+Plain Node again; three module mappings replace what is native: `src/lib/supabase.ts` becomes a stub
+that throws if a default client is ever used (each test passes its own), `expo-sqlite/kv-store`
+becomes an in-memory map, and `expo-sqlite` becomes the `src/test/sqliteNode.ts` adapter.
 
 ```sh
 pnpm db:start     # Docker must be running
@@ -91,6 +109,7 @@ pnpm db:stop      # leave the stack stopped
 
 - `integration/helpers.ts`: loads `.env.local`, builds the anon and service-role clients, creates and deletes users through the admin API, and reads a 6-digit code from Mailpit (`http://127.0.0.1:54524`). The service-role key is read here only, never under `src/`.
 - `auth.int.test.ts`: sign up, sign in before confirming (the "email not confirmed" kind), confirm with the Mailpit code, a wrong code, a resent code, a weak password, sign in and out, and the password reset with a good, wrong and reused code.
+- `outbox.int.test.ts`: `log_episode`, `update_episode`, `save_medication`, `log_dose` and `end_episode` drain in order through the real RPCs and the server rows match. A `log_episode` whose response was lost after the commit is sent again and leaves one row. B's `update_episode` on A's episode is a permanent failure (`P0002`) and A's row is unchanged. `pullAll` into an empty store reads back exactly what was sent.
 - `profile.int.test.ts`: a new profile has no consent; `acceptTerms` then `setAiConsent` round-trip through the RPCs; an update changes only the given columns; a rejected value is the `invalid` kind; user A cannot read or change B's profile and cannot write the consent columns; the cache keeps each user's own profile.
 
 Every test uses a unique email and deletes its users afterwards, so runs repeat on one stack. The

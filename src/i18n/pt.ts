@@ -14,10 +14,18 @@ export const pt: Record<keyof typeof en, string> = {
   'common.loading': 'Carregando',
   'common.saving': 'Salvando…',
   'common.confirm': 'Confirmar',
+  'common.retry': 'Tentar de novo',
 
   'error.network': 'Sem conexão. Verifique sua internet e tente de novo.',
   'error.generic': 'Algo deu errado. Tente de novo.',
   'error.retry': 'Tentar de novo',
+
+  'sync.pending': 'Salvo neste celular, sincronizando',
+  'sync.pending.count.one': '{n} registro para enviar',
+  'sync.pending.count.other': '{n} registros para enviar',
+  'sync.failed.title': 'Não foi possível sincronizar',
+  'sync.failed.body.one': 'Seu registro continua salvo neste celular. Toque em Tentar de novo para enviá-lo.',
+  'sync.failed.body.other': 'Seus {n} registros continuam salvos neste celular. Toque em Tentar de novo para enviá-los.',
 
   'auth.signIn.title': 'Entrar',
   'auth.signIn.email': 'E-mail',

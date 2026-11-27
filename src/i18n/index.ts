@@ -2,16 +2,16 @@ import { getLocales } from 'expo-localization';
 import { useMemo } from 'react';
 
 import type { Locale } from '../condition';
-import { en } from './en';
-import { es } from './es';
 import { preferenceToLocale, useLocalePreference } from './I18nProvider';
-import { pt } from './pt';
+import { translatePlural } from './plural';
+import type { PluralKey } from './plural';
+import { translate } from './translate';
+import type { MessageKey, Params } from './translate';
 
 export type { Locale } from '../condition';
-export type MessageKey = keyof typeof en;
-type Params = Readonly<Record<string, string | number>>;
-
-export const catalogs: Record<Locale, Record<MessageKey, string>> = { en, es, pt };
+export type { PluralKey } from './plural';
+export { catalogs, isMessageKey, translate } from './translate';
+export type { MessageKey, Params } from './translate';
 
 const SUPPORTED_LOCALES: readonly Locale[] = ['en', 'es', 'pt'];
 
@@ -30,49 +30,14 @@ export function resolveLocale(languageTags: readonly string[]): Locale {
   return 'en';
 }
 
-const numberFormats = new Map<Locale, Intl.NumberFormat>();
-
-function numberFormat(locale: Locale): Intl.NumberFormat {
-  let format = numberFormats.get(locale);
-  if (format === undefined) {
-    format = new Intl.NumberFormat(locale);
-    numberFormats.set(locale, format);
-  }
-  return format;
+export interface I18n {
+  locale: Locale;
+  t: (key: MessageKey, params?: Params) => string;
+  /** A counted message: `tp('sync.pending.count', 3)` fills `{n}` with 3 in the right plural form. */
+  tp: (key: PluralKey, count: number, params?: Params) => string;
 }
 
-/** Whether `key` is a catalog key, e.g. a label key carried by the condition pack. */
-export function isMessageKey(key: string): key is MessageKey {
-  return Object.hasOwn(en, key);
-}
-
-function catalogFor(locale: Locale): Record<MessageKey, string> {
-  switch (locale) {
-    case 'es':
-      return es;
-    case 'pt':
-      return pt;
-    case 'en':
-      return en;
-  }
-}
-
-export function translate(locale: Locale, key: MessageKey, params?: Params): string {
-  const template = new Map(Object.entries(catalogFor(locale))).get(key) ?? key;
-  if (params === undefined) {
-    return template;
-  }
-  const values = new Map(Object.entries(params));
-  return template.replace(/\{(\w+)\}/g, (match, name: string) => {
-    const value = values.get(name);
-    if (value === undefined) {
-      return match;
-    }
-    return typeof value === 'number' ? numberFormat(locale).format(value) : value;
-  });
-}
-
-export function useI18n(): { locale: Locale; t: (key: MessageKey, params?: Params) => string } {
+export function useI18n(): I18n {
   // NOTE: reads device languages once per mount, not on an OS change; upgrade: expo-localization's `useLocales()`.
   const deviceLocale = useMemo(() => resolveLocale(getLocales().map((entry) => entry.languageTag)), []);
 
@@ -80,7 +45,12 @@ export function useI18n(): { locale: Locale; t: (key: MessageKey, params?: Param
   const { preference } = useLocalePreference();
   const locale = useMemo(() => preferenceToLocale(preference, deviceLocale), [preference, deviceLocale]);
 
-  const t = useMemo(() => (key: MessageKey, params?: Params): string => translate(locale, key, params), [locale]);
-
-  return { locale, t };
+  return useMemo(
+    () => ({
+      locale,
+      t: (key: MessageKey, params?: Params): string => translate(locale, key, params),
+      tp: (key: PluralKey, count: number, params?: Params): string => translatePlural(locale, key, count, params),
+    }),
+    [locale],
+  );
 }

@@ -3,7 +3,16 @@ jest.mock('../../lib/supabase', () => ({ supabase: {} }));
 import type { Client } from '../../auth/emailAuth';
 import { kvGet, kvRemove } from '../../lib/kv';
 import type { Profile } from '../profileRepository';
-import { acceptTerms, fetchProfile, readCachedProfileSync, setAiConsent, updateProfile, writeCachedProfile } from '../profileRepository';
+import {
+  acceptTerms,
+  completeOnboarding,
+  fetchProfile,
+  PROFILE_COLUMNS,
+  readCachedProfileSync,
+  setAiConsent,
+  updateProfile,
+  writeCachedProfile,
+} from '../profileRepository';
 
 const ROW = {
   user_id: 'u1',
@@ -20,9 +29,11 @@ const ROW = {
   ai_consent_answered_at: '2026-11-01T10:01:00Z',
   ai_enabled: true,
   onboarding_completed_at: null,
+  known_triggers: ['weather'],
+  priority: 'overuse',
+  track_period: true,
   // Columns the app does not read; they must not leak into the cached profile.
   condition: 'migraine',
-  coarse_lat: 4.7,
   created_at: '2026-11-01T09:00:00Z',
 };
 
@@ -40,6 +51,9 @@ const PROFILE: Profile = {
   aiConsentAnsweredAt: '2026-11-01T10:01:00Z',
   aiEnabled: true,
   onboardingCompletedAt: null,
+  knownTriggers: ['weather'],
+  priority: 'overuse',
+  trackPeriod: true,
 };
 
 type Outcome = { data: unknown; error: { code?: string; message: string } | null; status: number };
@@ -49,11 +63,11 @@ const OFFLINE: Outcome = { data: null, error: { code: '', message: 'TypeError: F
 /** A client whose profile queries all answer `outcome`; `rpcOutcome` answers the RPCs. */
 function fakeClient(outcome: Outcome, rpcOutcome: Outcome = { data: null, error: null, status: 204 }) {
   const single = jest.fn(() => Promise.resolve(outcome));
-  const select = jest.fn(() => ({ single }));
+  const select = jest.fn<{ single: typeof single }, [string]>(() => ({ single }));
   const update = jest.fn<{ not: () => { select: typeof select } }, [unknown]>(() => ({ not: () => ({ select }) }));
   const from = jest.fn<{ select: typeof select; update: typeof update }, [string]>(() => ({ select, update }));
   const rpc = jest.fn<Promise<Outcome>, [string, unknown]>(() => Promise.resolve(rpcOutcome));
-  return { from, rpc, update, client: { from, rpc } as unknown as Client };
+  return { from, rpc, update, select, client: { from, rpc } as unknown as Client };
 }
 
 beforeEach(() => {
@@ -123,6 +137,9 @@ test('updateProfile maps every editable field to its column', async () => {
       notifyEnd: '21:00',
       notifyDailyCap: 0,
       lockScreenDetail: true,
+      knownTriggers: ['stress'],
+      priority: 'fewer',
+      trackPeriod: false,
     },
     client,
   );
@@ -136,6 +153,9 @@ test('updateProfile maps every editable field to its column', async () => {
     notify_end: '21:00',
     notify_daily_cap: 0,
     lock_screen_detail: true,
+    known_triggers: ['stress'],
+    priority: 'fewer',
+    track_period: false,
   });
 });
 
@@ -200,4 +220,69 @@ test('a row of an unexpected shape is an unknown failure, not a crash', async ()
   const { client } = fakeClient({ data: { user_id: 'u1', theme: 'neon' }, error: null, status: 200 });
 
   await expect(fetchProfile(client)).resolves.toEqual({ ok: false, kind: 'unknown' });
+});
+
+test('fetchProfile selects the explicit column list, never the location or a star', async () => {
+  const { client, select } = fakeClient(OK);
+
+  await fetchProfile(client);
+
+  expect(select).toHaveBeenCalledWith(PROFILE_COLUMNS);
+  expect(PROFILE_COLUMNS).toContain('known_triggers,priority,track_period');
+  expect(PROFILE_COLUMNS).not.toContain('coarse_lat');
+  expect(PROFILE_COLUMNS).not.toContain('coarse_lon');
+  expect(PROFILE_COLUMNS).not.toContain('condition');
+  expect(PROFILE_COLUMNS).not.toContain('*');
+});
+
+test('updateProfile writes the coarse location as two columns, and null clears both', async () => {
+  const { client, update } = fakeClient(OK);
+
+  await updateProfile({ coarseLocation: { lat: 4.7, lon: -74.1 } }, client);
+  await updateProfile({ coarseLocation: null }, client);
+
+  expect(update).toHaveBeenNthCalledWith(1, { coarse_lat: 4.7, coarse_lon: -74.1 });
+  expect(update).toHaveBeenNthCalledWith(2, { coarse_lat: null, coarse_lon: null });
+});
+
+test('updateProfile sends known triggers as known_triggers', async () => {
+  const { client, update } = fakeClient(OK);
+
+  await updateProfile({ knownTriggers: ['weather'] }, client);
+
+  expect(update).toHaveBeenCalledWith({ known_triggers: ['weather'] });
+});
+
+test('completeOnboarding calls the RPC, then refetches', async () => {
+  const { client, rpc, from } = fakeClient(OK);
+
+  const result = await completeOnboarding(client);
+
+  expect(rpc).toHaveBeenCalledWith('complete_onboarding');
+  expect(from).toHaveBeenCalledWith('profiles');
+  expect(result).toEqual({ ok: true, value: PROFILE });
+});
+
+test('a priority this build does not know reads as null', async () => {
+  const { client } = fakeClient({ data: { ...ROW, priority: 'doctor' }, error: null, status: 200 });
+
+  await expect(fetchProfile(client)).resolves.toEqual({ ok: true, value: { ...PROFILE, priority: null } });
+});
+
+test('a profile cached by the previous build reads with the defaults, not as no profile', async () => {
+  const { kvSet } = await import('../../lib/kv');
+  const wave1: Record<string, unknown> = { ...PROFILE };
+  delete wave1['knownTriggers'];
+  delete wave1['priority'];
+  delete wave1['trackPeriod'];
+  kvSet('profile.u1', JSON.stringify(wave1));
+
+  expect(readCachedProfileSync('u1')).toEqual({ ...wave1, knownTriggers: [], priority: null, trackPeriod: false });
+});
+
+test('a cached priority this build does not know reads as null', async () => {
+  const { kvSet } = await import('../../lib/kv');
+  kvSet('profile.u1', JSON.stringify({ ...PROFILE, priority: 'doctor' }));
+
+  expect(readCachedProfileSync('u1')).toEqual({ ...PROFILE, priority: null });
 });

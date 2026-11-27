@@ -6,6 +6,7 @@ import { translate } from '../i18n';
 import { READY_PROFILE, resetAuth, setAuth } from '../test/authMock';
 
 jest.mock('../auth/AuthProvider', () => require('../test/authMock'));
+jest.mock('../lib/sync/SyncProvider', () => require('../test/syncMock'));
 jest.mock('expo-font', () => ({ useFonts: () => [true, null] }));
 jest.mock('expo-splash-screen', () => ({
   preventAutoHideAsync: jest.fn(() => Promise.resolve()),

@@ -14,10 +14,18 @@ export const es: Record<keyof typeof en, string> = {
   'common.loading': 'Cargando',
   'common.saving': 'Guardando…',
   'common.confirm': 'Confirmar',
+  'common.retry': 'Reintentar',
 
   'error.network': 'Sin conexión. Revisa tu internet e inténtalo de nuevo.',
   'error.generic': 'Algo salió mal. Inténtalo de nuevo.',
   'error.retry': 'Reintentar',
+
+  'sync.pending': 'Guardado en este teléfono, sincronizando',
+  'sync.pending.count.one': '{n} registro por subir',
+  'sync.pending.count.other': '{n} registros por subir',
+  'sync.failed.title': 'No se pudo sincronizar',
+  'sync.failed.body.one': 'Tu registro sigue guardado en este teléfono. Toca Reintentar para enviarlo.',
+  'sync.failed.body.other': 'Tus {n} registros siguen guardados en este teléfono. Toca Reintentar para enviarlos.',
 
   'auth.signIn.title': 'Entrar',
   'auth.signIn.email': 'Correo',

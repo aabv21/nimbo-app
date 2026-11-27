@@ -45,6 +45,9 @@ const ROW = {
   ai_consent_answered_at: '2026-11-01T10:01:00Z',
   ai_enabled: true,
   onboarding_completed_at: null,
+  known_triggers: [],
+  priority: null,
+  track_period: false,
 };
 const PROFILE = {
   language: null,
@@ -60,6 +63,9 @@ const PROFILE = {
   aiConsentAnsweredAt: '2026-11-01T10:01:00Z',
   aiEnabled: true,
   onboardingCompletedAt: null,
+  knownTriggers: [],
+  priority: null,
+  trackPeriod: false,
 };
 
 function wrapper({ children }: { children: ReactNode }): React.JSX.Element {

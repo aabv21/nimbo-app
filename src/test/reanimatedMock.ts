@@ -10,6 +10,7 @@ import { Text, View } from 'react-native';
 //   shared values) and re-renders when one changes; declare it before any effect that writes them.
 // - `withTiming`, `withSpring`, `withDelay`: settle at once on the target, as Reanimated's own mock does.
 // - `interpolate`, `interpolateColor`: linear and nearest-stop, enough to assert a settled style.
+// - `FadeIn`, `FadeOut`: layout-animation builders whose modifiers chain and do nothing; the view mounts settled.
 
 export function useReducedMotion(): boolean {
   return false;
@@ -109,6 +110,20 @@ export const Easing = {
   bezier: () => identity,
   linear: identity,
 };
+
+/** A layout-animation builder: every modifier (`duration`, `easing`, `reduceMotion`, …) returns it again. */
+function layoutAnimation(): unknown {
+  const builder: unknown = new Proxy(
+    {},
+    {
+      get: () => () => builder,
+    },
+  );
+  return builder;
+}
+
+export const FadeIn = layoutAnimation();
+export const FadeOut = layoutAnimation();
 
 export const ReduceMotion = { System: 'system', Always: 'always', Never: 'never' } as const;
 

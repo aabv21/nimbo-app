@@ -12,10 +12,18 @@ export const en = {
   'common.loading': 'Loading',
   'common.saving': 'Saving…',
   'common.confirm': 'Confirm',
+  'common.retry': 'Try again',
 
   'error.network': 'No connection. Check your internet and try again.',
   'error.generic': 'Something went wrong. Please try again.',
   'error.retry': 'Try again',
+
+  'sync.pending': 'Saved on this phone, syncing',
+  'sync.pending.count.one': '{n} record to upload',
+  'sync.pending.count.other': '{n} records to upload',
+  'sync.failed.title': 'Couldn’t sync',
+  'sync.failed.body.one': 'Your record is still saved on this phone. Tap Try again to send it.',
+  'sync.failed.body.other': 'Your {n} records are still saved on this phone. Tap Try again to send them.',
 
   'auth.signIn.title': 'Sign in',
   'auth.signIn.email': 'Email',

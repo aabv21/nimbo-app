@@ -48,6 +48,7 @@ export default defineConfig(
       'src/ui/__tests__/ThemeProvider.test.tsx',
       'src/__tests__/{boundary,ai-consent,consent-gate,smoke,profile}.test.tsx',
       'src/profile/__tests__/{useTimezoneSync,useProfileChange}.test.ts',
+      'src/lib/{local,outbox,sync}/__tests__/*.test.{ts,tsx}',
     ],
     rules: {
       '@typescript-eslint/no-require-imports': 'off',

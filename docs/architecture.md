@@ -119,6 +119,12 @@ has a timeout (`fetchWithTimeout`), so a dead connection does not hold a spinner
   Auth would match, so a Google ID token has no replay protection beyond its short lifetime
   (`src/auth/socialAuth.ts`).
 - **No health text in logs.**
+- **Health records on the phone.** `nimbo.db` keeps the user's records for offline use. On sign-out
+  or an account switch the previous user's rows are deleted once their outbox is empty, and a launch
+  deletes any other user's rows left by a sign-out made while the app was closed. Rows with an
+  unsent or failed operation stay until that user signs back in. Android backup is off
+  (`allowBackup: false`); iOS iCloud backup still includes the file, an open gap
+  ([`native-config.md`](native-config.md#what-appjson-sets)).
 - **Repository.** Rulesets on `main`, `develop` and release tags require the CI checks; private
   vulnerability reporting is on ([`SECURITY.md`](../SECURITY.md)). CI also scans for secrets, audits
   dependencies, lints the workflows and runs CodeQL ([`CONTRIBUTING.md`](../CONTRIBUTING.md)).

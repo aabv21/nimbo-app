@@ -2,7 +2,7 @@
 
 The backend is Supabase (Postgres 17), run locally through the `db:*` scripts ([`local-stack.md`](local-stack.md)).
 This document covers what the migrations create: `public.profiles`, its policies and grants, the
-signup trigger, and the consent RPCs. Schema changes are new migration files in
+signup trigger, the consent RPCs, and the tracking tables with their RPCs. Schema changes are new migration files in
 `supabase/migrations/`; a merged migration is never edited. The diagram [`diagrams/data-model.svg`](diagrams/data-model.svg) shows how the pieces relate, and [`architecture.md`](architecture.md#the-consent-model) explains why consent is RPC-only.
 
 ## `public.profiles`
@@ -22,8 +22,9 @@ the signup trigger. A client never inserts a row, so every client write is an up
 | `notify_daily_cap` | `smallint` | `not null default 2`; check 0 to 2 |
 | `lock_screen_detail` | `boolean` | `not null default false` |
 | `coarse_lat`, `coarse_lon` | `numeric(4,1)` | nullable; checks -90 to 90 and -180 to 180; one decimal, so a stored location is coarse by construction |
-| `known_triggers` | `text[]` | `not null default '{}'` |
-| `priority` | `text` | nullable; one of `triggers`, `doctor`, `medication`, `patterns` |
+| `known_triggers` | `text[]` | `not null default '{}'`; every value must be a key of the triggers catalog, none repeated (`is_catalog_subset`) |
+| `track_period` | `boolean` | `not null default false`; client-writable |
+| `priority` | `text` | nullable; one of `fewer`, `triggers`, `overuse`, `logging` (narrowed by the onboarding_profile migration) |
 | `adult_confirmed_at`, `boundary_accepted_at` | `timestamptz` | nullable; set only by `accept_terms` |
 | `ai_consent_answered_at` | `timestamptz` | nullable; set by `set_ai_consent`, kept when the answer is no |
 | `ai_enabled` | `boolean` | `not null default false`; set only by `set_ai_consent` |
@@ -44,7 +45,7 @@ RLS is enabled. The migration revokes every default privilege on the table from 
 `profiles_update_own` has both `using` and `with check` on `user_id = (select auth.uid())`, so a row
 cannot be moved to another user. Update is granted on these columns only: `language`, `timezone`,
 `theme`, `reduce_motion`, `notify_start`, `notify_end`, `notify_daily_cap`, `lock_screen_detail`,
-`coarse_lat`, `coarse_lon`, `known_triggers`, `priority`. Updating any other column (every consent
+`coarse_lat`, `coarse_lon`, `known_triggers`, `priority`, `track_period`. Updating any other column (every consent
 column, `condition`, `onboarding_completed_at`, `user_id`) fails with `42501`. Insert and delete are
 revoked outright, so they also fail with `42501` rather than silently matching no rows.
 
@@ -64,17 +65,82 @@ Every `security definer` function sets `search_path = ''`, qualifies every name,
 | --- | --- |
 | `accept_terms(p_adult boolean, p_boundary boolean) returns void` | Raises `22023` unless both arguments are true. Sets `adult_confirmed_at` and `boundary_accepted_at` to the server time where they are null, so a repeat call keeps the first timestamps. |
 | `set_ai_consent(p_enabled boolean) returns void` | Raises `22023` on null. Sets `ai_consent_answered_at` to the server time, `ai_enabled` to the answer, and `ai_consent_at` to the server time when true and null when false. |
+| `complete_onboarding() returns void` | Raises `22023` until `boundary_accepted_at` and `ai_consent_answered_at` are both set, then sets `onboarding_completed_at = coalesce(onboarding_completed_at, now())`, so a repeat keeps the first time. |
 | `keep_alive() returns timestamptz` | `security invoker`, reads no table, answers the server time. The only function `anon` may execute; it lets a scheduled call keep a free hosted project from pausing. |
 
 Both consent functions raise `42501` when there is no signed-in user. The client never writes a
 consent timestamp, so a timestamp cannot be forged or back-dated.
 
+## Tracking tables
+
+Added by `20261127120000_tracking.sql`. Every table has `user_id uuid not null references auth.users on delete cascade`,
+`created_at`, and `updated_at` kept by `set_updated_at`. RLS is on, each has one read-own `select`
+policy `to authenticated`, and `anon` and `authenticated` hold nothing but `select`: every write is an
+RPC (a direct insert, update or delete fails with `42501`).
+
+| Table | Key and columns |
+| --- | --- |
+| `episodes` | `id uuid` pk; `condition` (`migraine`); `started_at`; `ended_at` (check `>= started_at`); `intensity` 0 to 10; `pain_areas`, `symptoms`, `triggers`, `reliefs` (`text[]`, each checked against its catalog); `notes` (at most 2000 characters); `source` |
+| `medications` | `id uuid` pk; `name` (1 to 80 characters, trimmed); `kind`; `form` (default `oral`); `class`; `dose_text` (at most 120); `min_interval_minutes` 15 to 4320; `schedule`, `schedule_time`, `schedule_anchor`; `archived_at`. Checks: a schedule only on a preventive, a schedule needs a time, monthly and quarterly need an anchor |
+| `doses` | `id uuid` pk; `medication_id` references `medications`; `episode_id` references `episodes` with `on delete set null`; `taken_at` |
+| `checkins` | primary key `(user_id, local_date)`; `sleep_band`, `sleep_quality`, `stress`; booleans `low_water`, `extra_caffeine`, `alcohol`, `skipped_meal`, `screen_heavy`, `period_started` (default false) |
+
+Indexes: `episodes (user_id, started_at desc)`, `doses (user_id, taken_at desc)`, `doses (episode_id)`,
+`doses (medication_id)`, `medications (user_id)`. The debrief columns arrive with the debrief itself.
+
+Enums: `episode_source` (`manual`, `voice`, `chat`), `medication_kind` (`preventive`, `acute`),
+`medication_form` (`oral`, `injection`, `nasal`, `other`), `medication_class` (the condition pack's seven
+classes), `medication_schedule` (`daily`, `monthly`, `quarterly`), `sleep_band` (`lt5`, `5_6`, `6_7`, `7_8`, `gt8`),
+`sleep_quality` (`bad`, `ok`, `good`), `stress_level` (`low`, `mid`, `high`).
+
+### Catalog helpers
+
+- `catalog_keys(p_catalog text) returns text[]`: the keys of `painAreas`, `symptoms`, `triggers` or `reliefs`; null for any other name. Its body is generated from the TypeScript condition pack.
+- `is_catalog_subset(p_values text[], p_catalog text) returns boolean`: true when the array has no null, no duplicate and only catalog keys.
+
+Both are `immutable`, `security invoker`, and granted to `authenticated` (revoked from `public` and `anon`),
+because a check constraint runs as the role that writes: `profiles.known_triggers` is still updated
+directly by the client. `scripts/__tests__/catalog-sql.test.ts` fails when the newest migration's `catalog_keys` differs from the pack.
+
+To change a catalog: edit the pack in `supabase/functions/_shared/condition/migraine.ts`, run
+`pnpm catalog:sql`, and put its output in a new migration. Never edit a merged one.
+
+NOTE: removing a catalog key does not recheck existing rows, so a later `update_episode` on such a row fails with 23514; migrate the rows first.
+
+### Tracking RPCs
+
+All are `security definer`, set `search_path = ''`, filter by the caller themselves (the owner role skips RLS),
+and are granted to `authenticated` only. Errors: no signed-in user `42501`; an unknown `p_fields` key or a
+non-object `22023`; a record that is not the caller's `P0002`; a value outside a catalog, a duplicate or an
+out-of-range number `23514`; a missing required column `23502`; text that is not a valid enum value, number, date, time or boolean `22P02` (raised by the cast); a number too large for its column `22003`. A client time later than now plus 5 minutes or
+before 2000-01-01 raises `22023`. `p_fields` keys are column names.
+
+| Function | Contract |
+| --- | --- |
+| `log_episode(p_id, p_started_at, p_fields)` | Inserts, `on conflict (id) do nothing`, so a retry keeps the first fields. Keys: `ended_at, intensity, pain_areas, symptoms, triggers, reliefs, notes, source`. |
+| `update_episode(p_id, p_fields)` | Patches only the keys present; a json null clears the column (an array becomes empty). `P0002` when the episode is not the caller's. |
+| `end_episode(p_id, p_ended_at)` | Sets `ended_at`; before the start is `23514`; a repeat with the same value succeeds. |
+| `delete_episode(p_id)` | Deletes; a missing or foreign row is not an error. Its doses keep existing with a null `episode_id`. |
+| `save_medication(p_id, p_fields)` | Patches the caller's row, else inserts it. Keys: `name, kind, form, class, dose_text, min_interval_minutes, schedule, schedule_time, schedule_anchor, archived`; `archived: true` stamps `archived_at` (keeping an earlier stamp) and `false` clears it. An id that belongs to someone else is `P0002`. |
+| `log_dose(p_id, p_medication_id, p_taken_at, p_episode_id)` | Inserts, idempotent on the id. `P0002` when the medication, or the episode when given, is not the caller's. |
+| `delete_dose(p_id)` | Deletes; a missing or foreign row is not an error. |
+| `save_checkin(p_local_date, p_fields)` | Upserts on `(user_id, local_date)`, merging only the keys present. A date later than the UTC date plus one day, or before 2000, is `22023`. Keys: `sleep_band, sleep_quality, stress, low_water, extra_caffeine, alcohol, skipped_meal, screen_heavy, period_started`. |
+
+The key check, the time check and the json-to-array conversion are functions in a `private` schema that
+the API does not expose and no API role can use.
+
+## Profile changes for onboarding
+
+`20261127120100_onboarding_profile.sql` narrows the `priority` check to the four approved values, adds `track_period`, adds the
+`known_triggers` catalog check and adds `complete_onboarding()` (see Functions). It is a separate migration
+because the profiles migration was already merged.
+
 ## Tests
 
-pgTAP files in `supabase/tests/`, run by `pnpm db:test`. `profiles.test.sql` (37 assertions) covers
+pgTAP files in `supabase/tests/`, run by `pnpm db:test`. `profiles.test.sql` (37 assertions), `tracking.test.sql` (93) and `onboarding_profile.test.sql` (13). `profiles.test.sql` covers
 the signup row and its defaults, own-row visibility, the update grants and each refused column,
 both RPCs including the repeat and withdrawal cases, the value checks, function privileges for
-`anon` and `authenticated`, and the refused insert and delete.
+`anon` and `authenticated`, and the refused insert and delete. `tracking.test.sql` covers RLS and the refused direct writes on the four tables, each RPC's idempotency, patch semantics, ownership (`P0002`), catalog and range errors, and `anon` privileges. `onboarding_profile.test.sql` covers `complete_onboarding`, the trigger catalog check, the priorities and `track_period`.
 
 ## New table checklist
 

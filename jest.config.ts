@@ -49,7 +49,7 @@ const config: Config = {
       transform: {},
     },
     {
-      // authService and profileRepository against the running local stack. Same setup as `scripts`
+      // authService, profileRepository and the outbox against the running local stack. Same setup as `scripts`
       // (plain Node, native TS stripping); kept out of `pnpm test` (see `test:int`) because it needs
       // Docker and `.env.local`, not just `node_modules`.
       displayName: 'integration',
@@ -58,10 +58,12 @@ const config: Config = {
       extensionsToTreatAsEsm: ['.ts'],
       transform: {},
       moduleNameMapper: {
-        // `emailAuth.ts` defaults its `client` parameter to the real `src/lib/supabase.ts` singleton,
-        // which loads native modules. Every integration test passes its own client, so this stub
-        // throws if the default is ever used.
-        '^(\\.\\./)+lib/supabase$': '<rootDir>/integration/lib-supabase.stub.ts',
+        // `emailAuth.ts` and `pull.ts` default their `client` parameter to the real `src/lib/supabase.ts`
+        // singleton, which loads native modules. Every integration test passes its own client, so this
+        // stub throws if the default is ever used.
+        '^(\\.\\./)+(lib/)?supabase$': '<rootDir>/integration/lib-supabase.stub.ts',
+        // The local store runs on `node:sqlite` with expo-sqlite's synchronous API.
+        '^expo-sqlite$': '<rootDir>/src/test/sqliteNode.ts',
         // `src/lib/kv.ts` wraps a native SQLite store; the profile cache gets a plain in-memory map.
         '^expo-sqlite/kv-store$': '<rootDir>/integration/kv-store.stub.ts',
       },

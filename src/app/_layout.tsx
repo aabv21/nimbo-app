@@ -16,6 +16,7 @@ import { nextRoute } from '../auth/gate';
 import { useSignOut } from '../auth/useSignOut';
 import { useI18n } from '../i18n';
 import { I18nProvider } from '../i18n/I18nProvider';
+import { SyncProvider } from '../lib/sync/SyncProvider';
 import { Button } from '../ui/Button';
 import { Notice } from '../ui/Notice';
 import { Screen } from '../ui/Screen';
@@ -134,11 +135,13 @@ export default function RootLayout(): React.JSX.Element | null {
 
   return (
     <AuthProvider>
-      <I18nProvider>
-        <ThemeProvider>
-          <GatedStack />
-        </ThemeProvider>
-      </I18nProvider>
+      <SyncProvider>
+        <I18nProvider>
+          <ThemeProvider>
+            <GatedStack />
+          </ThemeProvider>
+        </I18nProvider>
+      </SyncProvider>
     </AuthProvider>
   );
 }

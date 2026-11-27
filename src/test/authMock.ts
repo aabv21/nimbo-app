@@ -19,6 +19,9 @@ export const READY_PROFILE: Profile = {
   aiConsentAnsweredAt: '2026-11-01T10:01:00Z',
   aiEnabled: true,
   onboardingCompletedAt: '2026-11-01T10:05:00Z',
+  knownTriggers: [],
+  priority: null,
+  trackPeriod: false,
 };
 
 let state: AuthContextValue;
