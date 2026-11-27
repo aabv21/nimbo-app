@@ -29,7 +29,7 @@ export default defineConfig(
   },
   {
     // These index a record by a medication class, or a check-in field, from a fixed tuple.
-    files: ['supabase/functions/_shared/condition/overuse.ts', 'src/cabinet/doseDays.ts', 'src/checkin/checkinStore.ts', 'src/app/checkin.tsx'],
+    files: ['supabase/functions/_shared/condition/{overuse,doseDays}.ts', 'src/checkin/checkinStore.ts', 'src/app/checkin.tsx'],
     rules: { 'security/detect-object-injection': 'off' },
   },
   {
@@ -71,6 +71,7 @@ export default defineConfig(
       'src/cabinet/__tests__/*.test.{ts,tsx}',
       'src/checkin/__tests__/*.test.{ts,tsx}',
       'src/episodes/__tests__/*.test.{ts,tsx}',
+      'src/companion/__tests__/*.test.{ts,tsx}',
       'src/redflags/__tests__/*.test.tsx',
       'src/premium/__tests__/*.test.tsx',
       'src/profile/__tests__/{useTimezoneSync,useProfileChange,profileRepository}.test.ts',

@@ -1,31 +1,21 @@
-import { daysLeftInMonth, doseDaysForMonth } from '../doseDays';
-import type { Dose } from '../doseStore';
-import type { Medication } from '../medicationStore';
+/** @jest-environment node */
+import { daysLeftInMonth, doseDaysForMonth, localDateIn } from '../doseDays.ts';
+import type { MedicationClass } from '../types.ts';
 
 const BOGOTA = 'America/Bogota'; // UTC-5, no daylight saving
 
-function medication(id: string, patch: Partial<Medication> = {}): Medication {
-  return {
-    id,
-    name: id,
-    kind: 'acute',
-    form: 'oral',
-    medicationClass: 'triptan',
-    doseText: null,
-    minIntervalMinutes: null,
-    schedule: null,
-    scheduleTime: null,
-    scheduleAnchor: null,
-    archived: false,
-    dirty: false,
-    ...patch,
-  };
+interface TestMedication {
+  id: string;
+  kind: 'preventive' | 'acute';
+  medicationClass: MedicationClass;
 }
 
-let next = 0;
-function dose(medicationId: string, takenAt: string): Dose {
-  next += 1;
-  return { id: `dose-${String(next)}`, medicationId, episodeId: null, takenAt, dirty: false };
+function medication(id: string, patch: Partial<TestMedication> = {}): TestMedication {
+  return { id, kind: 'acute', medicationClass: 'triptan', ...patch };
+}
+
+function dose(medicationId: string, takenAt: string): { medicationId: string; takenAt: string } {
+  return { medicationId, takenAt };
 }
 
 const NOVEMBER = new Date('2026-11-15T17:00:00Z');
@@ -65,12 +55,13 @@ test('a dose taken just before midnight at the end of the year counts in that ye
 });
 
 test('preventive doses never count', () => {
-  const preventive = medication('magnesium', { kind: 'preventive', medicationClass: 'other', schedule: 'daily', scheduleTime: '21:00:00' });
+  const preventive = medication('magnesium', { kind: 'preventive', medicationClass: 'other' });
   expect(doseDaysForMonth([dose('magnesium', '2026-11-10T14:00:00Z')], [preventive], NOVEMBER, BOGOTA)).toEqual({});
 });
 
 test('past doses of an archived acute medication still count', () => {
-  const archived = medication('old', { archived: true, medicationClass: 'simple_analgesic' });
+  // The pack never sees the archived flag: an archived medication is still in the list it is given.
+  const archived = medication('old', { medicationClass: 'simple_analgesic' });
   expect(doseDaysForMonth([dose('old', '2026-11-03T14:00:00Z')], [archived], NOVEMBER, BOGOTA)).toEqual({
     simple_analgesic: ['2026-11-03'],
   });
@@ -95,4 +86,9 @@ test.each([
   ['2026-12-01T03:00:00Z', 0],
 ])('daysLeftInMonth(%s) is %i', (now, left) => {
   expect(daysLeftInMonth(new Date(now), BOGOTA)).toBe(left);
+});
+
+test('localDateIn reads the calendar day in the given zone', () => {
+  expect(localDateIn(new Date('2026-12-01T04:59:00Z'), BOGOTA)).toBe('2026-11-30');
+  expect(localDateIn(new Date('2026-12-01T05:01:00Z'), BOGOTA)).toBe('2026-12-01');
 });

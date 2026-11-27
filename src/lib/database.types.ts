@@ -23,7 +23,21 @@ export type Database = {
           }
         },"public": {
           Tables: {
-            "checkins": {
+            "agent_notes": {
+                  Row: {
+                    "created_at": string,"id": string,"text": string,"user_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string,"id"?: string,"text": string,"user_id": string
+                  }
+                  Update: {
+                    "created_at"?: string,"id"?: string,"text"?: string,"user_id"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
+                },"checkins": {
                   Row: {
                     "alcohol": boolean,"created_at": string,"extra_caffeine": boolean,"local_date": string,"low_water": boolean,"period_started": boolean,"screen_heavy": boolean,"skipped_meal": boolean,"sleep_band": Database["public"]['Enums']["sleep_band"] | null,"sleep_quality": Database["public"]['Enums']["sleep_quality"] | null,"stress": Database["public"]['Enums']["stress_level"] | null,"updated_at": string,"user_id": string
                   }
@@ -39,14 +53,14 @@ export type Database = {
                   ]
                 },"doses": {
                   Row: {
-                    "created_at": string,"episode_id": string | null,"id": string,"medication_id": string,"taken_at": string,"updated_at": string,"user_id": string
+                    "created_at": string,"episode_id": string | null,"helped": boolean | null,"id": string,"medication_id": string,"taken_at": string,"updated_at": string,"user_id": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "created_at"?: string,"episode_id"?: string | null,"id": string,"medication_id": string,"taken_at": string,"updated_at"?: string,"user_id": string
+                    "created_at"?: string,"episode_id"?: string | null,"helped"?: boolean | null,"id": string,"medication_id": string,"taken_at": string,"updated_at"?: string,"user_id": string
                   }
                   Update: {
-                    "created_at"?: string,"episode_id"?: string | null,"id"?: string,"medication_id"?: string,"taken_at"?: string,"updated_at"?: string,"user_id"?: string
+                    "created_at"?: string,"episode_id"?: string | null,"helped"?: boolean | null,"id"?: string,"medication_id"?: string,"taken_at"?: string,"updated_at"?: string,"user_id"?: string
                   }
                   Relationships: [
                     {
@@ -79,14 +93,14 @@ isOneToOne: false
                   ]
                 },"episodes": {
                   Row: {
-                    "condition": string,"created_at": string,"ended_at": string | null,"id": string,"intensity": number | null,"notes": string | null,"pain_areas": (string)[],"reliefs": (string)[],"source": Database["public"]['Enums']["episode_source"],"started_at": string,"symptoms": (string)[],"triggers": (string)[],"updated_at": string,"user_id": string
+                    "condition": string,"created_at": string,"debriefed_at": string | null,"did_not_help": (string)[],"ended_at": string | null,"helped": (string)[],"id": string,"intensity": number | null,"notes": string | null,"pain_areas": (string)[],"reliefs": (string)[],"source": Database["public"]['Enums']["episode_source"],"started_at": string,"symptoms": (string)[],"triggers": (string)[],"updated_at": string,"user_id": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "condition"?: string,"created_at"?: string,"ended_at"?: string | null,"id": string,"intensity"?: number | null,"notes"?: string | null,"pain_areas"?: (string)[],"reliefs"?: (string)[],"source"?: Database["public"]['Enums']["episode_source"],"started_at": string,"symptoms"?: (string)[],"triggers"?: (string)[],"updated_at"?: string,"user_id": string
+                    "condition"?: string,"created_at"?: string,"debriefed_at"?: string | null,"did_not_help"?: (string)[],"ended_at"?: string | null,"helped"?: (string)[],"id": string,"intensity"?: number | null,"notes"?: string | null,"pain_areas"?: (string)[],"reliefs"?: (string)[],"source"?: Database["public"]['Enums']["episode_source"],"started_at": string,"symptoms"?: (string)[],"triggers"?: (string)[],"updated_at"?: string,"user_id": string
                   }
                   Update: {
-                    "condition"?: string,"created_at"?: string,"ended_at"?: string | null,"id"?: string,"intensity"?: number | null,"notes"?: string | null,"pain_areas"?: (string)[],"reliefs"?: (string)[],"source"?: Database["public"]['Enums']["episode_source"],"started_at"?: string,"symptoms"?: (string)[],"triggers"?: (string)[],"updated_at"?: string,"user_id"?: string
+                    "condition"?: string,"created_at"?: string,"debriefed_at"?: string | null,"did_not_help"?: (string)[],"ended_at"?: string | null,"helped"?: (string)[],"id"?: string,"intensity"?: number | null,"notes"?: string | null,"pain_areas"?: (string)[],"reliefs"?: (string)[],"source"?: Database["public"]['Enums']["episode_source"],"started_at"?: string,"symptoms"?: (string)[],"triggers"?: (string)[],"updated_at"?: string,"user_id"?: string
                   }
                   Relationships: [
                     
@@ -119,6 +133,20 @@ isOneToOne: false
                   Relationships: [
                     
                   ]
+                },"usage_counters": {
+                  Row: {
+                    "count": number,"day": string,"kind": Database["public"]['Enums']["quota_kind"],"user_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "count": number,"day": string,"kind": Database["public"]['Enums']["quota_kind"],"user_id": string
+                  }
+                  Update: {
+                    "count"?: number,"day"?: string,"kind"?: Database["public"]['Enums']["quota_kind"],"user_id"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
                 }
           }
           Views: {
@@ -133,6 +161,12 @@ isOneToOne: false
                            },
 "complete_onboarding":
 { Args: Record<PropertyKey, never>; Returns: undefined
+                           },
+"consume_quota":
+{ Args: { "p_day": string,"p_kind": Database["public"]['Enums']["quota_kind"],"p_limit": number,"p_user_id": string }; Returns: boolean
+                           },
+"delete_agent_note":
+{ Args: { "p_id": string }; Returns: undefined
                            },
 "delete_dose":
 { Args: { "p_id": string }; Returns: undefined
@@ -158,6 +192,9 @@ isOneToOne: false
 "log_episode":
 { Args: { "p_fields": Json,"p_id": string,"p_started_at": string }; Returns: undefined
                            },
+"save_agent_note":
+{ Args: { "p_text": string }; Returns: string
+                           },
 "save_checkin":
 { Args: { "p_fields": Json,"p_local_date": string }; Returns: undefined
                            },
@@ -167,12 +204,15 @@ isOneToOne: false
 "set_ai_consent":
 { Args: { "p_enabled": boolean }; Returns: undefined
                            },
+"set_dose_helped":
+{ Args: { "p_helped"?: boolean,"p_id": string }; Returns: undefined
+                           },
 "update_episode":
 { Args: { "p_fields": Json,"p_id": string }; Returns: undefined
                            }
           }
           Enums: {
-            "app_language": "en"|"es"|"pt","app_theme": "system"|"day"|"dark"|"dim","episode_source": "manual"|"voice"|"chat","medication_class": "simple_analgesic"|"triptan"|"ergot"|"opioid"|"combination_analgesic"|"gepant"|"other","medication_form": "oral"|"injection"|"nasal"|"other","medication_kind": "preventive"|"acute","medication_schedule": "daily"|"monthly"|"quarterly","sleep_band": "lt5"|"5_6"|"6_7"|"7_8"|"gt8","sleep_quality": "bad"|"ok"|"good","stress_level": "low"|"mid"|"high"
+            "app_language": "en"|"es"|"pt","app_theme": "system"|"day"|"dark"|"dim","episode_source": "manual"|"voice"|"chat","medication_class": "simple_analgesic"|"triptan"|"ergot"|"opioid"|"combination_analgesic"|"gepant"|"other","medication_form": "oral"|"injection"|"nasal"|"other","medication_kind": "preventive"|"acute","medication_schedule": "daily"|"monthly"|"quarterly","quota_kind": "companion"|"dictation","sleep_band": "lt5"|"5_6"|"6_7"|"7_8"|"gt8","sleep_quality": "bad"|"ok"|"good","stress_level": "low"|"mid"|"high"
           }
           CompositeTypes: {
             [_ in never]: never
@@ -292,7 +332,7 @@ export const Constants = {
           }
         },"public": {
           Enums: {
-            "app_language": ["en", "es", "pt"],"app_theme": ["system", "day", "dark", "dim"],"episode_source": ["manual", "voice", "chat"],"medication_class": ["simple_analgesic", "triptan", "ergot", "opioid", "combination_analgesic", "gepant", "other"],"medication_form": ["oral", "injection", "nasal", "other"],"medication_kind": ["preventive", "acute"],"medication_schedule": ["daily", "monthly", "quarterly"],"sleep_band": ["lt5", "5_6", "6_7", "7_8", "gt8"],"sleep_quality": ["bad", "ok", "good"],"stress_level": ["low", "mid", "high"]
+            "app_language": ["en", "es", "pt"],"app_theme": ["system", "day", "dark", "dim"],"episode_source": ["manual", "voice", "chat"],"medication_class": ["simple_analgesic", "triptan", "ergot", "opioid", "combination_analgesic", "gepant", "other"],"medication_form": ["oral", "injection", "nasal", "other"],"medication_kind": ["preventive", "acute"],"medication_schedule": ["daily", "monthly", "quarterly"],"quota_kind": ["companion", "dictation"],"sleep_band": ["lt5", "5_6", "6_7", "7_8", "gt8"],"sleep_quality": ["bad", "ok", "good"],"stress_level": ["low", "mid", "high"]
           }
         }
 } as const

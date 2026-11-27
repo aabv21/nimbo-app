@@ -11,8 +11,20 @@ jest.mock('expo-crypto', () => ({ randomUUID: () => (require('node:crypto') as t
 const MEDICATION = '00000000-0000-4000-8000-0000000000a1';
 const EPISODE = '00000000-0000-4000-8000-0000000000e1';
 const TAKEN = new Date('2026-11-27T15:30:00Z');
+// Only `Date` is pinned, after TAKEN: `logDose` refuses a time more than 5 minutes ahead.
+const NOW = new Date('2026-11-27T18:00:00Z');
 
-beforeEach(clearLocalDb);
+beforeEach(() => {
+  jest.useFakeTimers({
+    now: NOW,
+    doNotFake: ['nextTick', 'setImmediate', 'clearImmediate', 'setInterval', 'clearInterval', 'setTimeout', 'clearTimeout', 'queueMicrotask', 'hrtime', 'performance', 'requestAnimationFrame', 'cancelAnimationFrame', 'requestIdleCallback', 'cancelIdleCallback'],
+  });
+  clearLocalDb();
+});
+
+afterEach(() => {
+  jest.useRealTimers();
+});
 
 function doseRows(): { id: string; medication_id: string; episode_id: string | null; taken_at: string; user_id: string; dirty: number }[] {
   return localDb().getAllSync('SELECT id, medication_id, episode_id, taken_at, user_id, dirty FROM doses;');

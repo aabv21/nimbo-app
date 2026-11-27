@@ -56,11 +56,22 @@ function medicationRows(): { name: string; kind: string; class: string; min_inte
   return localDb().getAllSync('SELECT name, kind, class, min_interval_minutes, schedule FROM medications ORDER BY name;');
 }
 
+// Only the date is fixed, mid-month: `logTriptanDays` logs from the 1st, and `logDose` refuses a time ahead of now.
+const NOW = new Date(2026, 10, 20, 15);
+
 beforeEach(() => {
+  jest.useFakeTimers({
+    now: NOW,
+    doNotFake: ['nextTick', 'setImmediate', 'clearImmediate', 'setInterval', 'clearInterval', 'setTimeout', 'clearTimeout', 'queueMicrotask', 'hrtime', 'performance', 'requestAnimationFrame', 'cancelAnimationFrame', 'requestIdleCallback', 'cancelIdleCallback'],
+  });
   jest.clearAllMocks();
   clearLocalDb();
   resetAuth();
   jest.mocked(useLocalSearchParams).mockReturnValue({ id: 'new' });
+});
+
+afterEach(() => {
+  jest.useRealTimers();
 });
 
 describe('the list', () => {

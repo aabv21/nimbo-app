@@ -3,7 +3,7 @@
 import { localDb } from '../lib/local/db';
 
 export function clearLocalDb(): void {
-  localDb().execSync('DELETE FROM outbox; DELETE FROM episodes; DELETE FROM medications; DELETE FROM doses; DELETE FROM checkins;');
+  localDb().execSync('DELETE FROM outbox; DELETE FROM episodes; DELETE FROM medications; DELETE FROM doses; DELETE FROM checkins; DELETE FROM chat_messages;');
 }
 
 export function insertEpisode(userId: string, id: string, startedAt = '2026-11-27T10:00:00.000Z'): void {

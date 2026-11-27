@@ -13,10 +13,10 @@ type Row = Record<string, unknown>;
 /** Explicit on purpose, never `*`: a column added on the server reaches the phone only once it is listed here. */
 export const PULL_COLUMNS: Record<PulledTable, string> = {
   episodes:
-    'id,user_id,condition,started_at,ended_at,intensity,pain_areas,symptoms,triggers,reliefs,notes,source,created_at,updated_at',
+    'id,user_id,condition,started_at,ended_at,intensity,pain_areas,symptoms,triggers,reliefs,notes,source,helped,did_not_help,debriefed_at,created_at,updated_at',
   medications:
     'id,user_id,name,kind,form,class,dose_text,min_interval_minutes,schedule,schedule_time,schedule_anchor,archived_at,created_at,updated_at',
-  doses: 'id,user_id,medication_id,episode_id,taken_at,created_at,updated_at',
+  doses: 'id,user_id,medication_id,episode_id,taken_at,helped,created_at,updated_at',
   checkins:
     'user_id,local_date,sleep_band,sleep_quality,stress,low_water,extra_caffeine,alcohol,skipped_meal,screen_heavy,period_started,created_at,updated_at',
 };

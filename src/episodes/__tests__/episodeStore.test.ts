@@ -252,6 +252,9 @@ describe('the hooks', () => {
       reliefs: [],
       notes: null,
       source: 'manual',
+      helped: [],
+      didNotHelp: [],
+      debriefedAt: null,
       dirty: true,
     });
 

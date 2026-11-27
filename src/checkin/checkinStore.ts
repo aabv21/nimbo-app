@@ -87,10 +87,10 @@ function checkedDate(value: string): void {
 }
 
 /**
- * Synchronous: merges only the keys present into the day's row and queues one `save_checkin` with those keys,
- * both in one transaction. A date the server would refuse is a `RangeError` and nothing is written.
+ * Merges only the keys present into the day's row and queues one `save_checkin` with those keys. A date the server
+ * would refuse is a `RangeError` and nothing is written. Assumes an open transaction.
  */
-export function saveCheckin(userId: string, localDate: string, fields: CheckinFields): void {
+export function saveCheckinTx(userId: string, localDate: string, fields: CheckinFields): void {
   checkedDate(localDate);
   const db = localDb();
   const values: [string, string | number | null][] = [];
@@ -103,16 +103,21 @@ export function saveCheckin(userId: string, localDate: string, fields: CheckinFi
     rpcFields[column] = value;
   }
   if (values.length === 0) return;
-  db.withTransactionSync(() => {
-    const now = new Date().toISOString();
-    const names = values.map(([column]) => column);
-    db.runSync(
-      `INSERT INTO checkins (user_id, local_date, ${names.join(', ')}, created_at, updated_at)
-       VALUES (?, ?, ${names.map(() => '?').join(', ')}, ?, ?)
-       ON CONFLICT (user_id, local_date) DO UPDATE SET ${names.map((column) => `${column} = excluded.${column}`).join(', ')}, updated_at = excluded.updated_at;`,
-      [userId, localDate, ...values.map(([, stored]) => stored), now, now],
-    );
-    enqueue(userId, 'save_checkin', { p_local_date: localDate, p_fields: rpcFields });
+  const now = new Date().toISOString();
+  const names = values.map(([column]) => column);
+  db.runSync(
+    `INSERT INTO checkins (user_id, local_date, ${names.join(', ')}, created_at, updated_at)
+     VALUES (?, ?, ${names.map(() => '?').join(', ')}, ?, ?)
+     ON CONFLICT (user_id, local_date) DO UPDATE SET ${names.map((column) => `${column} = excluded.${column}`).join(', ')}, updated_at = excluded.updated_at;`,
+    [userId, localDate, ...values.map(([, stored]) => stored), now, now],
+  );
+  enqueue(userId, 'save_checkin', { p_local_date: localDate, p_fields: rpcFields });
+}
+
+/** Synchronous: the mirror row and the operation are committed together before it returns. */
+export function saveCheckin(userId: string, localDate: string, fields: CheckinFields): void {
+  localDb().withTransactionSync(() => {
+    saveCheckinTx(userId, localDate, fields);
   });
 }
 

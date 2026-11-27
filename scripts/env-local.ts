@@ -1,5 +1,5 @@
 // `pnpm env:local`: writes `.env.local` from `supabase status -o env`: the two EXPO_PUBLIC_* keys the app
-// bundles, plus the service-role key and DB URL only scripts and integration tests read (never src/).
+// bundles, the service-role key and DB URL, and the host-side mock URLs (never read by src/).
 
 import { execFile } from 'node:child_process';
 import { readFile, writeFile } from 'node:fs/promises';
@@ -10,16 +10,30 @@ const execFileAsync = promisify(execFile);
 
 const ENV_FILE_PATH = fileURLToPath(new URL('../.env.local', import.meta.url));
 
+/** The mocks' ports (integration/mockServices.ts, integration/mockAnthropic.ts); `[edge_runtime.secrets]` names the same ones. */
+export const MOCK_JEV_PORT = 54518;
+export const MOCK_CLAUDE_PORT = 54519;
+
+/**
+ * The function secrets' base URLs as the host reaches the mocks. The API keys are never written: the
+ * owner sets real ones by hand, and every other key in the file survives a rerun.
+ */
+const MOCK_URLS: readonly (readonly [string, string])[] = [
+  ['TYPESAFE_BASE_URL', `http://127.0.0.1:${String(MOCK_JEV_PORT)}`],
+  ['ANTHROPIC_BASE_URL', `http://127.0.0.1:${String(MOCK_CLAUDE_PORT)}`],
+];
+
 /** The keys this script owns; every other line in an existing `.env.local` is left untouched. */
 const OWNED_KEYS: ReadonlySet<string> = new Set([
   'EXPO_PUBLIC_SUPABASE_URL',
   'EXPO_PUBLIC_SUPABASE_ANON_KEY',
   'SUPABASE_SERVICE_ROLE_KEY',
   'SUPABASE_DB_URL',
+  ...MOCK_URLS.map(([key]) => key),
 ]);
 
 /**
- * Maps `supabase status -o env` output to the four keys in a fixed order; throws without `API_URL` or `ANON_KEY`.
+ * Maps `supabase status -o env` output to the four keys, then the mock URLs, in a fixed order; throws without `API_URL` or `ANON_KEY`.
  * Every other line of `existing` (e.g. a hand-set `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`) is kept, in order, after them.
  */
 export function toEnvFile(statusEnv: Readonly<Record<string, string>>, existing?: string): string {
@@ -41,6 +55,9 @@ export function toEnvFile(statusEnv: Readonly<Record<string, string>>, existing?
   const dbUrl = statusEnv['DB_URL'];
   if (dbUrl !== undefined) {
     lines.push(`SUPABASE_DB_URL=${dbUrl}`);
+  }
+  for (const [key, url] of MOCK_URLS) {
+    lines.push(`${key}=${url}`);
   }
 
   if (existing !== undefined) {

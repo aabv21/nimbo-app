@@ -11,6 +11,7 @@ export type OutboxKind =
   | 'save_medication'
   | 'log_dose'
   | 'delete_dose'
+  | 'set_dose_helped'
   | 'save_checkin'
   // Idempotent on the server (`coalesce`), so a replay after a lost reply changes nothing.
   | 'complete_onboarding';
@@ -46,7 +47,8 @@ interface OutboxRow {
   created_at: number;
 }
 
-type MirrorTable = Exclude<LocalTable, 'outbox'>;
+// The chat is never queued: it stays on the phone.
+type MirrorTable = Exclude<LocalTable, 'outbox' | 'chat_messages'>;
 
 const CHECKIN_PREFIX = 'checkin:';
 const ONBOARDING_KEY = 'profile:onboarding';
@@ -63,6 +65,7 @@ function mirrorTableOf(kind: OutboxKind): MirrorTable | null {
       return 'medications';
     case 'log_dose':
     case 'delete_dose':
+    case 'set_dose_helped':
       return 'doses';
     case 'save_checkin':
       return 'checkins';

@@ -20,13 +20,16 @@ function episode(id: string, daysAgo: number, patch: Partial<Episode> = {}): Epi
     reliefs: [],
     notes: null,
     source: 'manual',
+    helped: [],
+    didNotHelp: [],
+    debriefedAt: null,
     dirty: false,
     ...patch,
   };
 }
 
 function dose(episodeId: string | null): Dose {
-  return { id: `dose-${String(episodeId)}`, medicationId: 'med-1', episodeId, takenAt: NOW.toISOString(), dirty: false };
+  return { id: `dose-${String(episodeId)}`, medicationId: 'med-1', episodeId, takenAt: NOW.toISOString(), helped: null, dirty: false };
 }
 
 const en = (key: string): string => translate('en', key as MessageKey);

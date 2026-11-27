@@ -143,14 +143,20 @@ loses nothing. The modules are in [`app.md`](app.md#local-store-outbox-and-sync-
 
 - **Mirrors.** `nimbo.db` holds `episodes`, `medications`, `doses` and `checkins` with the server's
   columns, each row with its `user_id` and a `dirty` flag. Every screen reads from here, filtered by the
-  signed-in user, never from the network.
+  signed-in user, never from the network. The schema is versioned (`PRAGMA user_version`, now 2); an update
+  runs the steps a phone is missing in one transaction, keeping its rows and its unsent calls.
+- **The companion chat.** `chat_messages` holds the conversation as health text kept only on this phone: it
+  is never queued or synced, and only its last 200 messages per user are kept.
 - **One transaction per change.** A screen writes the mirror row and queues the RPC call that makes the
-  same change on the server in one SQLite transaction, so the two never disagree. The ids are made on the
+  same change on the server in one SQLite transaction, so the two never disagree. A change that spans
+  stores (a debrief, a confirmed draft) uses each store's `…Tx` writer inside one transaction, since
+  expo-sqlite's transactions do not nest. A store refuses with a `RangeError`, before writing, any value the
+  server would refuse for good, so a queued call never fails for its content. The ids are made on the
   phone and every create RPC ignores an id it already has, so a call replayed after a lost response
   never makes a second row.
-- **The outbox.** It has nine kinds: the eight tracking RPCs (`log_episode`, `update_episode`,
-  `end_episode`, `delete_episode`, `save_medication`, `log_dose`, `delete_dose`, `save_checkin`) and
-  `complete_onboarding`. Calls go out one at a time, in the order they were made. A retryable failure
+- **The outbox.** It has ten kinds: the nine tracking RPCs (`log_episode`, `update_episode`,
+  `end_episode`, `delete_episode`, `save_medication`, `log_dose`, `delete_dose`, `set_dose_helped`,
+  `save_checkin`) and `complete_onboarding`. Calls go out one at a time, in the order they were made. A retryable failure
   stops the pass, so nothing overtakes it; a permanent one, or the 8th answered attempt, marks the call
   failed and the pass goes on. A send with no answer gives the attempt back, so time offline never
   fails a call. The wait between attempts doubles from 5 s up to 10 min. A failed call is sent again
@@ -170,7 +176,7 @@ loses nothing. The modules are in [`app.md`](app.md#local-store-outbox-and-sync-
 - **Two accounts on one phone.** On sign-out or an account switch the previous user's queue is paused
   and, once no send or pull can still write them, their rows are deleted except those still waiting to be
   sent (dirty, or with an unsent or failed call), which stay until that user signs back in; the pull
-  brings the rest back then. The cached profile goes with them once nothing of theirs is queued. Signing
+  brings the rest back then. Their chat is deleted in full whatever is queued, since nothing waits on it. The cached profile goes with them once nothing of theirs is queued. Signing
   out from Profile with records not uploaded asks first, saying how many stay on this phone.
 - **Onboarding offline.** The last setup step queues `complete_onboarding` and stamps the profile on
   the phone, so the gate opens Today at once; the server stamp arrives with the next sync.

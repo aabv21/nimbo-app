@@ -183,3 +183,31 @@ test('a failed read changes nothing and reports the kind', async () => {
   expect(await pullAll(A, client)).toEqual({ ok: false, kind: 'network' });
   expect(localEpisodes()).toHaveLength(1);
 });
+
+test('the debrief columns come down: episode helped, did_not_help and debriefed_at, and dose helped as 0, 1 or null', async () => {
+  expect(PULL_COLUMNS.episodes.split(',')).toEqual(expect.arrayContaining(['helped', 'did_not_help', 'debriefed_at']));
+  expect(PULL_COLUMNS.doses.split(',')).toContain('helped');
+  const dose = (id: string, helped: boolean | null): ServerRow => ({
+    id,
+    user_id: A,
+    medication_id: E3,
+    episode_id: E1,
+    taken_at: '2026-11-27T10:30:00+00:00',
+    helped,
+    created_at: '2026-11-27T10:30:01+00:00',
+    updated_at: '2026-11-27T10:30:01+00:00',
+  });
+  const { client } = fakeClient({
+    episodes: [episode(E1, A, { helped: ['dark_room'], did_not_help: ['caffeine'], debriefed_at: '2026-11-28T09:00:00+00:00' })],
+    doses: [dose(E1, true), dose(E2, false), dose(E3, null)],
+  });
+
+  await pullAll(A, client);
+
+  expect(localDb().getFirstSync('SELECT helped, did_not_help, debriefed_at FROM episodes WHERE id = ?;', [E1])).toEqual({
+    helped: '["dark_room"]',
+    did_not_help: '["caffeine"]',
+    debriefed_at: '2026-11-28T09:00:00+00:00',
+  });
+  expect(localDb().getAllSync('SELECT helped FROM doses ORDER BY id;')).toEqual([{ helped: 1 }, { helped: 0 }, { helped: null }]);
+});

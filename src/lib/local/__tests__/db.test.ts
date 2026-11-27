@@ -4,14 +4,14 @@ import { localDb, notifyChanged, purgeOtherUsers, purgeUser, subscribeTables } f
 
 jest.mock('expo-sqlite', () => require('../../../test/sqliteNode'));
 
-test('opens once, at schema version 1, with every mirror table and the outbox', () => {
+test('opens once, at schema version 2, with every mirror table, the outbox and the chat', () => {
   const db = localDb();
   expect(localDb()).toBe(db);
-  expect(db.getFirstSync<{ user_version: number }>('PRAGMA user_version;')?.user_version).toBe(1);
+  expect(db.getFirstSync<{ user_version: number }>('PRAGMA user_version;')?.user_version).toBe(2);
   const tables = db
     .getAllSync<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name;")
     .map((row) => row.name);
-  expect(tables).toEqual(['checkins', 'doses', 'episodes', 'medications', 'outbox']);
+  expect(tables).toEqual(['chat_messages', 'checkins', 'doses', 'episodes', 'medications', 'outbox']);
 });
 
 test('every mirror table has user_id and a 0/1 dirty flag', () => {

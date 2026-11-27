@@ -107,23 +107,28 @@ Hermes has no `Intl.PluralRules`), falling back to `.other`, and fills `{n}` wit
 Health data is local-first: a screen writes the phone's copy and queues the RPC call in one SQLite
 transaction, shows the change at once, and the outbox sends it when it can.
 
-- `local/db.ts`: `localDb()` opens `nimbo.db` on first use (`PRAGMA user_version = 1`). It holds the
-  mirror tables `episodes`, `medications`, `doses` and `checkins`, with the server's columns (arrays as
-  JSON text, booleans as 0 or 1), each row with its `user_id` and a `dirty` flag, and the `outbox`.
+- `local/db.ts`: `localDb()` opens `nimbo.db` on first use and migrates it by `PRAGMA user_version`, now 2: version 1
+  (`SCHEMA_V1`) creates the mirror tables `episodes`, `medications`, `doses` and `checkins`, with the server's columns
+  (arrays as JSON text, booleans as 0 or 1), each row with its `user_id` and a `dirty` flag, and the `outbox`; version 2
+  (`SCHEMA_V2`) adds the debrief columns (`episodes.helped`, `did_not_help` as JSON text defaulting to `'[]'`,
+  `debriefed_at`, and `doses.helped` as 0, 1 or null) and the `chat_messages` table. Every step a phone is missing runs in
+  one transaction, so a version 1 phone keeps its rows and its unsent outbox. A shipped step is frozen; a change is a new one.
   `notifyChanged(tables)` tells readers a committed write changed those tables. `purgeUser(userId)`
   deletes a user's mirror rows except those still waiting to be sent (dirty, or with an unsent or failed
-  operation), which survive until that user signs back in and sends them; it returns whether nothing of
-  theirs is left queued. `purgeOtherUsers` runs it at launch for everyone but the signed-in user.
+  operation), which survive until that user signs back in and sends them, and deletes all of their chat rows whatever is
+  queued; it returns whether nothing of theirs is left queued. `purgeOtherUsers` runs it at launch for everyone but the
+  signed-in user, chat-only users included.
 - `local/useLocalQuery.ts`: `useLocalQuery(tables, read)` re-reads only when one of `tables` changes (or
   `read` is a new function). Every read filters by the user id, so two accounts on one phone never see
   each other's rows.
 - `outbox/outbox.ts`: `enqueue(userId, kind, args)` is called inside the mirror write's transaction. It
-  queues the call for one of the eight tracking RPCs (`log_episode`, `update_episode`, `end_episode`,
-  `delete_episode`, `save_medication`, `log_dose`, `delete_dose`, `save_checkin`) and marks the row dirty. The
+  queues the call for one of the nine tracking RPCs (`log_episode`, `update_episode`, `end_episode`,
+  `delete_episode`, `save_medication`, `log_dose`, `delete_dose`, `set_dose_helped`, `save_checkin`) and marks the row
+  dirty (`set_dose_helped` marks the dose). The chat is never queued. The
   row stays dirty while any operation with its record key (the `p_id`, or `checkin:<local_date>`) is unsent,
   failed ones included. `listOutbox(userId)` returns that user's operations in order, and `resetFailed(userId)`
   puts them all back in line, due now, with fresh attempts.
-- The ninth kind, `complete_onboarding` (args `{}`, record key `profile:onboarding`, no mirror row), finishes
+- The tenth kind, `complete_onboarding` (args `{}`, record key `profile:onboarding`, no mirror row), finishes
   onboarding. It is queued rather than called so that a user who left setup unfinished can still reach Today, and
   crisis mode, offline: `completeOnboarding(userId)` queues it and returns the stamp the screen shows through
   `patchProfile`, and the gate opens Today at once. The RPC is idempotent (`coalesce`), so a replay is harmless.
@@ -145,7 +150,7 @@ transaction, shows the change at once, and the outbox sends it when it can.
   `22023`, `23514`, `23502`, `22P02`, `22001`, `22003`, `P0002` and `42501` are permanent, checked before
   the status because PostgREST answers `P0002` with a 500. Any other error is retried.
 - `sync/pull.ts`: `pullAll(userId)` reads every row of the user, table by table, with an explicit column
-  list, paged at the API's 1000-row limit. It then writes them in one transaction, skipping dirty rows
+  list (`PULL_COLUMNS`, the debrief columns included), paged at the API's 1000-row limit. It then writes them in one transaction, skipping dirty rows
   and rows with an unsent operation (so a local delete is not undone), deleting clean rows the server
   no longer has, and never touching another user's rows.
 - `sync/SyncProvider.tsx`: mounted inside `AuthProvider`. It runs a cycle, push then pull, on sign-in,
@@ -162,8 +167,23 @@ transaction, shows the change at once, and the outbox sends it when it can.
 ## Condition pack (`src/condition/`)
 
 Re-exports `supabase/functions/_shared/condition/` (the migraine catalogs, medication classes,
-limits and red flags, `matchRedFlags`, `matchRedFlagsAnyLocale`, `normalizeText` and `emergencyNumber`). App code imports it from
-here, never from `supabase/` directly.
+limits and red flags, `matchRedFlags`, `matchRedFlagsAnyLocale`, `normalizeText`, `emergencyNumber`, the dose-day maths
+`doseDaysForMonth`, `localDateIn` and `daysLeftInMonth`, and `crisisPlan`). App code imports it from
+here, never from `supabase/` directly. `crisisPlan(episodes, doses)` is pure: per relief key, the debriefed attacks it
+helped in out of those it was tried in (in `helped` or `didNotHelp`); per medication, its doses that helped out of those
+answered; only entries that helped at least once, ordered by ratio, then by how often they helped, then by key, each with
+the attacks behind it (`episodeIds`) as evidence.
+
+## Companion (`src/companion/`)
+
+- `contract.ts`: re-exports `supabase/functions/_shared/companion/contract.ts`, the vocabulary the companion function and
+  the app share: `MODES`, `GUARD_KEYS`, `INTENTS`, the drafts (`EpisodeDraft`, `DoseDraft`, `CheckinDraft`), `Evidence`,
+  `Guard` and `ReplacedReason`.
+- `chatStore.ts`: the chat on this phone only (`chat_messages`), never queued or synced, and removed by the sign-out purge.
+  `appendMessage(userId, message)` stores a message in one statement, and the table's `chat_messages_keep` trigger keeps the user's last `CHAT_KEEP` (200); `updateMessage` changes a
+  message's `status` or `payload` (drafts, evidence, the guard result and the record ids made on Confirm); `useChat`
+  reads the last 200, oldest first. Assistant lines the app writes itself are stored as a `template` key with empty text,
+  so they follow the UI language. Its writes open no transaction of their own, so a store transaction can include them.
 
 ## Red flags (`src/redflags/`, `src/app/urgent-care.tsx`)
 
@@ -207,9 +227,12 @@ Medications and doses live in the local mirrors and reach the server through the
   `NAME_MAX_LENGTH` (80), or a dose over `DOSE_MAX_LENGTH` (120) is a `RangeError` before anything is written, as the
   server would refuse it for good; the form uses the same limits. `useMedications` hides archived ones unless
   asked; `useMedication` reads one.
-- `doseStore.ts`: `logDose` makes the id on the phone (a retried send cannot log twice) and leaves `p_episode_id` out for a
-  dose with no episode; `deleteDose` removes the row and queues `delete_dose`; `useDoses` filters by episode or medication.
-- `doseDays.ts`: `doseDaysForMonth` lists the distinct local dates with an acute dose per class in the calendar month of a
+- `doseStore.ts`: `logDose` makes the id on the phone unless one is given (a confirmed draft brings its own; an id already
+  on the phone is a no-op), so a retried send cannot log twice, leaves `p_episode_id` out for a dose with no episode, and
+  refuses with a `RangeError` a time before 2000 or more than 5 minutes ahead, the same `checkedTime` (`src/lib/local/clientTime.ts`) the episode store uses.
+  `setDoseHelped(userId, doseId, helped)` queues `set_dose_helped`, leaving `p_helped` out for null; a dose that is not the
+  user's is a no-op. Both have `…Tx` twins (`logDoseTx`, `setDoseHelpedTx`); `deleteDose` removes the row and queues `delete_dose`; `useDoses` filters by episode or medication.
+- `doseDays.ts`: re-exports the pack's dose-day maths, so the companion counts overuse as Today does. `doseDaysForMonth` lists the distinct local dates with an acute dose per class in the calendar month of a
   date, read in a given time zone, so 23:59 on 30 November is November. Archived medications count; preventive ones do not.
   `daysLeftInMonth` is the whole days after today.
 - `OveruseNotice.tsx`: `mostUrgent` picks one notice (a limit over a warning, a class over the combined count) and the
@@ -221,13 +244,20 @@ Medications and doses live in the local mirrors and reach the server through the
 
 ## Attacks and crisis mode (`src/episodes/`, `src/crisis/`, `src/app/crisis.tsx`)
 
-- `episodes/episodeStore.ts`: `startEpisode(userId, now?)` writes the mirror row and queues `log_episode` in one
+- `episodes/episodeStore.ts`: every writer the companion composes has a `…Tx` twin (`updateEpisodeTx`, `endEpisodeTx`,
+  `logEpisodeTx`, `saveDebriefTx`) that validates, then writes, inside a transaction the caller opened; the public name is
+  that twin in its own transaction, because expo-sqlite's `withTransactionSync` does not nest. `startEpisode(userId, now?)` writes the mirror row and queues `log_episode` in one
   synchronous transaction before it returns, with the id made on the phone, so a kill after the tap loses nothing and a
   replayed send cannot log twice; an open attack is returned instead of a second one. `updateEpisode` patches only the
   keys given, the start included (people log late). It and `endEpisode` refuse, with a `RangeError` before anything is
   written or queued, a time later than now plus 5 minutes (the server stores one up to a day ahead as now, for a phone
   clock running fast) or before 2000, an end before the start, or notes over `NOTES_MAX_LENGTH` (2,000, the server's
-  limit, which would refuse the whole patch for good). `deleteEpisode`
+  limit, which would refuse the whole patch for good), an intensity outside 0–10, or a key outside the pack or repeated.
+  The patch also takes the debrief: `helped`, `didNotHelp` and `debriefed` (`true` stamps `debriefedAt` once, as the server
+  does, and `false` clears it). `logEpisode(userId, id, input)` logs a whole attack told to the companion with an id made
+  beforehand (an id already on the phone is a no-op); an open attack while another is open is a `RangeError`.
+  `saveDebrief(userId, episodeId, answers)` writes the reliefs, adds the answered triggers to those logged, sets
+  `debriefed` and whether each dose helped, all in one transaction. `deleteEpisode`
   unlinks the attack's doses as the server's `on delete set null` does. `useEpisodes` (newest first), `useEpisode`,
   `useOpenEpisode`, and `readOpenEpisode` for code outside a render.
 - `episodes/useLongAttackWatch.ts`: on mount and on every resume, an attack open for the pack's `statusHours` (72)
@@ -255,7 +285,7 @@ Medications and doses live in the local mirrors and reach the server through the
 ## Daily check-in and preventive reminders (`src/checkin/`, `src/cabinet/reminders.ts`, `src/app/checkin.tsx`)
 
 - `checkin/checkinStore.ts`: `saveCheckin(userId, localDate, fields)` merges only the keys given into the day's mirror row
-  and queues one `save_checkin` with those keys, in one transaction. A date the server would refuse (before 2000, more than
+  and queues one `save_checkin` with those keys, in one transaction (`saveCheckinTx` is the same inside a caller's). A date the server would refuse (before 2000, more than
   a day past the UTC date, not a real day) is a `RangeError` before anything is written. `useCheckin`, `isCheckinDone` (sleep
   band and stress both set) and `useCheckinDates` (local dates with a check-in, inclusive) feed Today and History.
 - `checkin/CheckinCard.tsx`: Today's two questions. The sleep tap saves nothing; the second answer, in either order, saves

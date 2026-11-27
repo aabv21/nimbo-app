@@ -2,7 +2,7 @@
 
 The backend is Supabase (Postgres 17), run locally through the `db:*` scripts ([`local-stack.md`](local-stack.md)).
 This document covers what the migrations create: `public.profiles`, its policies and grants, the
-signup trigger, the consent RPCs, and the tracking tables with their RPCs. Schema changes are new migration files in
+signup trigger, the consent RPCs, the tracking tables with their RPCs, entitlements and the AI quotas. Schema changes are new migration files in
 `supabase/migrations/`; a merged migration is never edited. The diagram [`diagrams/data-model.svg`](diagrams/data-model.svg) shows how the pieces relate, and [`architecture.md`](architecture.md#the-consent-model) explains why consent is RPC-only.
 
 ## `public.profiles`
@@ -86,7 +86,7 @@ RPC (a direct insert, update or delete fails with `42501`).
 | `checkins` | primary key `(user_id, local_date)`; `sleep_band`, `sleep_quality`, `stress`; booleans `low_water`, `extra_caffeine`, `alcohol`, `skipped_meal`, `screen_heavy`, `period_started` (default false) |
 
 Indexes: `episodes (user_id, started_at desc)`, `doses (user_id, taken_at desc)`, `doses (episode_id)`,
-`doses (medication_id)`, `medications (user_id)`. The debrief columns arrive with the debrief itself.
+`doses (medication_id)`, `medications (user_id)`. The debrief columns are added by `20261128120100_companion_data.sql` (see [Companion data](#companion-data)).
 
 Enums: `episode_source` (`manual`, `voice`, `chat`), `medication_kind` (`preventive`, `acute`),
 `medication_form` (`oral`, `injection`, `nasal`, `other`), `medication_class` (the condition pack's seven
@@ -152,12 +152,45 @@ service role (the `pnpm premium` script) or an edit in the dashboard changes a r
 An authenticated caller asking about another user gets `42501`; the service role may ask about anyone. It is granted to
 `authenticated` and `service_role`, not `anon`. Edge Functions call it through `supabase/functions/_shared/premium.ts`.
 
+## AI quotas
+
+`20261128120000_quota.sql` adds the daily limits on the AI calls. `public.usage_counters(user_id, day, kind, count)` holds one
+counter per user, day and `public.quota_kind` (`companion`, `dictation`), with primary key `(user_id, day, kind)`, `count >= 0`
+and `on delete cascade` from `auth.users`. RLS is on with no policy, and every privilege is revoked from `anon` and
+`authenticated`, so a client can neither read nor write a counter.
+
+`consume_quota(p_user_id uuid, p_kind public.quota_kind, p_limit integer, p_day date) returns boolean` is `security definer`
+with `search_path = ''`, revoked from `public`, `anon` and `authenticated` and granted to `service_role` only: the Edge
+Functions call it through `supabase/functions/_shared/quota.ts` (40 `companion` and 20 `dictation` a day). It adds one to the
+counter and returns true while the count is below `p_limit`, else false without counting; a null or zero limit is false.
+`p_day` is the app's local day: it is counted as given when within one day of the UTC date (every time zone is), and on the
+UTC day otherwise or when null, so the quota resets at the user's midnight. The day is a counter key, not a stored time, so
+it takes this rule rather than `private.client_time`.
+
+## Companion data
+
+`20261128120100_companion_data.sql` adds what the companion and the day-after debrief store.
+
+| Change | Contract |
+| --- | --- |
+| `episodes.helped`, `episodes.did_not_help` | `text[] not null default '{}'`, each checked against the `reliefs` catalog (`23514` outside it or for a duplicate). |
+| `episodes.debriefed_at` | `timestamptz`, null until the debrief; stamped by the server clock only through `update_episode`. |
+| `doses.helped` | `boolean`, null when not asked or cleared. |
+| `update_episode(p_id, p_fields)` | Redefined with the Wave 2 body unchanged (the clamped start included), plus three keys: `helped`, `did_not_help` (arrays, like the other lists) and `debriefed`. `debriefed: true` stamps `debriefed_at` with `now()` once and keeps it on a repeat, so a replay after a lost reply does not move it; `false` clears it; any other json value is `22023`. The grants are kept. |
+| `set_dose_helped(p_id uuid, p_helped boolean default null)` | Sets the caller's dose's `helped`; leaving `p_helped` out clears it (the generated type is `p_helped?: boolean`, so a client never sends a null). A repeat succeeds. `P0002` when the dose is not the caller's. |
+| `public.agent_notes` | `id uuid` pk (`gen_random_uuid()`), `user_id` (cascade from `auth.users`), `text` (1 to 200 characters), `created_at`. Index `(user_id, created_at)`. RLS read-own `select`; `anon` and `authenticated` hold only `select`, so a direct write is `42501`. |
+| `save_agent_note(p_text text) returns uuid` | Trims the text and inserts it under the caller. A null or a control character (which could fake a line or a tag in the prompt the notes are quoted in) is `22023`; empty after the trim or over 200 characters is `23514`; a 21st note is `23514`. The count check locks the caller's `profiles` row first, so two saves at once cannot make a 21st. Not idempotent: it is called online, never queued. |
+| `delete_agent_note(p_id uuid)` | Deletes the caller's note; a missing or foreign id is a no-op. |
+
+All three new RPCs are `security definer` with `search_path = ''`, `42501` when signed out, revoked from `public` and `anon`
+and granted to `authenticated`.
+
 ## Tests
 
-pgTAP files in `supabase/tests/`, run by `pnpm db:test`. `profiles.test.sql` (37 assertions), `tracking.test.sql` (106), `onboarding_profile.test.sql` (13) and `entitlements.test.sql` (29). `profiles.test.sql` covers
+pgTAP files in `supabase/tests/`, run by `pnpm db:test`. `profiles.test.sql` (37 assertions), `tracking.test.sql` (106), `onboarding_profile.test.sql` (13), `entitlements.test.sql` (29), `quota.test.sql` (20) and `companion_data.test.sql` (55). `profiles.test.sql` covers
 the signup row and its defaults, own-row visibility, the update grants and each refused column,
 both RPCs including the repeat and withdrawal cases, the value checks, function privileges for
-`anon` and `authenticated`, and the refused insert and delete. `tracking.test.sql` covers RLS and the refused direct writes on the four tables, each RPC's idempotency, patch semantics (including a moved start, a start after the end as `23514`, times ten minutes ahead stored as now, a clamped start stopping at the stored end, and times two days ahead as `22023`), ownership (`P0002`), catalog and range errors, and `anon` privileges. `onboarding_profile.test.sql` covers `complete_onboarding`, the trigger catalog check, the priorities and `track_period`. `entitlements.test.sql` covers own-row reads, the `updated_at` trigger, each refused write, the boundary at exactly now, `service_role`, the grant and purchase time cases (an expired purchase beside a grant and the reverse), the `42501` for another user, and `anon`.
+`anon` and `authenticated`, and the refused insert and delete. `tracking.test.sql` covers RLS and the refused direct writes on the four tables, each RPC's idempotency, patch semantics (including a moved start, a start after the end as `23514`, times ten minutes ahead stored as now, a clamped start stopping at the stored end, and times two days ahead as `22023`), ownership (`P0002`), catalog and range errors, and `anon` privileges. `onboarding_profile.test.sql` covers `complete_onboarding`, the trigger catalog check, the priorities and `track_period`. `entitlements.test.sql` covers own-row reads, the `updated_at` trigger, each refused write, the boundary at exactly now, `service_role`, the grant and purchase time cases (an expired purchase beside a grant and the reverse), the `42501` for another user, and `anon`. `quota.test.sql` covers the 41st `companion` call refused, `dictation` counted apart, another user's own budget, the day rule (a day three days off and a null day count on the UTC day, one day ahead gets its own counter), a zero or null limit, RLS with no policy, and no execute or select for `anon` or `authenticated`. `companion_data.test.sql` covers the relief checks on `helped` and `did_not_help`, `debriefed` stamping once (a repeat keeps an earlier stamp) and `false` clearing it, a non-boolean `debriefed` as `22023`, a replayed debrief, `set_dose_helped` set, repeated, cleared by omitting `p_helped` and refused on another user's dose, `agent_notes` read-own and its refused direct writes, the 200-character, blank and control-character notes, the 21st note, `delete_agent_note` leaving another user's note, the signed-out `42501`s and `anon`.
 
 ## New table checklist
 
