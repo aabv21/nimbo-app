@@ -96,6 +96,19 @@ test('a failed save puts the appearance back and says so', async () => {
   expect(currentAuth().profile?.theme).toBe('day');
 });
 
+test('the lock-screen detail and period switches save their change, both off by default', async () => {
+  await render(<Profile />);
+  const detail = screen.getByRole('switch', { name: t('profile.lock_detail') });
+  const period = screen.getByRole('switch', { name: t('profile.period') });
+  expect(detail).not.toBeChecked();
+  expect(period).not.toBeChecked();
+
+  await fireEvent.press(detail);
+  expect(mockedUpdate).toHaveBeenCalledWith({ lockScreenDetail: true });
+  await fireEvent.press(period);
+  expect(mockedUpdate).toHaveBeenCalledWith({ trackPeriod: true });
+});
+
 test('the reduce-motion switch saves the change', async () => {
   await render(<Profile />);
   await fireEvent.press(screen.getByRole('switch', { name: t('profile.reduceMotion') }));

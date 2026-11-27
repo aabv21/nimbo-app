@@ -3,7 +3,6 @@
 import { getLocales } from 'expo-localization';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
-import type { Href } from 'expo-router';
 import { Clock, OctagonAlert, Phone, TriangleAlert } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -108,8 +107,7 @@ export default function UrgentCare(): React.JSX.Element {
     );
   };
   const fixTime = (id: string): void => {
-    // NOTE: a cast until the episode editor route exists; drop it once typed routes list /episode/[id]/edit.
-    router.replace(`/episode/${id}/edit` as Href);
+    router.replace(`/episode/${id}/edit`);
   };
 
   return (

@@ -7,6 +7,8 @@ import { READY_PROFILE, currentAuth, resetAuth } from '../test/authMock';
 
 // The consent screens with the real root layout: a saved answer moves the user on through the gate alone.
 jest.mock('../auth/AuthProvider', () => require('../test/authMock'));
+// The root layout's long-attack watch reads the local store.
+jest.mock('expo-sqlite', () => require('../test/sqliteNode'));
 jest.mock('../lib/sync/SyncProvider', () => require('../test/syncMock'));
 jest.mock('expo-font', () => ({ useFonts: () => [true, null] }));
 jest.mock('expo-splash-screen', () => ({

@@ -5,10 +5,27 @@ create or edit them by hand. Native behavior lives in `app.json` and its config 
 
 ## Permissions
 
-Nimbo uses no permission beyond the network. There is no camera, microphone, location, notification
-or contacts access yet, so `app.json` declares no usage strings and no `ios.infoPlist` entries.
-Later waves that add one (coarse location for weather, notifications) must list it here with the
-reason and the plugin that adds it.
+Nimbo uses no permission beyond the network and, for preventive reminders, notifications. There is no
+camera, microphone, location or contacts access yet, so `app.json` declares no usage strings and no
+`ios.infoPlist` entries. Later waves that add a permission (coarse location for weather) must list it here
+with the reason and the plugin that adds it.
+
+- **Notifications (`expo-notifications`):** the reminders are local, scheduled on the phone with no server. On
+  Android 13 and later the `expo-notifications` plugin adds `POST_NOTIFICATIONS`, and the library's own manifest adds
+  `RECEIVE_BOOT_COMPLETED`, so reminders are set up again after a restart. The app asks only when a preventive
+  schedule is saved (never at launch), through `askNotificationPermission`, and only while the system still allows the
+  question. Android 12 and later need `SCHEDULE_EXACT_ALARM` for exact times and Android 14 denies it by default; Nimbo
+  does not request it, so a reminder may arrive a few minutes late (a reminder is not an alarm). iOS asks for alert and
+  sound, never a badge.
+- **Date-time picker (`@react-native-community/datetimepicker`):** the attack editor's time fields. It needs no permission; its
+  config plugin carries the library's native setup. iOS shows its picker inline; Android has no date-time mode, so the editor asks
+  for the date and then the time.
+- **Channel:** `preventive-reminders`, importance default, lock-screen visibility private, named "Reminders" in the
+  user's language. The plugin's `defaultChannel` is the same id.
+- **No push:** `enableRemoteNotifications` is `false`, so the iOS build has no APNs entitlement and Nimbo registers no
+  push token; every notification is local.
+- **Content:** the title is "Nimbo" and the body the neutral line, unless the user turned on the lock-screen detail in
+  Profile; `data` carries nothing.
 
 ## What `app.json` sets
 
@@ -24,6 +41,9 @@ reason and the plugin that adds it.
   - `expo-sqlite`, for the key-value store that holds the session and the cached profile, and for
     `nimbo.db`, the local store of health records and the outbox ([`app.md`](app.md)).
   - `expo-apple-authentication`, with `ios.usesAppleSignIn` true, for Sign in with Apple.
+  - `expo-notifications`, with `defaultChannel` `preventive-reminders` and `enableRemoteNotifications` false, for the
+    local preventive reminders.
+  - `@react-native-community/datetimepicker`, for the attack editor's start and end times.
 - **Experiments:** `typedRoutes` and `reactCompiler`.
 - **Android:** a monochrome adaptive icon, `predictiveBackGestureEnabled: false`, and
   `allowBackup: false`, so Android's cloud and device-transfer backup never copies `nimbo.db` (health

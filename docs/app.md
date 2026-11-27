@@ -21,6 +21,9 @@ Expo Router routes: every file is a screen and `_layout.tsx` files define naviga
   `profile` holds language, appearance, reduce motion, the AI switch and sign-out.
 - `urgent-care.tsx`: the urgent-care screen for a red-flag hit ([Red flags](#red-flags)), registered with
   the tabs as a full-screen modal with no animation and no swipe to dismiss.
+- `crisis.tsx`: crisis mode for the attack in `?id=` ([Attacks and crisis mode](#attacks-and-crisis-mode)),
+  registered with the tabs as a transparent modal with no native animation. The root layout also mounts
+  the long-attack watch while the tabs are the allowed target.
 - `src/__tests__/` holds the tests that span routes.
 
 ## Auth (`src/auth/`)
@@ -65,7 +68,8 @@ Hermes has no `Intl.PluralRules`), falling back to `.other`, and fills `{n}` wit
   them; `resolveTheme.ts`: preference, phone scheme and crisis mode to a theme; `ThemeProvider.tsx` and
   `themeContext.ts` provide it (`useTheme`, `useTones`); `color.ts` and `contrast.ts` are the colour
   maths and WCAG contrast the theme tests use.
-- `motion.ts`: motion tokens per theme and reduce-motion setting, `useMotion()`, easings and springs;
+- `motion.ts`: motion tokens per theme and reduce-motion setting, `useMotion()`, easings and springs,
+  `entrance(motion, dy, delay)` (a rise, or the reduced fade) and `crossFade(motion)` (a value changing in place);
   `usePressFeedback.ts`: press feedback; `useAccessibilityFlag.ts`: reduce motion and reduce transparency.
 - Components: `Screen`, `Button`, `TextField`, `TextLink`, `Notice`, `ChoiceGroup`, `SwitchRow`,
   `CheckRow`, `CodeBoxes`, `BackButton`, `TabBar` (the floating Liquid Glass bar) and `TabScene` (a
@@ -216,9 +220,94 @@ Medications and doses live in the local mirrors and reach the server through the
 - `src/app/cabinet/index.tsx` lists acute and preventive medications with each class's days; `[id].tsx` adds (`new`) or
   edits one and archives it after a confirmation. Profile has a row that opens the cabinet.
 
+### Attacks and crisis mode (`src/episodes/`, `src/crisis/`, `src/app/crisis.tsx`)
+
+- `episodes/episodeStore.ts`: `startEpisode(userId, now?)` writes the mirror row and queues `log_episode` in one
+  synchronous transaction before it returns, with the id made on the phone, so a kill after the tap loses nothing and a
+  replayed send cannot log twice; an open attack is returned instead of a second one. `updateEpisode` patches only the
+  keys given, the start included (people log late). It and `endEpisode` refuse, with a `RangeError` before anything is
+  written or queued, what the server would refuse: a time later than now plus 5 minutes or before 2000, or an end
+  before the start. `deleteEpisode`
+  unlinks the attack's doses as the server's `on delete set null` does. `useEpisodes` (newest first), `useEpisode`,
+  `useOpenEpisode`, and `readOpenEpisode` for code outside a render.
+- `episodes/useLongAttackWatch.ts`: on mount and on every resume, an attack open for the pack's `statusHours` (72)
+  opens urgent care with `long_attack`, then sets kv `redflag.long.<episodeId>`, so it opens once per attack. It waits
+  while another urgent-care screen is up and while the landing route `/` is still redirecting.
+- `crisis/countdown.ts`: pure. `nextDoseAt` from the latest dose and the interval the user entered, `minutesLeft`
+  (a part minute counts, never below 0), and `resolveDoseTime`, which places a typed clock time on today's date in a
+  time zone, or yesterday's when it is later than now ("23:50" typed at 00:10).
+- `crisis/useMinuteClock.ts`: the time, refreshed on each minute boundary and on resume; nothing ticks per second.
+- `crisis/IntensityScale.tsx` (eleven 56 pt steps, unset until the first tap, a selection haptic per step),
+  `crisis/HeadMap.tsx` (front and back views of the pack's pain areas, each region a 48 pt or larger checkbox, sides
+  named from the user's point of view), `crisis/DoseButton.tsx` (one per acute medication: log now with a success
+  haptic, then "Taken at", the countdown from that medication's latest dose in any attack, and Change or Cancel on a
+  dose just logged) and `crisis/EndAttack.tsx` (the "It's over" sheet and the summary after it).
+- `app/crisis.tsx` forces Dim on mount and releases it when it closes, keeps the screen awake (`expo-keep-awake`), and
+  wraps its own subtree in Dim so it stays Dim while the app below turns back. Closing (Hide, or Close after the end)
+  fades the layer out over `slow` when the screen below is Day and `base` otherwise. Hide leaves the attack open.
+  Confirming an end never throws: a refused time, the default "now" included, shows the sheet's inline error. With the
+  AI off, a line under the symptoms says everything is logged with taps.
+  "Tell me", "What helped before" and the debrief line need the companion and are not built yet.
+
+### Daily check-in and preventive reminders (`src/checkin/`, `src/cabinet/reminders.ts`, `src/app/checkin.tsx`)
+
+- `checkin/checkinStore.ts`: `saveCheckin(userId, localDate, fields)` merges only the keys given into the day's mirror row
+  and queues one `save_checkin` with those keys, in one transaction. A date the server would refuse (before 2000, more than
+  a day past the UTC date, not a real day) is a `RangeError` before anything is written. `useCheckin`, `isCheckinDone` (sleep
+  band and stress both set) and `useCheckinDates` (local dates with a check-in, inclusive) feed Today and History.
+- `checkin/CheckinCard.tsx`: Today's two questions. The sleep tap saves nothing; the second answer, in either order, saves
+  both with a success haptic and the card turns into the done line, with Change (reopens the questions with the saved answers
+  marked) and More details (opens `/checkin`). `checkin/Chip.tsx` is the 48 pt answer chip.
+- `app/checkin.tsx`: the full check-in (sleep, its quality, stress, five optional facts, and the period question only when
+  `profile.trackPeriod`). It is a transparent modal that draws its own scrim and bottom sheet with a grip: in Day the sheet
+  slides up on a spring, in Dim and reduced motion it fades (Dim with an 8 pt rise). Tapping the scrim closes it. Save sends
+  only the fields changed since it opened; the button cross-fades to Done with a check (settling from 0.9 in Day), held for
+  a second, then the sheet closes.
+- `cabinet/reminders.ts`: `syncReminders` cancels every reminder of the app and schedules again: a `DAILY` trigger for a
+  daily medication, `DATE` triggers for the next three monthly or quarterly doses (`nextOccurrences`; a monthly anchor on the
+  31st falls on the last day of a shorter month, and the wall clock is read in the device zone). The title is "Nimbo", the body
+  the neutral line, or the medication's name only with the lock-screen detail on; `data` is empty. The Android channel is
+  default importance with private lock-screen visibility. With no permission nothing is scheduled. `askNotificationPermission`
+  asks only when the system still can; saving a schedule in the cabinet asks.
+- `cabinet/ReminderSync.tsx` (mounted with Today's tree in `_layout.tsx`) syncs on mount, on each resume, and on any change to
+  the medications, the lock-screen setting or the language, and when `askNotificationPermission` finds the permission
+  granted (the first schedule is saved before the answer); unmounting, as a sign-out does, cancels everything. The root
+  layout also cancels them at any launch whose gate target is not Today, for a sign-out made while the app was closed.
+  `cabinet/nextPreventive.ts` gives the preventive dose still due today, for Today's medication card.
+
+### History and the episode screens (`src/history/`, `src/app/(tabs)/history.tsx`, `src/app/episode/`)
+
+- `history/monthGrid.ts` is the calendar's grid: weeks of seven cells, Monday first, `null` outside the month (the month is
+  0-based, as `Date`'s). A month can take six rows, as November 2026 does (30 November is a Monday).
+- `history/filterEpisodes.ts` is the filter and the search, pure. The query is matched, accents and case folded with the
+  pack's `normalizeText`, against the notes and the translated labels of the pain areas, symptoms and triggers, so "cafe"
+  finds "Cafeína" in Spanish. The intensity, trigger, doses (linked by `episodeId`) and period (counted back from now)
+  filters keep the order they are given.
+- `history/HistoryCalendar.tsx` shows one month: an attack day carries its highest intensity as a number (the day's label
+  says it too, so colour is never the only signal), a check-in day a dot, today a ring and later days are dimmed. The next
+  month is disabled at the current one. Tapping an attack day lists its attacks below. The summary counts the attacks and the
+  days with a dose in the month, each in its own plural form.
+- `history/HistoryList.tsx` is a `FlatList` of month headings and rows, newest first, under the search field and the Filters
+  button. Rows already there at first render do not animate; one that arrives later rises in. There is no layout animation.
+  `history/EpisodeRow.tsx` is the row (date, times and intensity, main tags).
+- `history/FilterSheet.tsx` edits a copy of the filter and names how many attacks it leaves on its Apply button. It draws its
+  own scrim and bottom sheet inside a transparent `Modal` (no native sheet) with `ui/useSheetMotion.ts`, which
+  `app/checkin.tsx` shares: the sheet slides in Day and Dark, and fades in Dim and with reduced motion. Only triggers the
+  user has logged are offered.
+- The History tab switches between Calendar and List. `?filter=doses` (the overuse notice's action) opens the list with
+  doses and the last 30 days. "Patterns" joins the switch with the insights.
+- `app/episode/[id].tsx` shows every field of an attack, its doses and Edit and Delete (an `Alert` first); the debrief rows
+  wait for the debrief itself. `app/episode/[id]/edit.tsx` edits the times (`history/DateTimeField.tsx`: the native picker
+  inline on iOS, the date then the time dialogs on Android), the intensity (`crisis/IntensityScale.tsx`), the four chip lists
+  and the notes. An end before the start shows an error and disables Save; a time the store refuses (`RangeError`) is shown
+  inline, never thrown from the press. Save sends only the fields that changed. When the notes changed, Save confirms for a
+  second, goes back, and then runs the red-flag check on the saved notes; it still runs if the screen is left during that
+  second. Urgent care's "It already ended" and crisis mode's "Fill in now" open this editor.
+
 ## Test helpers (`src/test/`)
 
 `authMock.ts` stands in for `AuthProvider` in screen suites, `syncMock.ts` for `SyncProvider` in suites
 that render the root layout, and `reanimatedMock.ts` replaces Reanimated under Jest. `sqliteNode.ts` is
 expo-sqlite's synchronous API over `node:sqlite`, and `localDbTest.ts` empties the local store and
-inserts mirror rows ([`testing.md`](testing.md)).
+inserts mirror rows ([`testing.md`](testing.md)). `datetimepickerMock.ts` stands in for the native date-time picker (a view that
+keeps its props, so a test can call `onValueChange`), and `episodeSeed.ts` makes attacks through the episode store.

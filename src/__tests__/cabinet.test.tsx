@@ -7,6 +7,7 @@ import Profile from '../app/(tabs)/profile';
 import { daysLeftInMonth } from '../cabinet/doseDays';
 import { logDose } from '../cabinet/doseStore';
 import { saveMedication } from '../cabinet/medicationStore';
+import { askNotificationPermission } from '../cabinet/reminders';
 import type { MedicationInput } from '../cabinet/medicationStore';
 import { translate } from '../i18n';
 import type { MessageKey, Params } from '../i18n';
@@ -17,6 +18,7 @@ import { clearLocalDb } from '../test/localDbTest';
 
 jest.mock('expo-sqlite', () => require('../test/sqliteNode'));
 jest.mock('expo-crypto', () => ({ randomUUID: () => (require('node:crypto') as typeof import('node:crypto')).randomUUID() }));
+jest.mock('../cabinet/reminders', () => ({ askNotificationPermission: jest.fn(() => Promise.resolve(true)) }));
 jest.mock('../auth/AuthProvider', () => require('../test/authMock'));
 jest.mock('../auth/useSignOut', () => ({ useSignOut: () => ({ signOut: jest.fn(), signingOut: false, error: undefined }) }));
 jest.mock('../profile/profileRepository', () => ({ updateProfile: jest.fn(), setAiConsent: jest.fn() }));
@@ -190,6 +192,26 @@ describe('the form', () => {
     expect(medicationRows()).toEqual([expect.objectContaining({ name: 'Injection', kind: 'preventive', schedule: 'monthly', min_interval_minutes: null })]);
     const args = listOutbox('user-1')[0]?.args as { p_fields: unknown };
     expect(args.p_fields).toEqual(expect.objectContaining({ schedule: 'monthly', schedule_time: '09:30:00', schedule_anchor: '2026-12-05' }));
+  });
+
+  test('saving a schedule asks for the notification permission', async () => {
+    await render(<MedicationScreen />);
+    await fireEvent.changeText(screen.getByLabelText(t('cabinet.name')), 'Propranolol');
+    await fireEvent.press(screen.getByRole('radio', { name: t('cabinet.kind.preventive') }));
+    await fireEvent.press(screen.getByRole('radio', { name: t('cabinet.schedule.daily', { time: '--:--' }) }));
+    await fireEvent.changeText(screen.getByLabelText(t('cabinet.schedule.time')), '8:00');
+    await fireEvent.press(screen.getByRole('button', { name: t('common.save') }));
+
+    expect(askNotificationPermission).toHaveBeenCalledTimes(1);
+    expect(askNotificationPermission).toHaveBeenCalledWith('en');
+  });
+
+  test('saving an acute medication does not ask', async () => {
+    await render(<MedicationScreen />);
+    await fireEvent.changeText(screen.getByLabelText(t('cabinet.name')), 'Ibuprofen');
+    await fireEvent.press(screen.getByRole('button', { name: t('common.save') }));
+
+    expect(askNotificationPermission).not.toHaveBeenCalled();
   });
 
   test('an existing medication opens filled in and ends with an archive that asks first', async () => {

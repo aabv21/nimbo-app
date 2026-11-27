@@ -7,6 +7,7 @@ import { useAuth } from '../../auth/AuthProvider';
 import { classLabelKey } from '../../cabinet/medicationLabels';
 import { saveMedication, useMedication } from '../../cabinet/medicationStore';
 import type { Medication, MedicationInput } from '../../cabinet/medicationStore';
+import { askNotificationPermission } from '../../cabinet/reminders';
 import { packs } from '../../condition';
 import type { MedicationClass } from '../../condition';
 import { useI18n } from '../../i18n';
@@ -74,7 +75,7 @@ interface FormProps {
 }
 
 function MedicationForm({ userId, id, medication }: FormProps): React.JSX.Element {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const { color } = useTheme();
   const [name, setName] = useState(medication?.name ?? '');
   const [kind, setKind] = useState<Kind>(medication?.kind ?? 'acute');
@@ -127,6 +128,8 @@ function MedicationForm({ userId, id, medication }: FormProps): React.JSX.Elemen
       scheduleAnchor: needsStart ? start.trim() : null,
       archived: medication?.archived ?? false,
     });
+    // A schedule is useless without the permission, so the question comes with the save that needs it; the answer isn't awaited.
+    if (scheduled) askNotificationPermission(locale).catch(() => undefined);
     router.back();
   };
 

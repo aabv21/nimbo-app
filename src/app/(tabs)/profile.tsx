@@ -186,7 +186,26 @@ export default function Profile(): React.JSX.Element | null {
             void change({ reduceMotion });
           }}
         />
+        <SwitchRow
+          title={t('profile.period')}
+          sub={t('profile.period.sub')}
+          value={profile.trackPeriod}
+          onChange={(trackPeriod) => {
+            void change({ trackPeriod });
+          }}
+        />
         {userId === null ? null : <CabinetRow userId={userId} />}
+      </Section>
+
+      <Section title={t('profile.sec.notif')}>
+        <SwitchRow
+          title={t('profile.lock_detail')}
+          sub={t('profile.lock_detail.sub')}
+          value={profile.lockScreenDetail}
+          onChange={(lockScreenDetail) => {
+            void change({ lockScreenDetail });
+          }}
+        />
       </Section>
 
       <Section title={t('profile.companion')}>

@@ -28,9 +28,19 @@ export default defineConfig(
     rules: { 'security/detect-object-injection': 'off' },
   },
   {
-    // Both index a record by a medication class that comes from the pack's fixed tuple.
-    files: ['supabase/functions/_shared/condition/overuse.ts', 'src/cabinet/doseDays.ts'],
+    // These index a record by a medication class, or a check-in field, from a fixed tuple.
+    files: ['supabase/functions/_shared/condition/overuse.ts', 'src/cabinet/doseDays.ts', 'src/checkin/checkinStore.ts', 'src/app/checkin.tsx'],
     rules: { 'security/detect-object-injection': 'off' },
+  },
+  {
+    // These index a record by a catalog name, a form field or a period from a fixed tuple.
+    files: ['src/history/{filterEpisodes,labels}.ts', 'src/app/episode/[[]id]/edit.tsx'],
+    rules: { 'security/detect-object-injection': 'off' },
+  },
+  {
+    // A date field's accessible name is its label plus its value, so the test matches it by the catalog label.
+    files: ['src/__tests__/episode.test.tsx'],
+    rules: { 'security/detect-non-literal-regexp': 'off' },
   },
   {
     // The red-flag tests read the calibration fixtures from a path built from a fixed locale tuple.
@@ -57,8 +67,10 @@ export default defineConfig(
       'jest.setup.ts',
       'src/ui/__tests__/ThemeProvider.test.tsx',
       'src/__tests__/{boundary,ai-consent,consent-gate,smoke,profile}.test.tsx',
-      'src/__tests__/cabinet.test.tsx',
-      'src/cabinet/__tests__/*.test.ts',
+      'src/__tests__/{cabinet,crisis,checkin,history,episode}.test.tsx',
+      'src/cabinet/__tests__/*.test.{ts,tsx}',
+      'src/checkin/__tests__/*.test.{ts,tsx}',
+      'src/episodes/__tests__/*.test.{ts,tsx}',
       'src/redflags/__tests__/*.test.tsx',
       'src/profile/__tests__/{useTimezoneSync,useProfileChange}.test.ts',
       'src/lib/{local,outbox,sync}/__tests__/*.test.{ts,tsx}',

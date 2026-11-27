@@ -34,7 +34,9 @@
       ],
       ["expo-localization", { "supportedLocales": ["en", "es", "pt"] }],
       "expo-sqlite",
-      "expo-apple-authentication"
+      "expo-apple-authentication",
+      ["expo-notifications", { "defaultChannel": "preventive-reminders", "enableRemoteNotifications": false }],
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true,

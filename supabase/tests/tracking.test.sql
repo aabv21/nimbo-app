@@ -4,7 +4,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(93);
+select plan(97);
 
 insert into auth.users (id, instance_id, aud, role, email, encrypted_password, raw_app_meta_data, raw_user_meta_data)
 values
@@ -95,6 +95,19 @@ select is(
 );
 select lives_ok($$ select public.update_episode('aaaaaaaa-0000-0000-0000-000000000001', '{"notes": null}') $$, 'update_episode accepts a json null');
 select is((select notes from public.episodes where id = 'aaaaaaaa-0000-0000-0000-000000000001'), null, 'a json null clears the notes');
+select lives_ok(
+  $$ select public.update_episode('aaaaaaaa-0000-0000-0000-000000000001', jsonb_build_object('started_at', now() - interval '90 minutes')) $$,
+  'update_episode moves the start'
+);
+select is(
+  (select started_at from public.episodes where id = 'aaaaaaaa-0000-0000-0000-000000000001'),
+  now() - interval '90 minutes',
+  'the start is the one given'
+);
+select throws_ok(
+  $$ select public.update_episode('aaaaaaaa-0000-0000-0000-000000000001', jsonb_build_object('started_at', now() + interval '1 hour')) $$,
+  '22023', null, 'a start an hour ahead raises 22023'
+);
 select throws_ok($$ select public.update_episode('aaaaaaaa-0000-0000-0000-000000000001', '{"bogus": 1}') $$, '22023', null, 'update_episode rejects an unknown key');
 select throws_ok($$ select public.update_episode('aaaaaaaa-0000-0000-0000-0000000000ff', '{"intensity": 1}') $$, 'P0002', null, 'update_episode on a missing id raises P0002');
 
@@ -117,6 +130,10 @@ select lives_ok(
   'a repeat with the same value succeeds'
 );
 select throws_ok($$ select public.end_episode('aaaaaaaa-0000-0000-0000-000000000001', now() + interval '1 hour') $$, '22023', null, 'an end an hour ahead raises 22023');
+select throws_ok(
+  $$ select public.update_episode('aaaaaaaa-0000-0000-0000-000000000001', jsonb_build_object('started_at', now() + interval '2 minutes')) $$,
+  '23514', null, 'a start after the end raises 23514'
+);
 
 -- save_medication (runs before the dose tests, which need a medication of A's).
 select throws_ok($$ select public.save_medication('aaaaaaaa-1000-0000-0000-000000000001', '{"name": "Naproxen", "kind": "acute"}') $$, '23502', null, 'a new medication without a class raises 23502');

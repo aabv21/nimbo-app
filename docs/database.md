@@ -118,7 +118,7 @@ before 2000-01-01 raises `22023`. `p_fields` keys are column names.
 | Function | Contract |
 | --- | --- |
 | `log_episode(p_id, p_started_at, p_fields)` | Inserts, `on conflict (id) do nothing`, so a retry keeps the first fields. Keys: `ended_at, intensity, pain_areas, symptoms, triggers, reliefs, notes, source`. |
-| `update_episode(p_id, p_fields)` | Patches only the keys present; a json null clears the column (an array becomes empty). `P0002` when the episode is not the caller's. |
+| `update_episode(p_id, p_fields)` | Patches only the keys present; a json null clears the column (an array becomes empty). Keys: `started_at` (people log late; it gets the same time check as `log_episode`'s start and cannot be cleared), then the `log_episode` keys. A start after the end, or an end before the start, is `23514`. `P0002` when the episode is not the caller's. |
 | `end_episode(p_id, p_ended_at)` | Sets `ended_at`; before the start is `23514`; a repeat with the same value succeeds. |
 | `delete_episode(p_id)` | Deletes; a missing or foreign row is not an error. Its doses keep existing with a null `episode_id`. |
 | `save_medication(p_id, p_fields)` | Patches the caller's row, else inserts it. Keys: `name, kind, form, class, dose_text, min_interval_minutes, schedule, schedule_time, schedule_anchor, archived`; `archived: true` stamps `archived_at` (keeping an earlier stamp) and `false` clears it. An id that belongs to someone else is `P0002`. |
@@ -137,10 +137,10 @@ because the profiles migration was already merged.
 
 ## Tests
 
-pgTAP files in `supabase/tests/`, run by `pnpm db:test`. `profiles.test.sql` (37 assertions), `tracking.test.sql` (93) and `onboarding_profile.test.sql` (13). `profiles.test.sql` covers
+pgTAP files in `supabase/tests/`, run by `pnpm db:test`. `profiles.test.sql` (37 assertions), `tracking.test.sql` (97) and `onboarding_profile.test.sql` (13). `profiles.test.sql` covers
 the signup row and its defaults, own-row visibility, the update grants and each refused column,
 both RPCs including the repeat and withdrawal cases, the value checks, function privileges for
-`anon` and `authenticated`, and the refused insert and delete. `tracking.test.sql` covers RLS and the refused direct writes on the four tables, each RPC's idempotency, patch semantics, ownership (`P0002`), catalog and range errors, and `anon` privileges. `onboarding_profile.test.sql` covers `complete_onboarding`, the trigger catalog check, the priorities and `track_period`.
+`anon` and `authenticated`, and the refused insert and delete. `tracking.test.sql` covers RLS and the refused direct writes on the four tables, each RPC's idempotency, patch semantics (including a moved start, a start ahead of now as `22023` and a start after the end as `23514`), ownership (`P0002`), catalog and range errors, and `anon` privileges. `onboarding_profile.test.sql` covers `complete_onboarding`, the trigger catalog check, the priorities and `track_period`.
 
 ## New table checklist
 

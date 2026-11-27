@@ -1,6 +1,7 @@
 // Motion tokens per level, and the easings and springs every animation takes them with.
 import { useMemo } from 'react';
-import { Easing, useReducedMotion } from 'react-native-reanimated';
+import { Easing, FadeIn, FadeOut, ReduceMotion, useReducedMotion, withDelay, withTiming } from 'react-native-reanimated';
+import type { EntryOrExitLayoutType } from 'react-native-reanimated';
 
 import type { ThemeName } from '../profile/profileRepository';
 import { useThemeState } from './themeContext';
@@ -52,6 +53,37 @@ export function easingFor(level: MotionLevel): (typeof easing)[keyof typeof easi
     case 'fade':
       return easing.linear;
   }
+}
+
+/**
+ * An entering animation at the level: a rise of `dy` pt (opacity with translateY) at `base`, starting
+ * `delay` ms later, or at `fade` the reduced cross-fade with no movement and no delay.
+ */
+export function entrance(motion: MotionPreset, dy: number, delay = 0): EntryOrExitLayoutType {
+  if (motion.level === 'fade') {
+    return FadeIn.duration(motion.duration.base).easing(easing.linear).reduceMotion(ReduceMotion.Never);
+  }
+  const duration = motion.duration.base;
+  const curve = easingFor(motion.level);
+  return () => {
+    'worklet';
+    return {
+      initialValues: { opacity: 0, transform: [{ translateY: dy }] },
+      animations: {
+        opacity: withDelay(delay, withTiming(1, { duration, easing: curve, reduceMotion: ReduceMotion.Never })),
+        transform: [{ translateY: withDelay(delay, withTiming(0, { duration, easing: curve, reduceMotion: ReduceMotion.Never })) }],
+      },
+    };
+  };
+}
+
+/** The `fast` cross-fade pair for a value that changes in place (a label, a number). */
+export function crossFade(motion: MotionPreset): { entering: EntryOrExitLayoutType; exiting: EntryOrExitLayoutType } {
+  const curve = easingFor(motion.level);
+  return {
+    entering: FadeIn.duration(motion.duration.fast).easing(curve).reduceMotion(ReduceMotion.Never),
+    exiting: FadeOut.duration(motion.duration.fast).easing(curve).reduceMotion(ReduceMotion.Never),
+  };
 }
 
 /** Pass a duration token as the spring's perceptual `duration`; 0.85 shows no visible bounce. */

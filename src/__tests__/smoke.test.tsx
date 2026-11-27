@@ -1,4 +1,5 @@
 import { act } from '@testing-library/react-native';
+import * as Notifications from 'expo-notifications';
 import { fireEvent, renderRouter, screen } from 'expo-router/testing-library';
 
 import { signOut } from '../auth/authService';
@@ -6,6 +7,8 @@ import { translate } from '../i18n';
 import { READY_PROFILE, resetAuth, setAuth } from '../test/authMock';
 
 jest.mock('../auth/AuthProvider', () => require('../test/authMock'));
+// The root layout's long-attack watch reads the local store.
+jest.mock('expo-sqlite', () => require('../test/sqliteNode'));
 jest.mock('../lib/sync/SyncProvider', () => require('../test/syncMock'));
 jest.mock('expo-font', () => ({ useFonts: () => [true, null] }));
 jest.mock('expo-splash-screen', () => ({
@@ -69,6 +72,20 @@ test('signed out, the root layout lands on the sign-in screen', async () => {
   resetAuth({ status: 'signedOut', userId: null, profile: null });
   await renderRouter('./src/app', { initialUrl: '/' });
   expect(await screen.findByRole('header', { name: translate('en', 'auth.signIn.title') })).toBeOnTheScreen();
+});
+
+test('a launch that goes straight to sign-in cancels the preventive reminders a sign-out left behind', async () => {
+  const left = (identifier: string): Notifications.NotificationRequest =>
+    ({ identifier, content: { title: 'Nimbo', body: '' }, trigger: null }) as Notifications.NotificationRequest;
+  jest
+    .mocked(Notifications.getAllScheduledNotificationsAsync)
+    .mockResolvedValueOnce([left('preventive-reminder:user-1:med-1:0'), left('something-else')]);
+  resetAuth({ status: 'signedOut', userId: null, profile: null });
+  await renderRouter('./src/app', { initialUrl: '/' });
+  await screen.findByRole('header', { name: translate('en', 'auth.signIn.title') });
+
+  expect(Notifications.cancelScheduledNotificationAsync).toHaveBeenCalledWith('preventive-reminder:user-1:med-1:0');
+  expect(Notifications.cancelScheduledNotificationAsync).not.toHaveBeenCalledWith('something-else');
 });
 
 test('signed in without the boundary answered, the layout holds the user on the boundary screen', async () => {

@@ -20,6 +20,22 @@ jest.mock('expo-haptics', () => ({
   NotificationFeedbackType: { Success: 'success', Warning: 'warning', Error: 'error' },
 }));
 
+// The notifications module is native: every call settles at once with nothing scheduled and permission granted.
+jest.mock('expo-notifications', () => ({
+  SchedulableTriggerInputTypes: { DAILY: 'daily', DATE: 'date' },
+  AndroidImportance: { DEFAULT: 3 },
+  AndroidNotificationVisibility: { PRIVATE: 0 },
+  IosAuthorizationStatus: { PROVISIONAL: 3 },
+  setNotificationChannelAsync: jest.fn(() => Promise.resolve(null)),
+  getPermissionsAsync: jest.fn(() => Promise.resolve({ granted: true, canAskAgain: true })),
+  requestPermissionsAsync: jest.fn(() => Promise.resolve({ granted: true, canAskAgain: true })),
+  getAllScheduledNotificationsAsync: jest.fn(() => Promise.resolve([])),
+  cancelScheduledNotificationAsync: jest.fn(() => Promise.resolve()),
+  scheduleNotificationAsync: jest.fn((request: { identifier: string }) => Promise.resolve(request.identifier)),
+}));
+
+// The date-time picker is native too; a stand-in that exposes its props.
+jest.mock('@react-native-community/datetimepicker', () => require('./src/test/datetimepickerMock'));
 jest.mock('react-native-reanimated', () => require('./src/test/reanimatedMock'));
 // The worklets runtime is native; a callback scheduled back onto the JS thread runs at once.
 jest.mock('react-native-worklets', () => ({

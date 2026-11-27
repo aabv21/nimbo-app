@@ -14,6 +14,9 @@ import { AuthProvider, useAuth } from '../auth/AuthProvider';
 import { authErrorMessage } from '../auth/errors';
 import { nextRoute } from '../auth/gate';
 import { useSignOut } from '../auth/useSignOut';
+import { ReminderSync } from '../cabinet/ReminderSync';
+import { clearReminders } from '../cabinet/reminders';
+import { useLongAttackWatch } from '../episodes/useLongAttackWatch';
 import { useI18n } from '../i18n';
 import { I18nProvider } from '../i18n/I18nProvider';
 import { SyncProvider } from '../lib/sync/SyncProvider';
@@ -79,6 +82,12 @@ function LoadingView(): React.JSX.Element {
   );
 }
 
+/** Rendered only where urgent care is reachable, so its push always lands on a registered screen. */
+function LongAttackWatch({ userId }: { userId: string | null }): null {
+  useLongAttackWatch(userId);
+  return null;
+}
+
 /**
  * Registers only the screens the account state allows (`Stack.Protected`), so a deep link to a screen
  * the user may not reach never mounts it: the landing route forwards to the one that is.
@@ -88,26 +97,42 @@ function GatedStack(): React.JSX.Element {
   const { color } = useTheme();
   const target = nextRoute(auth);
 
+  // A sign-out made while the app was closed (or a clear the process died in) leaves reminders behind: any launch
+  // that lands anywhere but Today cancels them. `/loading` is undecided, so it waits for the target it resolves to.
+  useEffect(() => {
+    if (target !== '/today' && target !== '/loading') clearReminders().catch(() => undefined);
+  }, [target]);
+
   if (target === '/loading') {
     return <LoadingView />;
   }
   return (
-    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: color.bg } }}>
-      <Stack.Screen name="index" />
-      <Stack.Protected guard={target === '/sign-in'}>
-        <Stack.Screen name="(auth)" />
-      </Stack.Protected>
-      <Stack.Protected guard={target === '/welcome/boundary' || target === '/welcome/ai-consent'}>
-        <Stack.Screen name="welcome" />
-      </Stack.Protected>
-      <Stack.Protected guard={target === '/today'}>
-        <Stack.Screen name="(tabs)" />
-        {/* Opens over anything at once and cannot be swiped away: leaving is a choice on the screen. */}
-        {/* NOTE: only the Today target reaches it; upgrade: also guard the onboarding target once that screen joins the gate. */}
-        <Stack.Screen name="cabinet" />
-        <Stack.Screen name="urgent-care" options={{ presentation: 'fullScreenModal', animation: 'none', gestureEnabled: false }} />
-      </Stack.Protected>
-    </Stack>
+    <>
+      {target === '/today' ? <LongAttackWatch userId={auth.userId} /> : null}
+      {/* Gone with the signed-in tree, so a sign-out cancels the account's reminders. */}
+      {target === '/today' && auth.userId !== null ? <ReminderSync userId={auth.userId} /> : null}
+      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: color.bg } }}>
+        <Stack.Screen name="index" />
+        <Stack.Protected guard={target === '/sign-in'}>
+          <Stack.Screen name="(auth)" />
+        </Stack.Protected>
+        <Stack.Protected guard={target === '/welcome/boundary' || target === '/welcome/ai-consent'}>
+          <Stack.Screen name="welcome" />
+        </Stack.Protected>
+        <Stack.Protected guard={target === '/today'}>
+          <Stack.Screen name="(tabs)" />
+          {/* Opens over anything at once and cannot be swiped away: leaving is a choice on the screen. */}
+          {/* NOTE: only the Today target reaches it; upgrade: also guard the onboarding target once that screen joins the gate. */}
+          <Stack.Screen name="cabinet" />
+          <Stack.Screen name="episode" />
+          {/* Draws its own scrim and sheet motion over Today, which stays visible below it. */}
+          <Stack.Screen name="checkin" options={{ presentation: 'transparentModal', animation: 'none' }} />
+          <Stack.Screen name="urgent-care" options={{ presentation: 'fullScreenModal', animation: 'none', gestureEnabled: false }} />
+          {/* Crisis mode draws its own fade over the screen it came from, which stays visible below it. */}
+          <Stack.Screen name="crisis" options={{ presentation: 'transparentModal', animation: 'none' }} />
+        </Stack.Protected>
+      </Stack>
+    </>
   );
 }
 

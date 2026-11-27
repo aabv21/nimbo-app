@@ -247,13 +247,18 @@ begin
   if v_user is null then
     raise exception 'not signed in' using errcode = '42501';
   end if;
-  perform private.check_keys(p_fields, array['ended_at', 'intensity', 'pain_areas', 'symptoms', 'triggers', 'reliefs', 'notes', 'source']);
+  perform private.check_keys(p_fields, array['started_at', 'ended_at', 'intensity', 'pain_areas', 'symptoms', 'triggers', 'reliefs', 'notes', 'source']);
+  -- A start can be moved (people log late) but never cleared: a json null fails the time check.
+  if p_fields ? 'started_at' then
+    perform private.check_time((p_fields ->> 'started_at')::timestamptz);
+  end if;
   if p_fields ->> 'ended_at' is not null then
     perform private.check_time((p_fields ->> 'ended_at')::timestamptz);
   end if;
 
   update public.episodes
-  set ended_at = case when p_fields ? 'ended_at' then (p_fields ->> 'ended_at')::timestamptz else ended_at end,
+  set started_at = case when p_fields ? 'started_at' then (p_fields ->> 'started_at')::timestamptz else started_at end,
+      ended_at = case when p_fields ? 'ended_at' then (p_fields ->> 'ended_at')::timestamptz else ended_at end,
       intensity = case when p_fields ? 'intensity' then (p_fields ->> 'intensity')::smallint else intensity end,
       pain_areas = case when p_fields ? 'pain_areas' then private.to_text_array(p_fields -> 'pain_areas') else pain_areas end,
       symptoms = case when p_fields ? 'symptoms' then private.to_text_array(p_fields -> 'symptoms') else symptoms end,
