@@ -7,7 +7,18 @@ guardrails, the conventions, the documentation map and the Definition of done.
 2. Make the change with its tests, and run the Definition of done locally.
 3. Open a pull request into `develop`, titled in [Conventional Commits](https://www.conventionalcommits.org/) form. It's squash-merged once CI is green.
 
-Releases are pull requests from `develop` into `main` titled `release: vX.Y.Z` and merged with a merge commit. Report security issues privately, as [`SECURITY.md`](SECURITY.md) describes.
+## CI
+
+`.github/workflows/ci.yml` runs four jobs on every pull request and on pushes to `main` and `develop`:
+
+- **Quality**: `pnpm check:supply-chain`, `pnpm run typecheck`, `pnpm run lint`, `pnpm test` and `expo-doctor` (without its SDK-version check, which `pnpm check:expo` covers).
+- **Security**: gitleaks over the full history and `pnpm audit --audit-level=high`.
+- **Actions**: actionlint and zizmor over the workflows.
+- **Database**: starts the lean local stack, rebuilds the database from the migrations, runs the pgTAP tests, writes `.env.local` (`pnpm env:local`) and runs the integration suite (`pnpm test:int`), and fails when `src/lib/database.types.ts` differs from the migrations.
+
+`codeql.yml` analyzes the code. Every job runs with read-only `contents` permission unless it needs more, and every action is pinned to a commit SHA. `release.yml` tags and publishes a merged `release: vX.Y.Z` pull request into `main`.
+
+Releases are pull requests from `develop` into `main` titled `release: vX.Y.Z` and merged with a merge commit. Report security issues privately, as [`SECURITY.md`](SECURITY.md) describes. Rulesets on `main`, `develop` and `v*` tags enforce the flow above and require the Quality, Security, Actions, Database and Analyze checks.
 
 ## Supply-chain hardening
 
@@ -45,3 +56,22 @@ directly instead.
 the newest release on npm, with no awareness of `minimumReleaseAge`, so it flags any package whose
 newer release is still too young to install. Run it (or `pnpm expo install --fix`) during a
 deliberate Expo SDK upgrade, once the versions have cleared the 3-day gate.
+
+## Bumping pinned CI tools and zizmor by hand
+
+Dependabot bumps the `uses:` actions (pinned by commit SHA with a version comment) and npm packages,
+both against `develop`. Three CI tools sit outside its reach and are bumped by hand:
+
+- **gitleaks** (`.github/workflows/ci.yml`'s Security job) and **actionlint** (the Actions job) run
+  as Docker images pinned by tag and digest, `zricethezav/gitleaks:<tag>@sha256:<digest>` and
+  `rhysd/actionlint:<tag>@sha256:<digest>`. To bump one, pick the new release tag, read its digest
+  (`docker buildx imagetools inspect <image>:<tag>`, the index digest on the first lines), and
+  replace both the tag and the digest in the `run:` line.
+- **zizmor** installs with `pip install --require-hashes -r .github/zizmor-requirements.txt`. To bump
+  it, change the version in that file, then fetch every file's sha256 from PyPI's JSON API
+  (`https://pypi.org/pypi/zizmor/<version>/json`, each `urls[].digests.sha256`: every platform
+  wheel and the sdist) and replace the `--hash` lines with them. zizmor declares no runtime
+  dependencies, so it is the only entry.
+
+Then open a `chore:` pull request; CI's Actions job runs the new zizmor and actionlint against the
+workflows.

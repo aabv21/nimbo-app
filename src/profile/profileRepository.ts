@@ -1,0 +1,282 @@
+import type { Client } from '../auth/emailAuth';
+import { kvGetJson, kvRemove, kvSet } from '../lib/kv';
+import { enqueue } from '../lib/outbox/outbox';
+import { toRequestErrorKind, toThrownErrorKind } from '../lib/requestResult';
+import type { RequestResult } from '../lib/requestResult';
+import { supabase } from '../lib/supabase';
+import type { Locale } from '../i18n';
+import type { Tables, TablesUpdate } from '../lib/database.types';
+
+/** A rendered appearance. */
+export type ThemeName = 'day' | 'dark' | 'dim';
+/** What the user chose in Profile; `system` follows the phone between `day` and `dark`. */
+export type ThemePreference = 'system' | ThemeName;
+
+/** What the user wants most from the app; chosen in onboarding. */
+export type Priority = 'fewer' | 'triggers' | 'overuse' | 'logging';
+
+export interface Profile {
+  language: Locale | null;
+  timezone: string | null;
+  theme: ThemePreference;
+  reduceMotion: boolean;
+  notifyStart: string;
+  notifyEnd: string;
+  notifyDailyCap: 0 | 1 | 2;
+  lockScreenDetail: boolean;
+  adultConfirmedAt: string | null;
+  boundaryAcceptedAt: string | null;
+  aiConsentAnsweredAt: string | null;
+  aiEnabled: boolean;
+  onboardingCompletedAt: string | null;
+  knownTriggers: readonly string[];
+  priority: Priority | null;
+  trackPeriod: boolean;
+}
+
+export type EditableProfile = Pick<
+  Profile,
+  | 'language'
+  | 'timezone'
+  | 'theme'
+  | 'reduceMotion'
+  | 'notifyStart'
+  | 'notifyEnd'
+  | 'notifyDailyCap'
+  | 'lockScreenDetail'
+  | 'knownTriggers'
+  | 'priority'
+  | 'trackPeriod'
+>;
+
+/** The coarse location is written but never read back, so it is not part of what `Profile` holds. */
+export type ProfileChanges = Partial<EditableProfile> & { coarseLocation?: { lat: number; lon: number } | null };
+
+/** Explicit on purpose: never `*`, so the coarse location and the condition never reach the profile cache. */
+export const PROFILE_COLUMNS =
+  'language,timezone,theme,reduce_motion,notify_start,notify_end,notify_daily_cap,lock_screen_detail,adult_confirmed_at,boundary_accepted_at,ai_consent_answered_at,ai_enabled,onboarding_completed_at,known_triggers,priority,track_period';
+
+type Row = Pick<
+  Tables<'profiles'>,
+  | 'language'
+  | 'timezone'
+  | 'theme'
+  | 'reduce_motion'
+  | 'notify_start'
+  | 'notify_end'
+  | 'notify_daily_cap'
+  | 'lock_screen_detail'
+  | 'adult_confirmed_at'
+  | 'boundary_accepted_at'
+  | 'ai_consent_answered_at'
+  | 'ai_enabled'
+  | 'onboarding_completed_at'
+  | 'known_triggers'
+  | 'priority'
+  | 'track_period'
+>;
+
+// Row-level security scopes every query below to the signed-in user's own row, so none filters by id.
+// The one exception to "no filter" is that the API rejects an UPDATE with no WHERE clause, so
+// `updateProfile` adds a condition every row meets.
+
+function cacheKey(userId: string): string {
+  return `profile.${userId}`;
+}
+
+function isOneOf<T extends string | number>(value: unknown, allowed: readonly T[]): value is T {
+  return allowed.some((candidate) => candidate === value);
+}
+
+function isNullableString(value: unknown): value is string | null {
+  return value === null || typeof value === 'string';
+}
+
+const THEMES: readonly ThemePreference[] = ['system', 'day', 'dark', 'dim'];
+const LANGUAGES: readonly Locale[] = ['en', 'es', 'pt'];
+const PRIORITIES: readonly Priority[] = ['fewer', 'triggers', 'overuse', 'logging'];
+
+function isStringArray(value: unknown): value is readonly string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === 'string');
+}
+
+function isProfile(value: unknown): value is Profile {
+  if (typeof value !== 'object' || value === null) return false;
+  const v = value as Record<string, unknown>;
+  return (
+    (v['language'] === null || isOneOf(v['language'], LANGUAGES)) &&
+    isNullableString(v['timezone']) &&
+    isOneOf(v['theme'], THEMES) &&
+    typeof v['reduceMotion'] === 'boolean' &&
+    typeof v['notifyStart'] === 'string' &&
+    typeof v['notifyEnd'] === 'string' &&
+    isOneOf(v['notifyDailyCap'], [0, 1, 2]) &&
+    typeof v['lockScreenDetail'] === 'boolean' &&
+    isNullableString(v['adultConfirmedAt']) &&
+    isNullableString(v['boundaryAcceptedAt']) &&
+    isNullableString(v['aiConsentAnsweredAt']) &&
+    typeof v['aiEnabled'] === 'boolean' &&
+    isNullableString(v['onboardingCompletedAt']) &&
+    isStringArray(v['knownTriggers']) &&
+    (v['priority'] === null || isOneOf(v['priority'], PRIORITIES)) &&
+    typeof v['trackPeriod'] === 'boolean'
+  );
+}
+
+/**
+ * The row's app-facing fields; null when the row is not shaped like a profile. A theme or language
+ * added to the schema after this build reads as Automatic or the phone's language, so a newer enum
+ * value can never lock an older app out of its own profile.
+ */
+function toProfile(row: Row): Profile | null {
+  const theme: unknown = row.theme;
+  const language: unknown = row.language;
+  const priority: unknown = row.priority;
+  const profile = {
+    language: isOneOf(language, LANGUAGES) ? language : null,
+    timezone: row.timezone,
+    theme: isOneOf(theme, THEMES) ? theme : 'system',
+    reduceMotion: row.reduce_motion,
+    notifyStart: row.notify_start,
+    notifyEnd: row.notify_end,
+    notifyDailyCap: row.notify_daily_cap,
+    lockScreenDetail: row.lock_screen_detail,
+    adultConfirmedAt: row.adult_confirmed_at,
+    boundaryAcceptedAt: row.boundary_accepted_at,
+    aiConsentAnsweredAt: row.ai_consent_answered_at,
+    aiEnabled: row.ai_enabled,
+    onboardingCompletedAt: row.onboarding_completed_at,
+    knownTriggers: row.known_triggers,
+    priority: isOneOf(priority, PRIORITIES) ? priority : null,
+    trackPeriod: row.track_period,
+  };
+  return isProfile(profile) ? profile : null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * A copy cached by an older build lacks the newer fields; filling them in keeps a phone that upgraded
+ * and opens offline on Today instead of the loading view.
+ */
+function upgradeCached(value: Record<string, unknown>): Profile | null {
+  const upgraded = {
+    ...value,
+    knownTriggers: isStringArray(value['knownTriggers']) ? value['knownTriggers'] : [],
+    priority: isOneOf(value['priority'], PRIORITIES) ? value['priority'] : null,
+    trackPeriod: typeof value['trackPeriod'] === 'boolean' ? value['trackPeriod'] : false,
+  };
+  return isProfile(upgraded) ? upgraded : null;
+}
+
+/** The cached profile of `userId` (never another user's), read synchronously so a first render can use it. */
+export function readCachedProfileSync(userId: string): Profile | null {
+  const cached = kvGetJson(cacheKey(userId), isRecord);
+  return cached === null ? null : upgradeCached(cached);
+}
+
+/** Stores `profile` as `userId`'s cached copy (the app keeps it equal to what it shows). */
+export function writeCachedProfile(userId: string, profile: Profile): void {
+  kvSet(cacheKey(userId), JSON.stringify(profile));
+}
+
+/** Drops `userId`'s cached copy, once their sign-out has left nothing of theirs queued on the phone. */
+export function removeCachedProfile(userId: string): void {
+  kvRemove(cacheKey(userId));
+}
+
+type Outcome = { data: Row | null; error: { code?: string; message?: string } | null; status: number };
+
+/** Turns a single-row answer into a result. */
+function settle({ data, error, status }: Outcome): RequestResult<Profile> {
+  if (error !== null) {
+    return { ok: false, kind: toRequestErrorKind(error, status) };
+  }
+  const profile = data === null ? null : toProfile(data);
+  if (data === null || profile === null) {
+    return { ok: false, kind: 'unknown' };
+  }
+  return { ok: true, value: profile };
+}
+
+/** Never caches: the provider may drop an answer a newer local change overtook, so it caches only what it shows. */
+export async function fetchProfile(client: Client = supabase): Promise<RequestResult<Profile>> {
+  try {
+    return settle(await client.from('profiles').select(PROFILE_COLUMNS).single());
+  } catch (error) {
+    return { ok: false, kind: toThrownErrorKind(error) };
+  }
+}
+
+/** Column names for the fields a client may change (the column grants in `docs/database.md`). */
+function toColumns(changes: ProfileChanges): TablesUpdate<'profiles'> {
+  const columns: TablesUpdate<'profiles'> = {};
+  if (changes.language !== undefined) columns.language = changes.language;
+  if (changes.timezone !== undefined) columns.timezone = changes.timezone;
+  if (changes.theme !== undefined) columns.theme = changes.theme;
+  if (changes.reduceMotion !== undefined) columns.reduce_motion = changes.reduceMotion;
+  if (changes.notifyStart !== undefined) columns.notify_start = changes.notifyStart;
+  if (changes.notifyEnd !== undefined) columns.notify_end = changes.notifyEnd;
+  if (changes.notifyDailyCap !== undefined) columns.notify_daily_cap = changes.notifyDailyCap;
+  if (changes.lockScreenDetail !== undefined) columns.lock_screen_detail = changes.lockScreenDetail;
+  if (changes.knownTriggers !== undefined) columns.known_triggers = [...changes.knownTriggers];
+  if (changes.priority !== undefined) columns.priority = changes.priority;
+  if (changes.trackPeriod !== undefined) columns.track_period = changes.trackPeriod;
+  if (changes.coarseLocation !== undefined) {
+    columns.coarse_lat = changes.coarseLocation?.lat ?? null;
+    columns.coarse_lon = changes.coarseLocation?.lon ?? null;
+  }
+  return columns;
+}
+
+/**
+ * Never caches: answers to overlapping writes can arrive out of order, so only the caller knows which
+ * fields are still current, and the cache follows what the app shows (`AuthProvider`).
+ */
+export async function updateProfile(
+  changes: ProfileChanges,
+  client: Client = supabase,
+): Promise<RequestResult<Profile>> {
+  try {
+    return settle(await client.from('profiles').update(toColumns(changes)).not('user_id', 'is', null).select(PROFILE_COLUMNS).single());
+  } catch (error) {
+    return { ok: false, kind: toThrownErrorKind(error) };
+  }
+}
+
+/** Runs a consent RPC, then refetches so the caller gets the stamped timestamps; like a write, it never caches. */
+async function callThenFetch(
+  client: Client,
+  call: () => PromiseLike<{ error: { code?: string; message?: string } | null; status: number }>,
+): Promise<RequestResult<Profile>> {
+  try {
+    const { error, status } = await call();
+    if (error !== null) {
+      return { ok: false, kind: toRequestErrorKind(error, status) };
+    }
+  } catch (error) {
+    return { ok: false, kind: toThrownErrorKind(error) };
+  }
+  return fetchProfile(client);
+}
+
+/** The consent timestamps are set only by this function (never by a client write). */
+export function acceptTerms(client: Client = supabase): Promise<RequestResult<Profile>> {
+  return callThenFetch(client, () => client.rpc('accept_terms', { p_adult: true, p_boundary: true }));
+}
+
+export function setAiConsent(enabled: boolean, client: Client = supabase): Promise<RequestResult<Profile>> {
+  return callThenFetch(client, () => client.rpc('set_ai_consent', { p_enabled: enabled }));
+}
+
+/**
+ * Finishes onboarding on the phone first: queues `complete_onboarding` for the outbox and returns the stamp the
+ * caller shows (`patchProfile`), so the gate opens Today with no network. The server refuses until both consent gates
+ * are answered, which they are by the time the setup steps run; `AuthProvider` keeps the stamp while the call is queued.
+ */
+export function completeOnboarding(userId: string, now: Date = new Date()): string {
+  enqueue(userId, 'complete_onboarding', {});
+  return now.toISOString();
+}

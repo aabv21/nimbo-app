@@ -1,0 +1,13 @@
+// The whole auth surface. `emailAuth.ts` stays free of the native Apple/Google modules, so the
+// integration tests, under plain Node, can import it without `socialAuth.ts`.
+export type { Client, Result, SignUpResult } from './emailAuth';
+export {
+  confirmPasswordReset,
+  confirmSignUp,
+  requestPasswordReset,
+  resendSignUpCode,
+  signInWithEmail,
+  signOut,
+  signUpWithEmail,
+} from './emailAuth';
+export { isGoogleSignInConfigured, signInWithApple, signInWithGoogle } from './socialAuth';

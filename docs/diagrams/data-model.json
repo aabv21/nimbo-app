@@ -1,0 +1,477 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Nimbo Data Model",
+    "locale": "en",
+    "output": "docs/diagrams/data-model.html",
+    "quality_profile": "showcase"
+  },
+  "layout": {
+    "mode": "grid",
+    "cols": 6,
+    "cellW": 145,
+    "cellH": 60,
+    "gapX": 55,
+    "gapY": 44,
+    "origin": [
+      40,
+      80
+    ]
+  },
+  "components": [
+    {
+      "id": "users",
+      "type": "database",
+      "label": "auth.users",
+      "sublabel": "Supabase Auth",
+      "row": 0,
+      "col": 0
+    },
+    {
+      "id": "trig",
+      "type": "backend",
+      "label": "handle_new_user()",
+      "sublabel": "after insert trigger",
+      "row": 0,
+      "col": 1
+    },
+    {
+      "id": "profiles",
+      "type": "database",
+      "label": "public.profiles",
+      "sublabel": "settings, consent, zone",
+      "row": 0,
+      "col": 2,
+      "tag": "RLS"
+    },
+    {
+      "id": "profileRpcs",
+      "type": "security",
+      "label": "Profile RPCs",
+      "sublabel": "terms, AI, onboarding",
+      "row": 0,
+      "col": 3
+    },
+    {
+      "id": "entitlements",
+      "type": "database",
+      "label": "public.entitlements",
+      "sublabel": "grant and purchase",
+      "row": 0,
+      "col": 4,
+      "tag": "RLS"
+    },
+    {
+      "id": "checkins",
+      "type": "database",
+      "label": "public.checkins",
+      "sublabel": "one per local date",
+      "row": 1,
+      "col": 0,
+      "tag": "RLS"
+    },
+    {
+      "id": "trackingRpcs",
+      "type": "security",
+      "label": "Tracking RPCs",
+      "sublabel": "9, set_dose_helped too",
+      "row": 1,
+      "col": 1
+    },
+    {
+      "id": "app",
+      "type": "frontend",
+      "label": "Nimbo app",
+      "sublabel": "role authenticated",
+      "row": 1,
+      "col": 2
+    },
+    {
+      "id": "premium",
+      "type": "security",
+      "label": "has_premium()",
+      "sublabel": "own row only",
+      "row": 1,
+      "col": 3
+    },
+    {
+      "id": "episodes",
+      "type": "database",
+      "label": "public.episodes",
+      "sublabel": "attacks, debrief",
+      "row": 2,
+      "col": 0,
+      "tag": "RLS"
+    },
+    {
+      "id": "doses",
+      "type": "database",
+      "label": "public.doses",
+      "sublabel": "optional episode",
+      "row": 2,
+      "col": 1,
+      "tag": "RLS"
+    },
+    {
+      "id": "medications",
+      "type": "database",
+      "label": "public.medications",
+      "sublabel": "acute and preventive",
+      "row": 2,
+      "col": 2,
+      "tag": "RLS"
+    },
+    {
+      "id": "noteRpcs",
+      "type": "security",
+      "label": "Note RPCs",
+      "sublabel": "save_ / delete_agent_note",
+      "row": 2,
+      "col": 3,
+      "size": [
+        160,
+        60
+      ]
+    },
+    {
+      "id": "agentNotes",
+      "type": "database",
+      "label": "public.agent_notes",
+      "sublabel": "20 per user",
+      "row": 2,
+      "col": 4,
+      "tag": "RLS"
+    },
+    {
+      "id": "companion",
+      "type": "backend",
+      "label": "companion",
+      "sublabel": "Edge Function",
+      "row": 3,
+      "col": 2
+    },
+    {
+      "id": "consumeQuota",
+      "type": "security",
+      "label": "consume_quota()",
+      "sublabel": "service role only",
+      "row": 3,
+      "col": 3
+    },
+    {
+      "id": "usage",
+      "type": "database",
+      "label": "usage_counters",
+      "sublabel": "public, no grants",
+      "row": 3,
+      "col": 4,
+      "tag": "RLS"
+    },
+    {
+      "id": "weather",
+      "type": "database",
+      "label": "weather_cache",
+      "sublabel": "per cell, no grants",
+      "row": 4,
+      "col": 0
+    },
+    {
+      "id": "cron",
+      "type": "backend",
+      "label": "pg_cron",
+      "sublabel": "monitor at :05",
+      "row": 3,
+      "col": 0
+    },
+    {
+      "id": "monitorFn",
+      "type": "backend",
+      "label": "monitor",
+      "sublabel": "service role",
+      "row": 3,
+      "col": 1
+    },
+    {
+      "id": "monitorRpcs",
+      "type": "security",
+      "label": "Monitor RPCs",
+      "sublabel": "save · claim · tickets",
+      "row": 4,
+      "col": 2
+    },
+    {
+      "id": "signals",
+      "type": "database",
+      "label": "public.signals",
+      "sublabel": "one per cause key",
+      "row": 4,
+      "col": 3
+    },
+    {
+      "id": "tokenRpcs",
+      "type": "security",
+      "label": "Push token RPCs",
+      "sublabel": "register, claim",
+      "row": 0,
+      "col": 5,
+      "size": [
+        170,
+        60
+      ]
+    },
+    {
+      "id": "prune",
+      "type": "security",
+      "label": "prune_expired_caches()",
+      "sublabel": "pg_cron, daily",
+      "row": 4,
+      "col": 5,
+      "size": [
+        170,
+        60
+      ]
+    },
+    {
+      "id": "recordInputs",
+      "type": "security",
+      "label": "record_inputs()",
+      "sublabel": "security invoker",
+      "row": 4,
+      "col": 1
+    },
+    {
+      "id": "tickets",
+      "type": "database",
+      "label": "public.push_tickets",
+      "sublabel": "receipts queue",
+      "row": 4,
+      "col": 4
+    },
+    {
+      "id": "tokens",
+      "type": "database",
+      "label": "public.push_tokens",
+      "sublabel": "+ push_claims, push_claim_starts",
+      "row": 1,
+      "col": 5,
+      "size": [
+        170,
+        60
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "users-trig",
+      "from": "users",
+      "to": "trig",
+      "label": "new user"
+    },
+    {
+      "id": "trig-profiles",
+      "from": "trig",
+      "to": "profiles",
+      "label": "inserts row",
+      "variant": "emphasis"
+    },
+    {
+      "id": "app-profiles",
+      "from": "app",
+      "to": "profiles",
+      "label": "update 13 columns",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "app-profileRpcs",
+      "from": "app",
+      "to": "profileRpcs"
+    },
+    {
+      "id": "profileRpcs-profiles",
+      "from": "profileRpcs",
+      "to": "profiles",
+      "label": "server time",
+      "variant": "security"
+    },
+    {
+      "id": "app-premium",
+      "from": "app",
+      "to": "premium"
+    },
+    {
+      "id": "premium-entitlements",
+      "from": "premium",
+      "to": "entitlements",
+      "label": "reads",
+      "fromSide": "right",
+      "toSide": "bottom"
+    },
+    {
+      "id": "app-trackingRpcs",
+      "from": "app",
+      "to": "trackingRpcs",
+      "label": "outbox",
+      "variant": "emphasis"
+    },
+    {
+      "id": "rpcs-checkins",
+      "from": "trackingRpcs",
+      "to": "checkins",
+      "variant": "security"
+    },
+    {
+      "id": "rpcs-episodes",
+      "from": "trackingRpcs",
+      "to": "episodes",
+      "variant": "security",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "rpcs-doses",
+      "from": "trackingRpcs",
+      "to": "doses",
+      "variant": "security",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "rpcs-medications",
+      "from": "trackingRpcs",
+      "to": "medications",
+      "variant": "security",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "doses-episodes",
+      "from": "doses",
+      "to": "episodes",
+      "label": "set null",
+      "variant": "dashed"
+    },
+    {
+      "id": "doses-medications",
+      "from": "doses",
+      "to": "medications",
+      "label": "references"
+    },
+    {
+      "id": "app-noteRpcs",
+      "from": "app",
+      "to": "noteRpcs",
+      "fromSide": "right",
+      "toSide": "top"
+    },
+    {
+      "id": "noteRpcs-agentNotes",
+      "from": "noteRpcs",
+      "to": "agentNotes",
+      "variant": "security"
+    },
+    {
+      "id": "companion-consumeQuota",
+      "from": "companion",
+      "to": "consumeQuota",
+      "label": "per message",
+      "variant": "emphasis"
+    },
+    {
+      "id": "consumeQuota-usage",
+      "from": "consumeQuota",
+      "to": "usage",
+      "variant": "security"
+    },
+    {
+      "id": "cron-monitor",
+      "from": "cron",
+      "to": "monitorFn",
+      "label": "Vault secret",
+      "variant": "emphasis"
+    },
+    {
+      "id": "monitor-weather",
+      "from": "monitorFn",
+      "to": "weather",
+      "label": "by cell"
+    },
+    {
+      "id": "monitor-records",
+      "from": "monitorFn",
+      "to": "recordInputs",
+      "label": "90 days",
+      "labelDy": 24
+    },
+    {
+      "id": "monitor-rpcs",
+      "from": "monitorFn",
+      "to": "monitorRpcs",
+      "variant": "emphasis"
+    },
+    {
+      "id": "rpcs-signals",
+      "from": "monitorRpcs",
+      "to": "signals",
+      "label": "upsert, claim",
+      "variant": "security"
+    },
+    {
+      "id": "rpcs-tickets",
+      "from": "monitorRpcs",
+      "to": "tickets",
+      "label": "receipts",
+      "variant": "security",
+      "fromSide": "bottom",
+      "toSide": "bottom"
+    },
+    {
+      "id": "prune-tickets",
+      "from": "prune",
+      "to": "tickets",
+      "label": "2 days",
+      "variant": "security"
+    },
+    {
+      "id": "tokenRpcs-tokens",
+      "from": "tokenRpcs",
+      "to": "tokens",
+      "variant": "security"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Ownership",
+      "items": [
+        "Rows key to auth.users, deleted with it",
+        "Read-own select, except server-only tables"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "RPC-only writes",
+      "items": [
+        "Health rows, consent and tokens via RPCs",
+        "A zone is_time_zone rejects is refused"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Debrief and signals",
+      "items": [
+        "update_episode stamps debriefed_at",
+        "Only monitor writes signals"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Quotas and jobs",
+      "items": [
+        "consume_quota counts per user and day",
+        "prune_expired_caches runs daily at 03:17"
+      ]
+    }
+  ]
+}

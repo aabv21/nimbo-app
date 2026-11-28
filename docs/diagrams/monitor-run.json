@@ -1,0 +1,255 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "Nimbo Monitor Run",
+    "locale": "en",
+    "output": "docs/diagrams/monitor-run.html",
+    "quality_profile": "showcase",
+    "column_fit": "spread",
+    "viewBox": [
+      1400,
+      872
+    ]
+  },
+  "participants": [
+    {
+      "id": "phone",
+      "type": "frontend",
+      "label": "Today (phone)"
+    },
+    {
+      "id": "cron",
+      "type": "backend",
+      "label": "pg_cron · pg_net"
+    },
+    {
+      "id": "monitor",
+      "type": "backend",
+      "label": "monitor"
+    },
+    {
+      "id": "db",
+      "type": "database",
+      "label": "Postgres RPCs"
+    },
+    {
+      "id": "cache",
+      "type": "database",
+      "label": "weather_cache"
+    },
+    {
+      "id": "meteo",
+      "type": "external",
+      "label": "Open-Meteo"
+    },
+    {
+      "id": "expo",
+      "type": "external",
+      "label": "Expo push"
+    }
+  ],
+  "segments": [
+    {
+      "from": 168,
+      "to": 208,
+      "label": "Hourly call"
+    },
+    {
+      "from": 212,
+      "to": 328,
+      "label": "Receipts"
+    },
+    {
+      "from": 332,
+      "to": 392,
+      "label": "Targets"
+    },
+    {
+      "from": 396,
+      "to": 676,
+      "label": "Each user, while under 110 s"
+    },
+    {
+      "from": 712,
+      "to": 772,
+      "label": "On the phone, any time"
+    }
+  ],
+  "messages": [
+    {
+      "from": "cron",
+      "to": "monitor",
+      "y": 190,
+      "label": "POST, Vault secret, at :05",
+      "variant": "emphasis"
+    },
+    {
+      "from": "monitor",
+      "to": "db",
+      "y": 226,
+      "label": "push_receipts_due()",
+      "variant": "default"
+    },
+    {
+      "from": "monitor",
+      "to": "expo",
+      "y": 254,
+      "label": "receipts of tickets 15 min–24 h",
+      "variant": "default"
+    },
+    {
+      "from": "expo",
+      "to": "monitor",
+      "y": 282,
+      "label": "DeviceNotRegistered: delete token",
+      "variant": "return"
+    },
+    {
+      "from": "monitor",
+      "to": "db",
+      "y": 310,
+      "label": "forget_push_tickets()",
+      "variant": "default"
+    },
+    {
+      "from": "monitor",
+      "to": "db",
+      "y": 346,
+      "label": "monitor_targets(): valid zone, onboarded",
+      "variant": "default"
+    },
+    {
+      "from": "db",
+      "to": "monitor",
+      "y": 374,
+      "label": "users, next in rotation first",
+      "variant": "return"
+    },
+    {
+      "from": "monitor",
+      "to": "db",
+      "y": 410,
+      "label": "record_inputs(user, 90 days)",
+      "variant": "default"
+    },
+    {
+      "from": "monitor",
+      "to": "cache",
+      "y": 438,
+      "label": "the cell, if under 3 h old",
+      "variant": "default"
+    },
+    {
+      "from": "monitor",
+      "to": "meteo",
+      "y": 466,
+      "label": "on a miss: pressure_msl, 28 h",
+      "variant": "default"
+    },
+    {
+      "from": "meteo",
+      "to": "monitor",
+      "y": 494,
+      "label": "hourly hPa, cached",
+      "variant": "return"
+    },
+    {
+      "from": "monitor",
+      "to": "db",
+      "y": 522,
+      "label": "save_signals(computeSignals)",
+      "variant": "default"
+    },
+    {
+      "from": "monitor",
+      "to": "db",
+      "y": 550,
+      "label": "claim_signal_push, if decidePush sends",
+      "variant": "security"
+    },
+    {
+      "from": "db",
+      "to": "monitor",
+      "y": 578,
+      "label": "claimed tokens, or none",
+      "variant": "return"
+    },
+    {
+      "from": "monitor",
+      "to": "expo",
+      "y": 606,
+      "label": "neutral title, url only",
+      "variant": "emphasis"
+    },
+    {
+      "from": "expo",
+      "to": "monitor",
+      "y": 634,
+      "label": "tickets",
+      "variant": "return"
+    },
+    {
+      "from": "monitor",
+      "to": "db",
+      "y": 662,
+      "label": "save_push_tickets()",
+      "variant": "default"
+    },
+    {
+      "from": "monitor",
+      "to": "cron",
+      "y": 690,
+      "label": "200 with counts",
+      "variant": "return"
+    },
+    {
+      "from": "phone",
+      "to": "db",
+      "y": 726,
+      "label": "today's pressure row, user JWT",
+      "variant": "default"
+    },
+    {
+      "from": "db",
+      "to": "phone",
+      "y": 754,
+      "label": "row or none; the rest computed here",
+      "variant": "return"
+    }
+  ],
+  "activations": [
+    {
+      "participant": "monitor",
+      "from": 185,
+      "to": 706,
+      "type": "backend"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "amber",
+      "title": "Bounded",
+      "items": [
+        "No user starts after 110 s; the rest count as skipped",
+        "Each run starts one place further along the list"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "One push, claimed",
+      "items": [
+        "claim_signal_push re-checks the cap and cause in one lock",
+        "Overlapping runs never send the same push twice"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "No model, no health text",
+      "items": [
+        "Every signal and decision is code; no model call",
+        "A push carries only a url and a signal id"
+      ]
+    }
+  ]
+}

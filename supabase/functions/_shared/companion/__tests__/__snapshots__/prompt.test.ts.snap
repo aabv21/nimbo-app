@@ -1,0 +1,396 @@
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+
+exports[`the tools the definitions are stable (any change also changes the cached prefix) 1`] = `
+"[
+  {
+    "name": "get_episodes",
+    "description": "Lists the person’s attacks that started in a window of their local dates, newest first: start and end, intensity (0–10), pain areas, symptoms, triggers, reliefs, what helped and what did not, and the doses taken during each. Without dates it covers the last 90 days. Cite result_ref for counts of these attacks; total is how many started in the window.",
+    "strict": true,
+    "input_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "from": {
+          "type": "string",
+          "format": "date",
+          "description": "First local date of the window, YYYY-MM-DD."
+        },
+        "to": {
+          "type": "string",
+          "format": "date",
+          "description": "Last local date of the window, YYYY-MM-DD; today if left out."
+        },
+        "limit": {
+          "type": "integer",
+          "description": "How many attacks to return, 1 to 20; 10 if left out."
+        }
+      },
+      "required": []
+    }
+  },
+  {
+    "name": "get_insights",
+    "description": "Patterns the app computed from the person’s own records: attacks per month, days without an attack, their most tagged triggers, time of day, day of the week, what helped in debriefed attacks, and sleep the night before. Each gives count out of of, window_days and a ref to cite; pattern says whether a time or weekday spread stands out from chance. needs lists the patterns that still need more records, with how many they need and have.",
+    "strict": true,
+    "input_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "attack_free_streak",
+            "helped",
+            "monthly_frequency",
+            "sleep_before",
+            "time_of_day",
+            "trigger_frequency",
+            "weekday"
+          ],
+          "description": "Only this kind of pattern; all kinds if left out."
+        }
+      },
+      "required": []
+    }
+  },
+  {
+    "name": "get_cabinet",
+    "description": "Lists the person’s active medications (name, kind, class, form, the dose text they saved themselves, and whether they set a minimum interval) and this calendar month’s overuse counts: days with an acute dose per class and for the classes combined, each against its limit, with a ref to cite.",
+    "strict": true,
+    "input_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {},
+      "required": []
+    }
+  },
+  {
+    "name": "get_signals",
+    "description": "Today’s signals, which the app computed from the person’s records, highest priority first: an attack that has gone on long, medicine days near or at the limit, a debrief due for yesterday’s attack, a night shorter than on the nights before their attacks, a pressure drop over the next 24 hours, and no check-in for a few days. Each gives its kind, local_date, evidence (the numbers behind it) and a ref; cite the ref with medicine days and with nights before an attack. A signal is a reminder, never a forecast of an attack.",
+    "strict": true,
+    "input_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {},
+      "required": []
+    }
+  },
+  {
+    "name": "get_crisis_plan",
+    "description": "What helped the person in attacks they debriefed: comfort measures and their own medications, best first, at most five, each with how many times it helped out of how many tries and a ref to cite.",
+    "strict": true,
+    "input_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {},
+      "required": []
+    }
+  },
+  {
+    "name": "propose_episode",
+    "description": "Makes a draft attack the person confirms in the app; nothing is saved. With episode_ref it updates, ends or debriefs that attack (the open one included); without it the draft is a new attack and needs started_at, and ended_at too while another attack is open. Include only what the person said. Times: ISO 8601 with the person’s UTC offset, for example 2026-03-14T08:30:00-05:00.",
+    "strict": true,
+    "input_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "episode_ref": {
+          "type": "string",
+          "description": "The ref of an attack from get_episodes or the second system block."
+        },
+        "started_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the attack started."
+        },
+        "ended_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the attack ended."
+        },
+        "intensity": {
+          "type": "integer",
+          "description": "Pain from 0 (none) to 10 (worst)."
+        },
+        "pain_areas": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "back_left",
+              "back_right",
+              "crown",
+              "eye_left",
+              "eye_right",
+              "face",
+              "forehead",
+              "neck",
+              "temple_left",
+              "temple_right"
+            ]
+          },
+          "description": "Where it hurts."
+        },
+        "symptoms": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "aura_visual",
+              "brain_fog",
+              "dizziness",
+              "fatigue",
+              "light_sensitivity",
+              "nausea",
+              "neck_stiffness",
+              "numbness_tingling",
+              "smell_sensitivity",
+              "sound_sensitivity",
+              "vomiting"
+            ]
+          },
+          "description": "Symptoms they named."
+        },
+        "triggers": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "alcohol",
+              "bright_light",
+              "caffeine",
+              "dehydration",
+              "exertion",
+              "food",
+              "hormones",
+              "loud_noise",
+              "oversleep",
+              "screens",
+              "short_sleep",
+              "skipped_meal",
+              "stress",
+              "strong_smell",
+              "travel",
+              "weather"
+            ]
+          },
+          "description": "What they think set it off."
+        },
+        "reliefs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "caffeine",
+              "cold_pack",
+              "dark_room",
+              "fresh_air",
+              "heat",
+              "massage",
+              "medication",
+              "meditation",
+              "sleep",
+              "water"
+            ]
+          },
+          "description": "What they tried during the attack."
+        },
+        "helped": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "caffeine",
+              "cold_pack",
+              "dark_room",
+              "fresh_air",
+              "heat",
+              "massage",
+              "medication",
+              "meditation",
+              "sleep",
+              "water"
+            ]
+          },
+          "description": "What they say helped (a debrief)."
+        },
+        "did_not_help": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "caffeine",
+              "cold_pack",
+              "dark_room",
+              "fresh_air",
+              "heat",
+              "massage",
+              "medication",
+              "meditation",
+              "sleep",
+              "water"
+            ]
+          },
+          "description": "What they say did not help (a debrief)."
+        },
+        "doses": {
+          "type": "array",
+          "description": "Doses they took during this attack.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "medication_ref": {
+                "type": "string",
+                "description": "The ref of the medication from get_cabinet or get_episodes."
+              },
+              "taken_at": {
+                "type": "string",
+                "format": "date-time",
+                "description": "When they took it."
+              }
+            },
+            "required": [
+              "medication_ref",
+              "taken_at"
+            ]
+          }
+        }
+      },
+      "required": []
+    }
+  },
+  {
+    "name": "propose_dose",
+    "description": "Makes a draft dose the person confirms in the app; nothing is saved. Use it for a dose outside an attack report, or linked to an attack with episode_ref. Times: ISO 8601 with the person’s UTC offset, for example 2026-03-14T08:30:00-05:00.",
+    "strict": true,
+    "input_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "medication_ref": {
+          "type": "string",
+          "description": "The ref of the medication from get_cabinet or get_episodes."
+        },
+        "taken_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When they took it."
+        },
+        "episode_ref": {
+          "type": "string",
+          "description": "The ref of the attack it was taken for, if any."
+        }
+      },
+      "required": [
+        "medication_ref",
+        "taken_at"
+      ]
+    }
+  },
+  {
+    "name": "propose_checkin",
+    "description": "Makes a draft daily check-in the person confirms in the app; nothing is saved. local_date is one of the last 7 days. Include only what the person said.",
+    "strict": true,
+    "input_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "local_date": {
+          "type": "string",
+          "format": "date",
+          "description": "The day it describes, YYYY-MM-DD."
+        },
+        "sleep_band": {
+          "type": "string",
+          "enum": [
+            "5_6",
+            "6_7",
+            "7_8",
+            "gt8",
+            "lt5"
+          ],
+          "description": "Hours slept: under 5, 5–6, 6–7, 7–8 or over 8."
+        },
+        "sleep_quality": {
+          "type": "string",
+          "enum": [
+            "bad",
+            "good",
+            "ok"
+          ],
+          "description": "How well they slept."
+        },
+        "stress": {
+          "type": "string",
+          "enum": [
+            "high",
+            "low",
+            "mid"
+          ],
+          "description": "Their stress that day."
+        },
+        "low_water": {
+          "type": "boolean",
+          "description": "They drank little water."
+        },
+        "extra_caffeine": {
+          "type": "boolean",
+          "description": "They had more caffeine than usual."
+        },
+        "alcohol": {
+          "type": "boolean",
+          "description": "They drank alcohol."
+        },
+        "skipped_meal": {
+          "type": "boolean",
+          "description": "They skipped a meal."
+        },
+        "screen_heavy": {
+          "type": "boolean",
+          "description": "They spent long hours at screens."
+        }
+      },
+      "required": [
+        "local_date"
+      ]
+    }
+  },
+  {
+    "name": "save_note",
+    "description": "Saves a short note, up to 200 characters, about how the person likes things, for later conversations. Never health details. They can see and delete every note; there are at most 20.",
+    "strict": true,
+    "input_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "type": "string",
+          "description": "The note, in the person’s language."
+        }
+      },
+      "required": [
+        "text"
+      ]
+    }
+  },
+  {
+    "name": "forget_note",
+    "description": "Deletes one of the person’s notes.",
+    "strict": true,
+    "input_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "note_ref": {
+          "type": "string",
+          "description": "The ref of the note from the notes block or save_note."
+        }
+      },
+      "required": [
+        "note_ref"
+      ]
+    }
+  }
+]"
+`;

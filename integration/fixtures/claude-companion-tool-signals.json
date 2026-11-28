@@ -1,0 +1,14 @@
+{
+  "status": 200,
+  "body": {
+    "type": "message",
+    "role": "assistant",
+    "model": "claude-sonnet-5-5",
+    "stop_reason": "tool_use",
+    "content": [
+      { "type": "thinking", "thinking": "", "signature": "mock-signature" },
+      { "type": "tool_use", "id": "toolu_int_signals", "name": "get_signals", "input": {} }
+    ],
+    "usage": { "input_tokens": 3200, "output_tokens": 40, "cache_creation_input_tokens": 2900, "cache_read_input_tokens": 0 }
+  }
+}

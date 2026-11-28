@@ -1,0 +1,14 @@
+{
+  "status": 200,
+  "body": {
+    "type": "message",
+    "role": "assistant",
+    "model": "claude-sonnet-5-5",
+    "stop_reason": "end_turn",
+    "content": [
+      { "type": "thinking", "thinking": "", "signature": "mock-signature" },
+      { "type": "text", "text": "Your cabinet has your triptan, and a draft is ready for you to check." }
+    ],
+    "usage": { "input_tokens": 300, "output_tokens": 30, "cache_creation_input_tokens": 0, "cache_read_input_tokens": 2900 }
+  }
+}

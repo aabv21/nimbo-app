@@ -1,0 +1,1911 @@
+{
+  "about": "Synthetic input for computeInsights(data, pack) with the proposed pack values in ../research.md section 7. 'expected.insights' must equal the output filtered to 'assertKinds' (null = every kind); 'expected.needs' is what insightNeeds returns for the same kinds. Times are UTC ISO; local dates use input.timeZone.",
+  "pack": {
+    "sleepBandHours": {
+      "lt5": 4.5,
+      "5_6": 5.5,
+      "6_7": 6.5,
+      "7_8": 7.5,
+      "gt8": 8.5
+    },
+    "dayStartHour": 4,
+    "insights": {
+      "windowDays": 90,
+      "patternChanceMax": 0.1,
+      "monthlyFrequency": {
+        "minTrackedDays": 60,
+        "months": 6
+      },
+      "streak": {
+        "minTrackedDays": 14,
+        "staleAfterDays": 7,
+        "maxDays": 365
+      },
+      "triggerFrequency": {
+        "minEpisodes": 5,
+        "minCount": 2,
+        "top": 3
+      },
+      "timeOfDay": {
+        "minEpisodes": 8
+      },
+      "weekday": {
+        "minEpisodes": 12
+      },
+      "helped": {
+        "minDebriefs": 3,
+        "minMarked": 2,
+        "top": 5
+      },
+      "sleepBefore": {
+        "minCheckins": 14,
+        "minShortNights": 5,
+        "minOtherNights": 5,
+        "minAttackDays": 3,
+        "shortBands": [
+          "lt5",
+          "5_6"
+        ]
+      },
+      "timeOfDayBuckets": {
+        "night": [
+          0,
+          6
+        ],
+        "morning": [
+          6,
+          12
+        ],
+        "afternoon": [
+          12,
+          18
+        ],
+        "evening": [
+          18,
+          24
+        ]
+      }
+    }
+  },
+  "cases": [
+    {
+      "id": "I01-new-user-below-every-minimum",
+      "description": "12 days of records, 2 attacks, 9 check-ins. Every insight is below its minimum: no insight, only what is still needed.",
+      "assertKinds": null,
+      "input": {
+        "now": "2026-11-27T13:05:00Z",
+        "timeZone": "America/Bogota",
+        "trackingSince": "2026-11-16",
+        "episodes": [
+          {
+            "id": "e1",
+            "startedAt": "2026-11-18T20:00:00Z",
+            "endedAt": "2026-11-19T02:00:00Z",
+            "intensity": 6,
+            "triggers": [
+              "stress"
+            ],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          },
+          {
+            "id": "e2",
+            "startedAt": "2026-11-24T14:30:00Z",
+            "endedAt": "2026-11-24T20:30:00Z",
+            "intensity": 6,
+            "triggers": [
+              "stress"
+            ],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          }
+        ],
+        "checkins": [
+          {
+            "localDate": "2026-11-18",
+            "sleepBand": "6_7",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-19",
+            "sleepBand": "6_7",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-20",
+            "sleepBand": "6_7",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-21",
+            "sleepBand": "6_7",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-22",
+            "sleepBand": "6_7",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-23",
+            "sleepBand": "6_7",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-24",
+            "sleepBand": "6_7",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-25",
+            "sleepBand": "6_7",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-26",
+            "sleepBand": "6_7",
+            "stress": "mid"
+          }
+        ],
+        "doses": [],
+        "medications": []
+      },
+      "expected": {
+        "insights": [],
+        "needs": [
+          {
+            "kind": "monthly_frequency",
+            "unit": "days",
+            "min": 60,
+            "have": 12
+          },
+          {
+            "kind": "attack_free_streak",
+            "unit": "days",
+            "min": 14,
+            "have": 12
+          },
+          {
+            "kind": "trigger_frequency",
+            "unit": "attacks",
+            "min": 5,
+            "have": 2
+          },
+          {
+            "kind": "time_of_day",
+            "unit": "attacks",
+            "min": 8,
+            "have": 2
+          },
+          {
+            "kind": "weekday",
+            "unit": "attacks",
+            "min": 12,
+            "have": 2
+          },
+          {
+            "kind": "helped",
+            "unit": "debriefs",
+            "min": 3,
+            "have": 0
+          },
+          {
+            "kind": "sleep_before",
+            "unit": "checkins",
+            "min": 14,
+            "have": 9,
+            "detail": {
+              "shortNights": 0,
+              "otherNights": 9,
+              "attackDays": 2
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "I02-four-attacks-all-tagged",
+      "description": "4 attacks all tagged stress in 10 days. A 4-of-4 trigger looks striking but rests on too little: nothing.",
+      "assertKinds": null,
+      "input": {
+        "now": "2026-11-27T13:05:00Z",
+        "timeZone": "America/Bogota",
+        "trackingSince": "2026-11-18",
+        "episodes": [
+          {
+            "id": "e1",
+            "startedAt": "2026-11-20T19:00:00Z",
+            "endedAt": "2026-11-21T01:00:00Z",
+            "intensity": 6,
+            "triggers": [
+              "stress"
+            ],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          },
+          {
+            "id": "e2",
+            "startedAt": "2026-11-22T19:00:00Z",
+            "endedAt": "2026-11-23T01:00:00Z",
+            "intensity": 6,
+            "triggers": [
+              "stress"
+            ],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          },
+          {
+            "id": "e3",
+            "startedAt": "2026-11-24T19:00:00Z",
+            "endedAt": "2026-11-25T01:00:00Z",
+            "intensity": 6,
+            "triggers": [
+              "stress"
+            ],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          },
+          {
+            "id": "e4",
+            "startedAt": "2026-11-26T19:00:00Z",
+            "endedAt": "2026-11-27T01:00:00Z",
+            "intensity": 6,
+            "triggers": [
+              "stress"
+            ],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          }
+        ],
+        "checkins": [],
+        "doses": [],
+        "medications": []
+      },
+      "expected": {
+        "insights": [],
+        "needs": [
+          {
+            "kind": "monthly_frequency",
+            "unit": "days",
+            "min": 60,
+            "have": 10
+          },
+          {
+            "kind": "attack_free_streak",
+            "unit": "days",
+            "min": 14,
+            "have": 10
+          },
+          {
+            "kind": "trigger_frequency",
+            "unit": "attacks",
+            "min": 5,
+            "have": 4
+          },
+          {
+            "kind": "time_of_day",
+            "unit": "attacks",
+            "min": 8,
+            "have": 4
+          },
+          {
+            "kind": "weekday",
+            "unit": "attacks",
+            "min": 12,
+            "have": 4
+          },
+          {
+            "kind": "helped",
+            "unit": "debriefs",
+            "min": 3,
+            "have": 0
+          },
+          {
+            "kind": "sleep_before",
+            "unit": "checkins",
+            "min": 14,
+            "have": 0,
+            "detail": {
+              "shortNights": 0,
+              "otherNights": 0,
+              "attackDays": 0
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "I03-triggers-at-minimum",
+      "description": "Exactly 5 attacks in the window. Triggers tagged at least twice are listed with count of 5; a trigger tagged once is not.",
+      "assertKinds": [
+        "trigger_frequency"
+      ],
+      "input": {
+        "now": "2026-11-27T13:05:00Z",
+        "timeZone": "America/Bogota",
+        "trackingSince": "2026-10-01",
+        "episodes": [
+          {
+            "id": "e1",
+            "startedAt": "2026-10-05T19:00:00Z",
+            "endedAt": "2026-10-06T01:00:00Z",
+            "intensity": 6,
+            "triggers": [
+              "stress",
+              "short_sleep"
+            ],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          },
+          {
+            "id": "e2",
+            "startedAt": "2026-10-19T13:00:00Z",
+            "endedAt": "2026-10-19T19:00:00Z",
+            "intensity": 6,
+            "triggers": [
+              "stress"
+            ],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          },
+          {
+            "id": "e3",
+            "startedAt": "2026-11-03T01:00:00Z",
+            "endedAt": "2026-11-03T07:00:00Z",
+            "intensity": 6,
+            "triggers": [
+              "short_sleep",
+              "caffeine"
+            ],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          },
+          {
+            "id": "e4",
+            "startedAt": "2026-11-15T21:00:00Z",
+            "endedAt": "2026-11-16T03:00:00Z",
+            "intensity": 6,
+            "triggers": [
+              "stress"
+            ],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          },
+          {
+            "id": "e5",
+            "startedAt": "2026-11-25T15:00:00Z",
+            "endedAt": "2026-11-25T21:00:00Z",
+            "intensity": 6,
+            "triggers": [],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          }
+        ],
+        "checkins": [],
+        "doses": [],
+        "medications": []
+      },
+      "expected": {
+        "insights": [
+          {
+            "kind": "trigger_frequency",
+            "key": "stress",
+            "count": 3,
+            "of": 5,
+            "windowDays": 90,
+            "episodeIds": [
+              "e1",
+              "e2",
+              "e4"
+            ]
+          },
+          {
+            "kind": "trigger_frequency",
+            "key": "short_sleep",
+            "count": 2,
+            "of": 5,
+            "windowDays": 90,
+            "episodeIds": [
+              "e1",
+              "e3"
+            ]
+          }
+        ],
+        "needs": []
+      }
+    },
+    {
+      "id": "I04-window-excludes-older-attacks",
+      "description": "6 attacks, but 2 started before the 90-day window (window starts 2026-08-30 local). Only 4 count, so the trigger and time-of-day insights stay below their minimum.",
+      "assertKinds": [
+        "trigger_frequency",
+        "time_of_day"
+      ],
+      "input": {
+        "now": "2026-11-27T13:05:00Z",
+        "timeZone": "America/Bogota",
+        "trackingSince": "2026-06-01",
+        "episodes": [
+          {
+            "id": "e1",
+            "startedAt": "2026-08-15T19:00:00Z",
+            "endedAt": "2026-08-16T01:00:00Z",
+            "intensity": 6,
+            "triggers": [
+              "stress"
+            ],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          },
+          {
+            "id": "e2",
+            "startedAt": "2026-08-30T04:30:00Z",
+            "endedAt": "2026-08-30T10:30:00Z",
+            "intensity": 6,
+            "triggers": [
+              "stress"
+            ],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          },
+          {
+            "id": "e3",
+            "startedAt": "2026-09-10T19:00:00Z",
+            "endedAt": "2026-09-11T01:00:00Z",
+            "intensity": 6,
+            "triggers": [
+              "stress"
+            ],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          },
+          {
+            "id": "e4",
+            "startedAt": "2026-10-01T19:00:00Z",
+            "endedAt": "2026-10-02T01:00:00Z",
+            "intensity": 6,
+            "triggers": [
+              "stress"
+            ],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          },
+          {
+            "id": "e5",
+            "startedAt": "2026-10-20T19:00:00Z",
+            "endedAt": "2026-10-21T01:00:00Z",
+            "intensity": 6,
+            "triggers": [
+              "alcohol"
+            ],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          },
+          {
+            "id": "e6",
+            "startedAt": "2026-11-20T19:00:00Z",
+            "endedAt": "2026-11-21T01:00:00Z",
+            "intensity": 6,
+            "triggers": [
+              "stress"
+            ],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          }
+        ],
+        "checkins": [],
+        "doses": [],
+        "medications": []
+      },
+      "expected": {
+        "insights": [],
+        "needs": [
+          {
+            "kind": "trigger_frequency",
+            "unit": "attacks",
+            "min": 5,
+            "have": 4
+          },
+          {
+            "kind": "time_of_day",
+            "unit": "attacks",
+            "min": 8,
+            "have": 4
+          }
+        ]
+      }
+    },
+    {
+      "id": "I05-time-of-day-pattern",
+      "description": "10 attacks, 7 in the afternoon. Under an even spread a top count of 7 or more happens rarely (chance below 0.10), so the sentence 'most started in the afternoon' is allowed.",
+      "assertKinds": [
+        "time_of_day"
+      ],
+      "input": {
+        "now": "2026-11-27T13:05:00Z",
+        "timeZone": "America/Bogota",
+        "trackingSince": "2026-08-01",
+        "episodes": [
+          {
+            "id": "e1",
+            "startedAt": "2026-09-03T18:00:00Z",
+            "endedAt": "2026-09-04T00:00:00Z",
+            "intensity": 6,
+            "triggers": [],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          },
+          {
+            "id": "e2",
+            "startedAt": "2026-09-10T19:30:00Z",
+            "endedAt": "2026-09-11T01:30:00Z",
+            "intensity": 6,
+            "triggers": [],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          },
+          {
+            "id": "e3",
+            "startedAt": "2026-09-17T20:00:00Z",
+            "endedAt": "2026-09-18T02:00:00Z",
+            "intensity": 6,
+            "triggers": [],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          },
+          {
+            "id": "e4",
+            "startedAt": "2026-09-24T21:45:00Z",
+            "endedAt": "2026-09-25T03:45:00Z",
+            "intensity": 6,
+            "triggers": [],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          },
+          {
+            "id": "e5",
+            "startedAt": "2026-10-03T17:10:00Z",
+            "endedAt": "2026-10-03T23:10:00Z",
+            "intensity": 6,
+            "triggers": [],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          },
+          {
+            "id": "e6",
+            "startedAt": "2026-10-10T22:20:00Z",
+            "endedAt": "2026-10-11T04:20:00Z",
+            "intensity": 6,
+            "triggers": [],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          },
+          {
+            "id": "e7",
+            "startedAt": "2026-10-17T18:40:00Z",
+            "endedAt": "2026-10-18T00:40:00Z",
+            "intensity": 6,
+            "triggers": [],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          },
+          {
+            "id": "e8",
+            "startedAt": "2026-10-24T12:30:00Z",
+            "endedAt": "2026-10-24T18:30:00Z",
+            "intensity": 6,
+            "triggers": [],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          },
+          {
+            "id": "e9",
+            "startedAt": "2026-11-04T00:00:00Z",
+            "endedAt": "2026-11-04T06:00:00Z",
+            "intensity": 6,
+            "triggers": [],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          },
+          {
+            "id": "e10",
+            "startedAt": "2026-11-10T07:00:00Z",
+            "endedAt": "2026-11-10T13:00:00Z",
+            "intensity": 6,
+            "triggers": [],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          }
+        ],
+        "checkins": [],
+        "doses": [],
+        "medications": []
+      },
+      "expected": {
+        "insights": [
+          {
+            "kind": "time_of_day",
+            "key": "afternoon",
+            "count": 7,
+            "of": 10,
+            "windowDays": 90,
+            "episodeIds": [
+              "e1",
+              "e2",
+              "e3",
+              "e4",
+              "e5",
+              "e6",
+              "e7"
+            ],
+            "buckets": {
+              "night": 1,
+              "morning": 1,
+              "afternoon": 7,
+              "evening": 1
+            },
+            "chance": 0.014,
+            "pattern": true
+          }
+        ],
+        "needs": []
+      }
+    },
+    {
+      "id": "I06-time-of-day-no-pattern",
+      "description": "8 attacks spread 3/2/2/1. The counts are shown, but a top count of 3 out of 8 is what chance gives almost always: pattern is false, no 'most started' sentence. Weekday stays below its minimum of 12.",
+      "assertKinds": [
+        "time_of_day",
+        "weekday"
+      ],
+      "input": {
+        "now": "2026-11-27T13:05:00Z",
+        "timeZone": "America/Bogota",
+        "trackingSince": "2026-08-01",
+        "episodes": [
+          {
+            "id": "e1",
+            "startedAt": "2026-09-04T18:00:00Z",
+            "endedAt": "2026-09-05T00:00:00Z",
+            "intensity": 6,
+            "triggers": [],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          },
+          {
+            "id": "e2",
+            "startedAt": "2026-09-12T19:00:00Z",
+            "endedAt": "2026-09-13T01:00:00Z",
+            "intensity": 6,
+            "triggers": [],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          },
+          {
+            "id": "e3",
+            "startedAt": "2026-09-20T20:00:00Z",
+            "endedAt": "2026-09-21T02:00:00Z",
+            "intensity": 6,
+            "triggers": [],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          },
+          {
+            "id": "e4",
+            "startedAt": "2026-10-04T13:00:00Z",
+            "endedAt": "2026-10-04T19:00:00Z",
+            "intensity": 6,
+            "triggers": [],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          },
+          {
+            "id": "e5",
+            "startedAt": "2026-10-12T15:00:00Z",
+            "endedAt": "2026-10-12T21:00:00Z",
+            "intensity": 6,
+            "triggers": [],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          },
+          {
+            "id": "e6",
+            "startedAt": "2026-10-21T00:00:00Z",
+            "endedAt": "2026-10-21T06:00:00Z",
+            "intensity": 6,
+            "triggers": [],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          },
+          {
+            "id": "e7",
+            "startedAt": "2026-11-05T02:00:00Z",
+            "endedAt": "2026-11-05T08:00:00Z",
+            "intensity": 6,
+            "triggers": [],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          },
+          {
+            "id": "e8",
+            "startedAt": "2026-11-12T08:00:00Z",
+            "endedAt": "2026-11-12T14:00:00Z",
+            "intensity": 6,
+            "triggers": [],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          }
+        ],
+        "checkins": [],
+        "doses": [],
+        "medications": []
+      },
+      "expected": {
+        "insights": [
+          {
+            "kind": "time_of_day",
+            "key": "afternoon",
+            "count": 3,
+            "of": 8,
+            "windowDays": 90,
+            "episodeIds": [
+              "e1",
+              "e2",
+              "e3"
+            ],
+            "buckets": {
+              "night": 1,
+              "morning": 2,
+              "afternoon": 3,
+              "evening": 2
+            },
+            "chance": 0.962,
+            "pattern": false
+          }
+        ],
+        "needs": [
+          {
+            "kind": "weekday",
+            "unit": "attacks",
+            "min": 12,
+            "have": 8
+          }
+        ]
+      }
+    },
+    {
+      "id": "I07-weekday-pattern",
+      "description": "12 attacks, 6 on a Monday (local dates). Chance of a top weekday count of 6 or more under an even spread is about 0.03: pattern true.",
+      "assertKinds": [
+        "weekday"
+      ],
+      "input": {
+        "now": "2026-11-27T13:05:00Z",
+        "timeZone": "America/Bogota",
+        "trackingSince": "2026-08-01",
+        "episodes": [
+          {
+            "id": "e1",
+            "startedAt": "2026-09-07T16:00:00Z",
+            "endedAt": "2026-09-07T22:00:00Z",
+            "intensity": 6,
+            "triggers": [],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          },
+          {
+            "id": "e2",
+            "startedAt": "2026-09-21T16:00:00Z",
+            "endedAt": "2026-09-21T22:00:00Z",
+            "intensity": 6,
+            "triggers": [],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          },
+          {
+            "id": "e3",
+            "startedAt": "2026-10-05T16:00:00Z",
+            "endedAt": "2026-10-05T22:00:00Z",
+            "intensity": 6,
+            "triggers": [],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          },
+          {
+            "id": "e4",
+            "startedAt": "2026-10-19T16:00:00Z",
+            "endedAt": "2026-10-19T22:00:00Z",
+            "intensity": 6,
+            "triggers": [],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          },
+          {
+            "id": "e5",
+            "startedAt": "2026-11-02T16:00:00Z",
+            "endedAt": "2026-11-02T22:00:00Z",
+            "intensity": 6,
+            "triggers": [],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          },
+          {
+            "id": "e6",
+            "startedAt": "2026-11-16T16:00:00Z",
+            "endedAt": "2026-11-16T22:00:00Z",
+            "intensity": 6,
+            "triggers": [],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          },
+          {
+            "id": "e7",
+            "startedAt": "2026-09-10T16:00:00Z",
+            "endedAt": "2026-09-10T22:00:00Z",
+            "intensity": 6,
+            "triggers": [],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          },
+          {
+            "id": "e8",
+            "startedAt": "2026-09-26T16:00:00Z",
+            "endedAt": "2026-09-26T22:00:00Z",
+            "intensity": 6,
+            "triggers": [],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          },
+          {
+            "id": "e9",
+            "startedAt": "2026-10-08T16:00:00Z",
+            "endedAt": "2026-10-08T22:00:00Z",
+            "intensity": 6,
+            "triggers": [],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          },
+          {
+            "id": "e10",
+            "startedAt": "2026-10-29T16:00:00Z",
+            "endedAt": "2026-10-29T22:00:00Z",
+            "intensity": 6,
+            "triggers": [],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          },
+          {
+            "id": "e11",
+            "startedAt": "2026-11-11T16:00:00Z",
+            "endedAt": "2026-11-11T22:00:00Z",
+            "intensity": 6,
+            "triggers": [],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          },
+          {
+            "id": "e12",
+            "startedAt": "2026-11-21T16:00:00Z",
+            "endedAt": "2026-11-21T22:00:00Z",
+            "intensity": 6,
+            "triggers": [],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          }
+        ],
+        "checkins": [],
+        "doses": [],
+        "medications": []
+      },
+      "expected": {
+        "insights": [
+          {
+            "kind": "weekday",
+            "key": "mon",
+            "count": 6,
+            "of": 12,
+            "windowDays": 90,
+            "episodeIds": [
+              "e1",
+              "e2",
+              "e3",
+              "e4",
+              "e5",
+              "e6"
+            ],
+            "buckets": {
+              "mon": 6,
+              "tue": 0,
+              "wed": 1,
+              "thu": 3,
+              "fri": 0,
+              "sat": 2,
+              "sun": 0
+            },
+            "chance": 0.025,
+            "pattern": true
+          }
+        ],
+        "needs": []
+      }
+    },
+    {
+      "id": "I08-helped-below-minimum",
+      "description": "5 attacks, only 2 with an answered debrief. Undebriefed attacks never count, even with relief keys: nothing.",
+      "assertKinds": [
+        "helped"
+      ],
+      "input": {
+        "now": "2026-11-27T13:05:00Z",
+        "timeZone": "America/Bogota",
+        "trackingSince": "2026-09-01",
+        "episodes": [
+          {
+            "id": "e1",
+            "startedAt": "2026-10-02T19:00:00Z",
+            "endedAt": "2026-10-03T01:00:00Z",
+            "intensity": 6,
+            "triggers": [],
+            "helped": [
+              "dark_room"
+            ],
+            "didNotHelp": [],
+            "debriefedAt": "2026-10-03T13:00:00Z"
+          },
+          {
+            "id": "e2",
+            "startedAt": "2026-10-20T19:00:00Z",
+            "endedAt": "2026-10-21T01:00:00Z",
+            "intensity": 6,
+            "triggers": [],
+            "helped": [
+              "dark_room",
+              "cold_pack"
+            ],
+            "didNotHelp": [],
+            "debriefedAt": "2026-10-21T13:00:00Z"
+          },
+          {
+            "id": "e3",
+            "startedAt": "2026-11-01T19:00:00Z",
+            "endedAt": "2026-11-02T01:00:00Z",
+            "intensity": 6,
+            "triggers": [],
+            "helped": [
+              "dark_room"
+            ],
+            "didNotHelp": [],
+            "debriefedAt": null
+          },
+          {
+            "id": "e4",
+            "startedAt": "2026-11-10T19:00:00Z",
+            "endedAt": "2026-11-11T01:00:00Z",
+            "intensity": 6,
+            "triggers": [],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          },
+          {
+            "id": "e5",
+            "startedAt": "2026-11-20T19:00:00Z",
+            "endedAt": "2026-11-21T01:00:00Z",
+            "intensity": 6,
+            "triggers": [],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          }
+        ],
+        "checkins": [],
+        "doses": [],
+        "medications": []
+      },
+      "expected": {
+        "insights": [],
+        "needs": [
+          {
+            "kind": "helped",
+            "unit": "debriefs",
+            "min": 3,
+            "have": 2
+          }
+        ]
+      }
+    },
+    {
+      "id": "I09-helped-ranked",
+      "description": "4 debriefed attacks. dark_room helped 3 of 3, the user's triptan helped 2 of 3 doses, cold_pack 1 of 2. sleep was marked once only (below the per-entry minimum of 2) and is left out.",
+      "assertKinds": [
+        "helped"
+      ],
+      "input": {
+        "now": "2026-11-27T13:05:00Z",
+        "timeZone": "America/Bogota",
+        "trackingSince": "2026-09-01",
+        "episodes": [
+          {
+            "id": "e1",
+            "startedAt": "2026-10-02T19:00:00Z",
+            "endedAt": "2026-10-03T01:00:00Z",
+            "intensity": 6,
+            "triggers": [],
+            "helped": [
+              "dark_room",
+              "sleep"
+            ],
+            "didNotHelp": [],
+            "debriefedAt": "2026-10-03T13:00:00Z"
+          },
+          {
+            "id": "e2",
+            "startedAt": "2026-10-20T19:00:00Z",
+            "endedAt": "2026-10-21T01:00:00Z",
+            "intensity": 6,
+            "triggers": [],
+            "helped": [
+              "dark_room",
+              "cold_pack"
+            ],
+            "didNotHelp": [],
+            "debriefedAt": "2026-10-21T13:00:00Z"
+          },
+          {
+            "id": "e3",
+            "startedAt": "2026-11-05T19:00:00Z",
+            "endedAt": "2026-11-06T01:00:00Z",
+            "intensity": 6,
+            "triggers": [],
+            "helped": [
+              "dark_room"
+            ],
+            "didNotHelp": [
+              "cold_pack"
+            ],
+            "debriefedAt": "2026-11-06T13:00:00Z"
+          },
+          {
+            "id": "e4",
+            "startedAt": "2026-11-20T19:00:00Z",
+            "endedAt": "2026-11-21T01:00:00Z",
+            "intensity": 6,
+            "triggers": [],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": "2026-11-21T13:00:00Z"
+          }
+        ],
+        "checkins": [],
+        "doses": [
+          {
+            "id": "d1",
+            "medicationId": "m-tri",
+            "episodeId": "e1",
+            "takenAt": "2026-10-02T19:20:00Z",
+            "helped": true
+          },
+          {
+            "id": "d2",
+            "medicationId": "m-tri",
+            "episodeId": "e2",
+            "takenAt": "2026-10-20T19:20:00Z",
+            "helped": false
+          },
+          {
+            "id": "d3",
+            "medicationId": "m-tri",
+            "episodeId": "e3",
+            "takenAt": "2026-11-05T19:20:00Z",
+            "helped": true
+          }
+        ],
+        "medications": [
+          {
+            "id": "m-tri",
+            "name": "Sumatriptan",
+            "kind": "acute",
+            "class": "triptan"
+          }
+        ]
+      },
+      "expected": {
+        "insights": [
+          {
+            "kind": "helped",
+            "key": "dark_room",
+            "source": "relief",
+            "count": 3,
+            "of": 3,
+            "windowDays": 90,
+            "episodeIds": [
+              "e1",
+              "e2",
+              "e3"
+            ]
+          },
+          {
+            "kind": "helped",
+            "key": "m-tri",
+            "source": "medication",
+            "count": 2,
+            "of": 3,
+            "windowDays": 90,
+            "episodeIds": [
+              "e1",
+              "e2",
+              "e3"
+            ]
+          },
+          {
+            "kind": "helped",
+            "key": "cold_pack",
+            "source": "relief",
+            "count": 1,
+            "of": 2,
+            "windowDays": 90,
+            "episodeIds": [
+              "e2",
+              "e3"
+            ]
+          }
+        ],
+        "needs": []
+      }
+    },
+    {
+      "id": "I10-sleep-before-with-baseline",
+      "description": "30 finished nights with a sleep answer: 6 under 6 h, 24 others. 4 of the 6 short nights were followed by an attack that day, 2 of the 24 other nights were. The attack at 02:30 on Nov 20 belongs to the record day Nov 19 (day starts at 04:00). Today's check-in is excluded: its day is not over.",
+      "assertKinds": [
+        "sleep_before"
+      ],
+      "input": {
+        "now": "2026-11-27T13:05:00Z",
+        "timeZone": "America/Bogota",
+        "trackingSince": "2026-10-28",
+        "episodes": [
+          {
+            "id": "e1",
+            "startedAt": "2026-11-01T20:00:00Z",
+            "endedAt": "2026-11-02T02:00:00Z",
+            "intensity": 6,
+            "triggers": [],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          },
+          {
+            "id": "e2",
+            "startedAt": "2026-11-05T15:00:00Z",
+            "endedAt": "2026-11-05T21:00:00Z",
+            "intensity": 6,
+            "triggers": [],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          },
+          {
+            "id": "e3",
+            "startedAt": "2026-11-14T23:00:00Z",
+            "endedAt": "2026-11-15T05:00:00Z",
+            "intensity": 6,
+            "triggers": [],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          },
+          {
+            "id": "e4",
+            "startedAt": "2026-11-20T07:30:00Z",
+            "endedAt": "2026-11-20T13:30:00Z",
+            "intensity": 6,
+            "triggers": [],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          },
+          {
+            "id": "e5",
+            "startedAt": "2026-11-03T21:00:00Z",
+            "endedAt": "2026-11-04T03:00:00Z",
+            "intensity": 6,
+            "triggers": [],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          },
+          {
+            "id": "e6",
+            "startedAt": "2026-11-26T14:00:00Z",
+            "endedAt": "2026-11-26T20:00:00Z",
+            "intensity": 6,
+            "triggers": [],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          }
+        ],
+        "checkins": [
+          {
+            "localDate": "2026-10-28",
+            "sleepBand": "6_7",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-10-29",
+            "sleepBand": "7_8",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-10-30",
+            "sleepBand": "6_7",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-10-31",
+            "sleepBand": "7_8",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-01",
+            "sleepBand": "5_6",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-02",
+            "sleepBand": "6_7",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-03",
+            "sleepBand": "7_8",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-04",
+            "sleepBand": "6_7",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-05",
+            "sleepBand": "lt5",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-06",
+            "sleepBand": "6_7",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-07",
+            "sleepBand": "7_8",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-08",
+            "sleepBand": "6_7",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-09",
+            "sleepBand": "5_6",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-10",
+            "sleepBand": "6_7",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-11",
+            "sleepBand": "7_8",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-12",
+            "sleepBand": "6_7",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-13",
+            "sleepBand": "7_8",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-14",
+            "sleepBand": "5_6",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-15",
+            "sleepBand": "7_8",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-16",
+            "sleepBand": "6_7",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-17",
+            "sleepBand": "7_8",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-18",
+            "sleepBand": "6_7",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-19",
+            "sleepBand": "lt5",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-20",
+            "sleepBand": "6_7",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-21",
+            "sleepBand": "7_8",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-22",
+            "sleepBand": "6_7",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-23",
+            "sleepBand": "5_6",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-24",
+            "sleepBand": "6_7",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-25",
+            "sleepBand": "7_8",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-26",
+            "sleepBand": "6_7",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-27",
+            "sleepBand": "7_8",
+            "stress": "mid"
+          }
+        ],
+        "doses": [],
+        "medications": []
+      },
+      "expected": {
+        "insights": [
+          {
+            "kind": "sleep_before",
+            "key": "short_sleep",
+            "count": 4,
+            "of": 6,
+            "windowDays": 90,
+            "episodeIds": [
+              "e1",
+              "e2",
+              "e3",
+              "e4"
+            ],
+            "baseline": {
+              "count": 2,
+              "of": 24
+            },
+            "avgHours": {
+              "attackNights": 5.7,
+              "otherNights": 6.8
+            },
+            "checkins": 30
+          }
+        ],
+        "needs": []
+      }
+    },
+    {
+      "id": "I11-sleep-before-too-few-short-nights",
+      "description": "16 finished nights but only 4 under 6 h: the comparison needs at least 5 on each side, so nothing is shown.",
+      "assertKinds": [
+        "sleep_before"
+      ],
+      "input": {
+        "now": "2026-11-27T13:05:00Z",
+        "timeZone": "America/Bogota",
+        "trackingSince": "2026-11-10",
+        "episodes": [
+          {
+            "id": "e1",
+            "startedAt": "2026-11-12T20:00:00Z",
+            "endedAt": "2026-11-13T02:00:00Z",
+            "intensity": 6,
+            "triggers": [],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          },
+          {
+            "id": "e2",
+            "startedAt": "2026-11-16T20:00:00Z",
+            "endedAt": "2026-11-17T02:00:00Z",
+            "intensity": 6,
+            "triggers": [],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          },
+          {
+            "id": "e3",
+            "startedAt": "2026-11-20T20:00:00Z",
+            "endedAt": "2026-11-21T02:00:00Z",
+            "intensity": 6,
+            "triggers": [],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          }
+        ],
+        "checkins": [
+          {
+            "localDate": "2026-11-11",
+            "sleepBand": "7_8",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-12",
+            "sleepBand": "5_6",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-13",
+            "sleepBand": "7_8",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-14",
+            "sleepBand": "7_8",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-15",
+            "sleepBand": "7_8",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-16",
+            "sleepBand": "5_6",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-17",
+            "sleepBand": "7_8",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-18",
+            "sleepBand": "7_8",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-19",
+            "sleepBand": "7_8",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-20",
+            "sleepBand": "5_6",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-21",
+            "sleepBand": "7_8",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-22",
+            "sleepBand": "5_6",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-23",
+            "sleepBand": "7_8",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-24",
+            "sleepBand": "7_8",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-25",
+            "sleepBand": "7_8",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-26",
+            "sleepBand": "7_8",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-27",
+            "sleepBand": "7_8",
+            "stress": "mid"
+          }
+        ],
+        "doses": [],
+        "medications": []
+      },
+      "expected": {
+        "insights": [],
+        "needs": [
+          {
+            "kind": "sleep_before",
+            "unit": "checkins",
+            "min": 14,
+            "have": 16,
+            "detail": {
+              "shortNights": 4,
+              "otherNights": 12,
+              "attackDays": 3
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "I12-streak-current-and-best",
+      "description": "Last attack ended on Nov 20 (local), so the current stretch is 7 days. The longest stretch in the last 365 days runs between the Sep 2 and Oct 16 attacks.",
+      "assertKinds": [
+        "attack_free_streak"
+      ],
+      "input": {
+        "now": "2026-11-27T13:05:00Z",
+        "timeZone": "America/Bogota",
+        "trackingSince": "2026-08-01",
+        "episodes": [
+          {
+            "id": "e1",
+            "startedAt": "2026-08-20T19:00:00Z",
+            "endedAt": "2026-08-21T01:00:00Z",
+            "intensity": 6,
+            "triggers": [],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          },
+          {
+            "id": "e2",
+            "startedAt": "2026-09-02T19:00:00Z",
+            "endedAt": "2026-09-03T01:00:00Z",
+            "intensity": 6,
+            "triggers": [],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          },
+          {
+            "id": "e3",
+            "startedAt": "2026-10-16T19:00:00Z",
+            "endedAt": "2026-10-17T01:00:00Z",
+            "intensity": 6,
+            "triggers": [],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          },
+          {
+            "id": "e4",
+            "startedAt": "2026-11-20T14:00:00Z",
+            "endedAt": "2026-11-20T20:00:00Z",
+            "intensity": 6,
+            "triggers": [],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          }
+        ],
+        "checkins": [
+          {
+            "localDate": "2026-11-21",
+            "sleepBand": "7_8",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-22",
+            "sleepBand": "7_8",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-23",
+            "sleepBand": "7_8",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-24",
+            "sleepBand": "7_8",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-25",
+            "sleepBand": "7_8",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-26",
+            "sleepBand": "7_8",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-27",
+            "sleepBand": "7_8",
+            "stress": "mid"
+          }
+        ],
+        "doses": [],
+        "medications": []
+      },
+      "expected": {
+        "insights": [
+          {
+            "kind": "attack_free_streak",
+            "key": "current",
+            "count": 7,
+            "of": 119,
+            "windowDays": 119,
+            "episodeIds": [
+              "e4"
+            ],
+            "bestDays": 43
+          }
+        ],
+        "needs": []
+      }
+    },
+    {
+      "id": "I13-streak-stale-records",
+      "description": "The last record of any kind is 12 days old. Silence is not proof of no attacks, so the streak is withheld until a recent record exists.",
+      "assertKinds": [
+        "attack_free_streak"
+      ],
+      "input": {
+        "now": "2026-11-27T13:05:00Z",
+        "timeZone": "America/Bogota",
+        "trackingSince": "2026-08-01",
+        "episodes": [
+          {
+            "id": "e1",
+            "startedAt": "2026-09-02T19:00:00Z",
+            "endedAt": "2026-09-03T01:00:00Z",
+            "intensity": 6,
+            "triggers": [],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          },
+          {
+            "id": "e2",
+            "startedAt": "2026-10-16T19:00:00Z",
+            "endedAt": "2026-10-17T01:00:00Z",
+            "intensity": 6,
+            "triggers": [],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          }
+        ],
+        "checkins": [
+          {
+            "localDate": "2026-11-10",
+            "sleepBand": "7_8",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-11",
+            "sleepBand": "7_8",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-12",
+            "sleepBand": "7_8",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-13",
+            "sleepBand": "7_8",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-14",
+            "sleepBand": "7_8",
+            "stress": "mid"
+          },
+          {
+            "localDate": "2026-11-15",
+            "sleepBand": "7_8",
+            "stress": "mid"
+          }
+        ],
+        "doses": [],
+        "medications": []
+      },
+      "expected": {
+        "insights": [],
+        "needs": [
+          {
+            "kind": "attack_free_streak",
+            "unit": "recent_record",
+            "min": 7,
+            "have": 12
+          }
+        ]
+      }
+    },
+    {
+      "id": "I14-monthly-frequency-local-month",
+      "description": "Mexico City. An attack at 23:30 local on Oct 31 is 05:30 UTC on Nov 1 and must count for October. Tracking began Sep 10, so September is partial and earlier months are absent; November is partial (today is Nov 27).",
+      "assertKinds": [
+        "monthly_frequency"
+      ],
+      "input": {
+        "now": "2026-11-27T13:05:00Z",
+        "timeZone": "America/Mexico_City",
+        "trackingSince": "2026-09-10",
+        "episodes": [
+          {
+            "id": "e1",
+            "startedAt": "2026-09-15T20:00:00Z",
+            "endedAt": "2026-09-16T02:00:00Z",
+            "intensity": 7,
+            "triggers": [],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          },
+          {
+            "id": "e2",
+            "startedAt": "2026-10-03T20:00:00Z",
+            "endedAt": "2026-10-04T02:00:00Z",
+            "intensity": 5,
+            "triggers": [],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          },
+          {
+            "id": "e3",
+            "startedAt": "2026-11-01T05:30:00Z",
+            "endedAt": "2026-11-01T11:30:00Z",
+            "intensity": 8,
+            "triggers": [],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          },
+          {
+            "id": "e4",
+            "startedAt": "2026-11-11T15:00:00Z",
+            "endedAt": "2026-11-11T21:00:00Z",
+            "intensity": null,
+            "triggers": [],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          },
+          {
+            "id": "e5",
+            "startedAt": "2026-11-20T00:00:00Z",
+            "endedAt": "2026-11-20T06:00:00Z",
+            "intensity": 6,
+            "triggers": [],
+            "helped": [],
+            "didNotHelp": [],
+            "debriefedAt": null
+          }
+        ],
+        "checkins": [],
+        "doses": [],
+        "medications": []
+      },
+      "expected": {
+        "insights": [
+          {
+            "kind": "monthly_frequency",
+            "key": "2026-09",
+            "count": 1,
+            "of": 21,
+            "windowDays": 30,
+            "episodeIds": [
+              "e1"
+            ],
+            "avgIntensity": 7.0,
+            "partial": true
+          },
+          {
+            "kind": "monthly_frequency",
+            "key": "2026-10",
+            "count": 2,
+            "of": 31,
+            "windowDays": 31,
+            "episodeIds": [
+              "e2",
+              "e3"
+            ],
+            "avgIntensity": 6.5,
+            "partial": false
+          },
+          {
+            "kind": "monthly_frequency",
+            "key": "2026-11",
+            "count": 2,
+            "of": 27,
+            "windowDays": 30,
+            "episodeIds": [
+              "e4",
+              "e5"
+            ],
+            "avgIntensity": 6.0,
+            "partial": true
+          }
+        ],
+        "needs": []
+      }
+    }
+  ]
+}

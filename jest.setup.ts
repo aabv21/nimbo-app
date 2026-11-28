@@ -1,6 +1,6 @@
 import { Dimensions } from 'react-native';
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return -- jest.mock()'s factory can only reference globals (incl. `require`), not a module-scoped import; see https://jestjs.io/docs/jest-object#jestmockmodulename-factory-options
+// jest.mock()'s factory can only reference globals (incl. `require`), not a module-scoped import: https://jestjs.io/docs/jest-object#jestmockmodulename-factory-options
 jest.mock('react-native-safe-area-context', () => require('react-native-safe-area-context/jest/mock').default);
 jest.mock('expo-localization', () => ({
   getLocales: () => [{ languageTag: 'en-US', languageCode: 'en', regionCode: 'US', currencyCode: 'USD' }],
@@ -20,6 +20,91 @@ jest.mock('expo-haptics', () => ({
   NotificationFeedbackType: { Success: 'success', Warning: 'warning', Error: 'error' },
 }));
 
+// The notifications module is native: every call settles at once with nothing scheduled and permission granted,
+// a push token for `device-1`, no tap that launched the app, and listeners that never fire unless a suite says so.
+jest.mock('expo-notifications', () => ({
+  SchedulableTriggerInputTypes: { DAILY: 'daily', DATE: 'date' },
+  AndroidImportance: { DEFAULT: 3 },
+  AndroidNotificationVisibility: { PRIVATE: 0 },
+  IosAuthorizationStatus: { PROVISIONAL: 3 },
+  PermissionStatus: { GRANTED: 'granted', DENIED: 'denied', UNDETERMINED: 'undetermined' },
+  DEFAULT_ACTION_IDENTIFIER: 'expo.modules.notifications.actions.DEFAULT',
+  getExpoPushTokenAsync: jest.fn(() => Promise.resolve({ type: 'expo', data: 'ExponentPushToken[device-1]' })),
+  addNotificationReceivedListener: jest.fn(() => ({ remove: jest.fn() })),
+  addNotificationResponseReceivedListener: jest.fn(() => ({ remove: jest.fn() })),
+  getLastNotificationResponse: jest.fn(() => null),
+  clearLastNotificationResponse: jest.fn(),
+  setNotificationChannelAsync: jest.fn(() => Promise.resolve(null)),
+  getPermissionsAsync: jest.fn(() => Promise.resolve({ granted: true, canAskAgain: true })),
+  requestPermissionsAsync: jest.fn(() => Promise.resolve({ granted: true, canAskAgain: true })),
+  getAllScheduledNotificationsAsync: jest.fn(() => Promise.resolve([])),
+  cancelScheduledNotificationAsync: jest.fn(() => Promise.resolve()),
+  scheduleNotificationAsync: jest.fn((request: { identifier: string }) => Promise.resolve(request.identifier)),
+  getPresentedNotificationsAsync: jest.fn(() => Promise.resolve([])),
+  dismissNotificationAsync: jest.fn(() => Promise.resolve()),
+}));
+
+// Location is native: permission denied and no position unless a suite says otherwise.
+jest.mock('expo-location', () => ({
+  Accuracy: { Lowest: 1, Low: 2, Balanced: 3, High: 4, Highest: 5, BestForNavigation: 6 },
+  requestForegroundPermissionsAsync: jest.fn(() => Promise.resolve({ granted: false, status: 'denied', canAskAgain: true, expires: 'never' })),
+  getCurrentPositionAsync: jest.fn(() => Promise.reject(new Error('No position under Jest'))),
+  getLastKnownPositionAsync: jest.fn(() => Promise.resolve(null)),
+}));
+
+// expo-speech's native module is absent under Jest: an English, a Mexican Spanish and a Brazilian Portuguese voice;
+// a suite that tests speaking sets these with `jest.mocked`.
+jest.mock('expo-speech', () => ({
+  VoiceQuality: { Default: 'Default', Enhanced: 'Enhanced' },
+  getAvailableVoicesAsync: jest.fn(() =>
+    Promise.resolve([
+      { identifier: 'voice-en-us', name: 'Samantha', language: 'en-US', quality: 'Default' },
+      { identifier: 'voice-es-mx', name: 'Paulina', language: 'es-MX', quality: 'Default' },
+      { identifier: 'voice-pt-br', name: 'Luciana', language: 'pt-BR', quality: 'Default' },
+    ]),
+  ),
+  speak: jest.fn(),
+  stop: jest.fn(() => Promise.resolve()),
+}));
+// expo-speech-recognition's native module is absent under Jest: available, permission granted, no offline Android
+// language pack; `src/test/dictation.ts` emits its events.
+jest.mock('expo-speech-recognition', () => ({
+  ExpoSpeechRecognitionModule: {
+    isRecognitionAvailable: jest.fn(() => true),
+    supportsOnDeviceRecognition: jest.fn(() => true),
+    requestPermissionsAsync: jest.fn(() => Promise.resolve({ granted: true, canAskAgain: true, status: 'granted', expires: 'never' })),
+    getSupportedLocales: jest.fn(() => Promise.resolve({ locales: [], installedLocales: [] })),
+    start: jest.fn(),
+    stop: jest.fn(),
+    abort: jest.fn(),
+    addListener: jest.fn(() => ({ remove: jest.fn() })),
+  },
+}));
+
+// The date-time picker is native too; a stand-in that exposes its props.
+jest.mock('@react-native-community/datetimepicker', () => require('./src/test/datetimepickerMock'));
+jest.mock('react-native-reanimated', () => require('./src/test/reanimatedMock'));
+// The worklets runtime is native; a callback scheduled back onto the JS thread runs at once.
+jest.mock('react-native-worklets', () => ({
+  scheduleOnRN: (fn: (...args: unknown[]) => void, ...args: unknown[]) => {
+    fn(...args);
+  },
+}));
+// The glass and blur views render as plain views; a suite flips `isLiquidGlassAvailable` to reach the iOS 26 branch.
+jest.mock('expo-glass-effect', () => {
+  const { View } = jest.requireActual<typeof import('react-native')>('react-native');
+  return {
+    GlassView: View,
+    GlassContainer: View,
+    isLiquidGlassAvailable: jest.fn(() => false),
+    isGlassEffectAPIAvailable: jest.fn(() => true),
+  };
+});
+jest.mock('expo-blur', () => {
+  const { View } = jest.requireActual<typeof import('react-native')>('react-native');
+  return { BlurView: View, BlurTargetView: View };
+});
+
 // `expo-sqlite/kv-store` wraps a native SQLite database; under Jest there is no native module to
 // back it, so replace it with a plain in-memory map that implements the same synchronous methods.
 jest.mock('expo-sqlite/kv-store', () => {
@@ -34,7 +119,6 @@ jest.mock('expo-sqlite/kv-store', () => {
       removeItemSync: (key: string): void => {
         store.delete(key);
       },
-      getAllKeysSync: (): string[] => [...store.keys()],
     },
   };
 });
