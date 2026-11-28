@@ -283,7 +283,8 @@ neither involves a model.
 - **Text.** Every free text the user writes is matched before anything else: an attack's notes, checked
   after they are saved, every chat message and dictation, and every debrief answer. `matchRedFlagsAnyLocale` matches the pack's keywords in
   English, Spanish and Portuguese at once, whatever the app's language, with case, accents and
-  punctuation folded. A fever raises `fever_stiff_neck` only together with a stiff neck or a severe
+  punctuation folded, in every reading of the text: as written, with zero-width and other format characters dropped
+  instead of splitting a word, and with letters spelled out one by one joined ("w o r s t"). A fever raises `fever_stiff_neck` only together with a stiff neck or a severe
   headache, because either alone is common in an ordinary attack. "Can't feel" counts only with a body
   part after it ("my left arm", "the left side"), so "I can't feel the pain anymore" is relief, not
   numbness. The fixtures in `calibration/` must hit with zero misses
@@ -542,7 +543,7 @@ or plan touches one module and its mock.
   read on the server and never sent back to the phone. 28 hours cover the next 24 from a forecast up to 3 hours old.
 - **The cache.** `weather_cache` holds one row per cell and fetch, shared by everyone in the cell and readable only
   by the service role. `pressureFor` answers from a row newer than the age it is given, else fetches once (5 s
-  deadline) and stores the result stamped with the UTC hour, so writers in the same hour keep one row; a daily `pg_cron` job prunes rows over 2 days old ([`database.md`](database.md#pressure-forecast-cache)).
+  deadline) and stores the result stamped with the UTC hour, so writers in the same hour keep one row; an hourly `pg_cron` job prunes rows over 2 days old ([`database.md`](database.md#pressure-forecast-cache)).
 - **Failure.** A slow, refused, rate-limited or malformed answer, one that ends before 24 hours past the hour in
   progress, or a cache that cannot be read, gives no forecast (and nothing is cached), and the pressure signal is
   skipped for that run; an hour the provider leaves empty is dropped. No
@@ -615,8 +616,19 @@ No feature is gated yet; the server check is the authority.
   opens the Companion tab with `debrief=<episode id>`); the urgent-care request stays in memory; a reminder's `data`
   is empty and a signal push's is `{ url: '/today' }`, and both are neutral unless the user turns on the
   lock-screen detail.
+- **The gateway checks every user's token.** `companion`, `push-claim`, `export-data` and `delete-account` run with
+  `verify_jwt = true`, so the gateway verifies the JWT's signature and expiry before the function reads its `sub`
+  (`callerOf`, which does not verify it again); a test fails if a function that calls `callerOf` loses the flag.
+  `export-data` and `delete-account` also ask Auth about the token first, so a signed-out session can neither export
+  nor delete (`401`). `push-unregister` (the device secret) and `monitor` (the Vault secret) run without a JWT.
+- **The session on the phone.** The Supabase session lives in expo-sqlite's `localStorage` inside the app sandbox, not
+  the Keychain or Keystore: accepted, with an encrypted adapter as the upgrade path ([`audits/security.md`](audits/security.md) SEC-05).
+  Deleting the account needs a live session and the confirm step, not a fresh sign-in (SEC-13, a recent sign-in check is
+  planned before the public release). Changing the password from a session older than 24 hours needs an emailed nonce
+  (`secure_password_change`, SEC-16), so a stolen token cannot also take the account over.
 - **The monitor and the push functions.** `monitor` is the only code that uses the service role for a whole request,
-  runs only from the `pg_cron` job with the Vault's secret, and makes no model call. Every function that takes a body
+  runs only from the `pg_cron` job with the Vault's secret (refused while `MONITOR_SECRET` is shorter than 32 characters),
+  and makes no model call. Every function that takes a body
   caps it (64 KiB, 2048 bytes and 1024 bytes; `monitor` reads none) ([`red-team.md`](red-team.md#request-bodies-push-and-the-monitor)).
 - **Health records on the phone.** `nimbo.db` keeps the user's records for offline use. On sign-out
   or an account switch the previous user's rows are deleted, and a launch deletes any other user's
@@ -624,11 +636,17 @@ No feature is gated yet; the server check is the authority.
   with an unsent or failed operation) stay until that user signs back in, and the cached profile stays
   only while something of theirs is queued. A deletion drops all of them, queued or not, with the chat, the kv keys,
   the reminders and the export file, which lives only in the cache directory and also goes at every sign-out. Android backup is off
-  (`allowBackup: false`); iOS iCloud backup still includes the file, an open gap
-  ([`native-config.md`](native-config.md#what-appjson-sets)).
+  (`allowBackup: false`); on iOS, iCloud backup still includes `nimbo.db` and the kv store, so excluding them is a blocker
+  before the first iOS submission (Apple 5.1.3, [`native-config.md`](native-config.md#ios-backup-apple-513)).
 - **Repository.** Rulesets on `main`, `develop` and release tags require the CI checks; private
   vulnerability reporting is on ([`SECURITY.md`](../SECURITY.md)). CI also scans for secrets, audits
   dependencies, lints the workflows and runs CodeQL ([`CONTRIBUTING.md`](../CONTRIBUTING.md)).
+- **Audits.** The security audit ([`audits/security.md`](audits/security.md)), the API audit
+  ([`audits/api.md`](audits/api.md), the OWASP API Top 10 over PostgREST and the functions) and the database audit
+  ([`audits/database.md`](audits/database.md): RLS, policies, grants, functions, indexes, constraints, jobs and retention)
+  list every finding with its fix or the reason it is accepted. Their pins run in the gate and CI: `src/__tests__/securityScan.test.ts`,
+  `supabase/functions/_shared/__tests__/logScan.test.ts`, `scripts/__tests__/schema-parity.test.ts`, `supabase/tests/api_audit.test.sql`,
+  `supabase/tests/database_audit.test.sql`, `pnpm db:lint` and `integration/apiAudit.int.test.ts` ([`testing.md`](testing.md)).
 
 ## Design decisions
 

@@ -9,6 +9,9 @@ export type ReplyFixture = {
   id: string;
   reply: string;
   toolResults?: { tool: string; result: unknown }[];
+  /** The message the reply answers and the user's earlier turns, when the verdict depends on them. */
+  userText?: string;
+  earlierUserTexts?: string[];
   expected: { safe: boolean; violated: string[] };
 };
 

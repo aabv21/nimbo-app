@@ -83,7 +83,7 @@ language ([`architecture.md`](architecture.md#the-consent-model)).
 | Table | Columns | Access |
 | --- | --- | --- |
 | `consent_texts` | `kind` (`terms` or `ai`), `version` (a `YYYY-MM-DD` date), `published_at date`; primary key `(kind, version)` | RLS on; `consent_texts_select_all` lets `authenticated` read every row; no client write; `anon` nothing. Seeded with `('terms', '2026-12-01')` and `('ai', '2026-12-01')`. |
-| `consent_events` | `id uuid`, `user_id` (references `auth.users`, `on delete cascade`), `kind`, `version` (foreign key to `consent_texts`), `locale app_language`, `granted boolean`, `created_at`; index `(user_id, created_at)` | RLS on; `consent_events_select_own` with `(select auth.uid())`; select granted to `authenticated`, every write revoked; written only by the two consent RPCs. |
+| `consent_events` | `id uuid`, `user_id` (references `auth.users`, `on delete cascade`), `kind`, `version` (foreign key to `consent_texts`), `locale app_language`, `granted boolean`, `created_at`; indexes `(user_id, created_at)` and `(kind, version)` (the foreign key's, added by the database audit) | RLS on; `consent_events_select_own` with `(select auth.uid())`; select granted to `authenticated`, every write revoked; written only by the two consent RPCs. |
 
 A new text version is one migration that inserts its `consent_texts` row, plus the matching constant in
 `src/account/consent.ts` (`TERMS_VERSION`, `AI_CONSENT_VERSION`); the app's gate then asks every user with an older
@@ -230,7 +230,7 @@ hourly monitor will). Revoked from `public` and `anon`, granted to `authenticate
 
 ## Pressure forecast cache
 
-`20261129120100_weather_cache.sql` adds the shared cache of pressure forecasts, the daily prune of the server-only
+`20261129120100_weather_cache.sql` adds the shared cache of pressure forecasts, the prune of the server-only
 caches, and the `pg_cron` extension (created in `pg_catalog`; its objects live in the `cron` schema, and its schedules
 are in GMT).
 
@@ -238,7 +238,7 @@ are in GMT).
 | --- | --- |
 | `public.weather_cache` | `location_key text` (the one-decimal cell, `'4.6,-74.1'`; a check on `^-?[0-9]{1,2}\.[0-9],-?[0-9]{1,3}\.[0-9]$` refuses anything else with `23514`), `fetched_at timestamptz` default `now()` (the functions write the UTC hour of the fetch, the forecast's first hour), `payload jsonb` (`{ hours, hPa }`, the forecast `_shared/weather.ts` parsed). Primary key `(location_key, fetched_at)`, which the read's filter on the cell uses. No user id: one row serves everyone in the cell. RLS is on with no policy and every privilege is revoked from `anon` and `authenticated`, so only the service role reads or writes it. |
 | `prune_expired_caches() returns void` | `security definer`, `search_path = ''`, owned by `postgres`, revoked from `public`, `anon` and `authenticated`. Deletes `weather_cache` rows over 2 days old (the functions read a forecast for 3 hours at most) and the `cron.job_run_details` of the jobs `prune-expired-caches` and `monitor` over 7 days old (pg_cron never deletes its run history). A later migration that adds a cache redefines it with its own delete. |
-| Job `prune-expired-caches` | `cron.schedule('prune-expired-caches', '17 3 * * *', 'select public.prune_expired_caches()')`: daily at 03:17 GMT. Scheduling under the same name again replaces the job. |
+| Job `prune-expired-caches` | `cron.schedule('prune-expired-caches', '17 * * * *', 'select public.prune_expired_caches()')`: hourly at :17 since the database audit (daily at 03:17 GMT before it), so each period the privacy policy states holds to the hour. Scheduling under the same name again replaces the job. |
 
 Edge Functions reach the cache only through `pressureFor` (`supabase/functions/_shared/weather.ts`): it reads the newest
 row for the cell no older than the age it is given (`weather_cache?location_key=eq.<cell>&fetched_at=gte.<cutoff>&order=fetched_at.desc&limit=1`),
@@ -281,7 +281,7 @@ its per-notice preferences: a row means "this phone gets the signal pushes", and
 | --- | --- |
 | `public.push_tokens` | `user_id uuid` (default `auth.uid()`, cascade from `auth.users`), `token text` (`^(ExponentPushToken\|ExpoPushToken)\[.+\]$`, at most 255 characters), `platform text` (`ios` or `android`), `updated_at timestamptz` (stamped with `clock_timestamp()` by the `push_tokens_stamp` trigger on insert and on a change of token, platform or secret), `device_secret_hash text` (SHA-256 hex of the phone's own random secret, `^[0-9a-f]{64}$`). Primary key `(user_id, token)`, plus an index on `token` (the server deletes a dead token, takes a token over and claims it by the token alone). RLS: read-own `select` and delete-own `delete`, both on `(select auth.uid())`. `anon` has nothing; `authenticated` has `select` on every column but `device_secret_hash`, and `delete`; a direct insert or update is `42501`. |
 | `register_push_token(p_token text, p_platform text, p_device_secret text) returns void` | `security definer`, `search_path = ''`, granted to `authenticated` only. `42501` without a session; `22023` for a bad token, platform, or a secret that is not 32 to 128 hex characters. Under a per-token advisory lock: another account's row for the token under a different secret is `42501` (someone who only knows the token); the same secret (that phone, a new account) deletes the other accounts' rows and takes the token over; the caller's own row may change secret. |
-| `public.push_claims` | One reclaim per `(token, user_id)`: `code_hash` and `nonce_hash` (SHA-256 hex), `expires_at` (10 minutes), `attempts` 0–5. RLS on, every privilege revoked from `anon` and `authenticated`. |
+| `public.push_claims` | One reclaim per `(token, user_id)` (the token at most 255 characters, as in every server copy of a token since the database audit): `code_hash` and `nonce_hash` (SHA-256 hex), `expires_at` (10 minutes), `attempts` 0–5. RLS on, every privilege revoked from `anon` and `authenticated`. |
 | `public.push_claim_starts` | Every claim start that sent a code (`token`, `user_id`, `started_at`), for the limits; indexes on `(user_id, started_at)` and `(token, started_at)`. RLS on, no client privilege. |
 | `start_push_claim(p_user_id, p_token, p_code_hash, p_nonce_hash) returns boolean` | Service role only. False for a token nobody holds or the caller's own (not counted), and past the limits: one start per token and account per 10 minutes, 5 per account per hour, 6 distinct accounts per token per hour. Else stores the hashes and answers true. |
 | `push_claim_attempt(p_user_id, p_token, p_nonce_hash) returns text` | Service role only. Spends one attempt on the caller's unexpired claim with that nonce and answers the code's hash for a constant-time compare in the function; null when there is nothing to attempt. |
@@ -300,7 +300,7 @@ extension (in `extensions`; its objects live in the `net` schema) and the hourly
 
 | Object | Contract |
 | --- | --- |
-| `private.is_time_zone(p text) returns boolean` | `stable`, `search_path = ''`, no client execute. True for `UTC`, `GMT` and an `Area/Location` name that `pg_timezone_names` lists, except its `posix/` and `right/` copies. Abbreviations and POSIX rules (`EST`, `EST5EDT`, `UTC+3`) are listed or parse in `AT TIME ZONE` but name no place, so they are false. Not a `CHECK`: the list changes with tzdata. |
+| `private.is_time_zone(p text) returns boolean` | `stable`, `search_path = ''`, no client execute. True for `UTC`, `GMT` and an `Area/Location` name that `pg_timezone_names` lists, except its `posix/` and `right/` copies. Abbreviations and POSIX rules (`EST`, `EST5EDT`, `UTC+3`) are listed or parse in `AT TIME ZONE` but name no place, so they are false. Not a `CHECK`: the list changes with tzdata. Each call reads the server's zone list (about 5 ms), so a check over many rows joins `pg_timezone_names` once instead of calling it per row ([database audit](audits/database.md) DB-08). |
 | Trigger `profiles_check_timezone` | `before insert or update of timezone` on `profiles`, through `profiles_check_timezone()` (`security definer`, since clients have no usage on `private`): a zone that is not null and fails `is_time_zone` raises `22023` `timezone: not an IANA zone name`. The migration first sets every stored zone that fails the check to null, so the phone sends its zone again. The app reads `22023` as `invalid` and does not resend a refused zone until the device zone changes ([`app.md`](app.md#profile-srcprofile)). |
 | `public.push_tickets` | `ticket_id text` primary key (1 to 100 characters), `token text`, `user_id uuid` (cascade from `auth.users`), `created_at timestamptz default now()`; indexes on `created_at` (the receipts read) and `user_id` (the cascade). RLS on with no policy and every privilege revoked from `anon` and `authenticated`: only the service role touches it. |
 | `monitor_targets()` | Every profile with a zone and `onboarding_completed_at`, ordered by `user_id` (the function pages it with `order=user_id`, `limit` and `offset`), whatever the time: the window only decides whether to push. Columns `user_id, timezone, notify_start, notify_end, notify_daily_cap, lock_screen_detail, language, coarse_lat, coarse_lon, known_triggers`; `known_triggers` lets a run start the forecasts its users need before it reaches them. |
@@ -353,9 +353,23 @@ excludes it.
 Not in the cascade: `auth.audit_log_entries`, Auth's own log, which is not linked to the user and keeps the email; the
 privacy policy discloses it as the sign-in security logs.
 
+## Database audit
+
+`20261130120300_database_audit.sql` applies the database audit's fixes ([`audits/database.md`](audits/database.md)):
+
+| Change | Why |
+| --- | --- |
+| Index `consent_events (kind, version)` | Every foreign key has an index on its leading columns, so a change to `consent_texts` never scans the history. |
+| `revoke all on sequence push_claim_starts_id_seq from anon, authenticated` | Supabase's default privileges grant every new sequence to the API roles; no client touches the table. |
+| Checks `char_length(token) between 1 and 255` on `push_claims`, `push_claim_starts` and `push_tickets` | Server-only copies of a push token, bounded like `push_tokens.token`. |
+| `private.to_text_array` returns `'{}'::text[]` | `supabase db lint` (plpgsql_check) flagged the untyped literal; the behavior is unchanged. |
+| Job `prune-expired-caches` hourly at :17 | A claim start must live an hour for `push-claim`'s limits, so with an hourly run it is gone within two, the period the policy states; every other period holds to the hour. |
+
+`pnpm db:lint` (`supabase db lint --local --level warning --fail-on warning`) runs in CI's Database job.
+
 ## Tests
 
-pgTAP files in `supabase/tests/`, run by `pnpm db:test`. `profiles.test.sql` (37 assertions), `consent.test.sql` (63), `tracking.test.sql` (106), `onboarding_profile.test.sql` (13), `entitlements.test.sql` (29), `quota.test.sql` (20), `companion_data.test.sql` (55), `record_inputs.test.sql` (22), `weather_cache.test.sql` (25), `signals.test.sql` (20), `push_tokens.test.sql` (53), `monitor.test.sql` (53) and `account.test.sql` (17). `profiles.test.sql` covers
+pgTAP files in `supabase/tests/`, run by `pnpm db:test`. `profiles.test.sql` (37 assertions), `consent.test.sql` (63), `tracking.test.sql` (106), `onboarding_profile.test.sql` (13), `entitlements.test.sql` (29), `quota.test.sql` (20), `companion_data.test.sql` (55), `record_inputs.test.sql` (22), `weather_cache.test.sql` (25), `signals.test.sql` (20), `push_tokens.test.sql` (53), `monitor.test.sql` (53), `account.test.sql` (17), `api_audit.test.sql` (41) and `database_audit.test.sql` (20). `profiles.test.sql` covers
 the signup row and its defaults, own-row visibility, the update grants and each refused column,
 both RPCs including the repeat and withdrawal cases, the value checks, function privileges for
 `anon` and `authenticated`, and the refused insert and delete. `consent.test.sql` covers both consent tables (RLS, the seeded versions, the
@@ -373,7 +387,7 @@ the cascade on user delete. `tracking.test.sql` covers RLS and the refused direc
 RLS on with no policy, the primary key, `anon` and `authenticated` refused a select, insert or delete (and `authenticated` an
 update) while the service role reads and writes, the key check (`'4.62,-74.1'`, `'4,-74'` and a prefixed key are `23514`; the
 widest cells fit), the prune (a forecast 3 days old goes, one 1 day old stays; run history over 7 days old goes for
-`prune-expired-caches` and `monitor` but not another job), the one job at `17 3 * * *`, and the function's definer,
+`prune-expired-caches` and `monitor` but not another job), the one job at `17 * * * *`, and the function's definer,
 `search_path` and refused execute for `public`, `anon` and `authenticated`. `signals.test.sql` covers RLS on with only the
 read-own policy, both indexes, user A reading only A's rows (B's not even by its id), refused inserts, updates and deletes
 for `authenticated` and refused selects and inserts for `anon`, the service role inserting and stamping a push, a second
@@ -403,7 +417,14 @@ stretch stays; tickets over 2 days old go). `account.test.sql` covers the cascad
 every table leaving none of theirs and all of another user's, `save_signals` for a deleted user answering and storing
 nothing while another foreign key error (a probe key added in the test's transaction) still raises `23503` (still
 service-role only, a definer with an empty `search_path`), and the prune of `usage_counters` (31 days old
-goes, 30 and 29 stay) with the prune's definer, grants and comment.
+goes, 30 and 29 stay) with the prune's definer, grants and comment. `database_audit.test.sql` lists, for each rule of the
+[database audit](audits/database.md), the objects that break it and requires none: RLS and a primary key on every table,
+policies `to authenticated` calling `auth.uid()` only inside a select, `search_path = ''` on every function in `public` and
+`private`, no function executable by `PUBLIC`, `anon` executing only `keep_alive` and `authenticated` nothing in `private`, an
+index on every foreign key's leading columns, no sequence privilege for a client, no `anon` table or column privilege, no client
+write but the profile settings and `push_tokens` deletes, no `timestamp without time zone`, every text column bounded by a check
+or a foreign key but the two consent versions, the two jobs as `postgres` with the prune hourly, a row past and a row inside
+each period the privacy policy states, the typed `to_text_array`, and `signals.kind` bounded by one check listing exactly the seven signal kinds.
 
 ## New table checklist
 
@@ -414,10 +435,12 @@ API until these close it:
 - `alter table … enable row level security`.
 - Policies `to authenticated` that compare against `(select auth.uid())`, not a bare `auth.uid()`. An `update` policy has both `using` and `with check`.
 - No policy the app does not need: a missing policy is a denial.
-- `revoke all on <table> from anon, authenticated`, then grant back the exact privileges and columns the client needs.
+- `revoke all on <table> from anon, authenticated`, then grant back the exact privileges and columns the client needs. An identity or serial column's sequence gets the same revoke.
 - `revoke execute on function <fn> from public, anon, authenticated` for every new function, including trigger functions; grant `execute` back only to the role that calls it.
 - `security definer` functions set `search_path = ''` and qualify every name.
-- An index on the column that per-user queries filter by, unless it is already the primary key or leads another index.
+- An index on the column that per-user queries filter by, unless it is already the primary key or leads another index, and one on the leading columns of every foreign key (the cascade from `auth.users` and any other).
+- A `check` bounding every `text` column's length or values, or a foreign key; an instant is `timestamptz`.
+- A retention period goes into `prune_expired_caches()` and the three privacy policies together.
 - A pgTAP test for the policies, grants and constraints, including that user A cannot read or change user B's rows.
 - With a `user_id` or any other key to `auth.users`: `on delete cascade`, the name in `account.test.sql`'s `pinned_user_tables`, and an entry in `export-data`'s `EXPORTED_TABLES` (and its read) or `EXCLUDED_TABLES` ([account deletion and export](#account-deletion-and-export)).
-- `pnpm db:types`, and commit the generated types (CI fails on drift).
+- `pnpm db:types`, and commit the generated types (CI fails on drift); `pnpm db:lint` clean. `database_audit.test.sql` and `api_audit.test.sql` fail until the rules above hold.

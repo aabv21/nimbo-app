@@ -33,9 +33,22 @@ const BOOLEAN_THRESHOLD = 0.5;
 // The mocks' hosts: `.env.local` and `supabase/config.toml` point the base URLs here for the local stack.
 const LOCAL_HOSTS: ReadonlySet<string> = new Set(['localhost', '127.0.0.1', '0.0.0.0', '[::1]', 'host.docker.internal']);
 
-type ReplyFixture = { id: string; reply: string; toolResults?: ToolResultRecord[]; expected: { violated: string[] } };
+type ReplyFixture = {
+  id: string;
+  reply: string;
+  toolResults?: ToolResultRecord[];
+  /** The message the reply answers, and the user's earlier turns of the request (a "yes" to an earlier dose question). */
+  userText?: string;
+  earlierUserTexts?: string[];
+  expected: { violated: string[] };
+};
 type IntentFixture = { id: string; text: string; expected: { intent: Intent } };
-type RedFlagFixtures = { positives: { text: string; expect: RedFlagKey[] }[]; negatives: { text: string }[]; modelOnly: { text: string; expect: RedFlagKey[] }[] };
+type RedFlagFixtures = {
+  positives: { text: string; expect: RedFlagKey[] }[];
+  negatives: { text: string }[];
+  modelOnly: { text: string; expect: RedFlagKey[] }[];
+  mixed?: { text: string; expect: RedFlagKey[] }[];
+};
 
 export interface CalibrateDeps {
   /** Reads one environment variable: the shell's, never `.env.local`, whose base URLs point at the mocks. */
@@ -58,7 +71,7 @@ interface Layer {
 }
 
 function replyContext(fixture: ReplyFixture, locale: Locale): ReplyContext {
-  return { toolResults: fixture.toolResults ?? [], userText: '', redFlags: [], mode: 'chat', locale };
+  return { toolResults: fixture.toolResults ?? [], userText: fixture.userText ?? '', earlierUserTexts: fixture.earlierUserTexts ?? [], redFlags: [], mode: 'chat', locale };
 }
 
 function jevLayer(env: JevEnv, fetchFn: typeof fetch): Layer {
@@ -160,9 +173,10 @@ async function evalLocale(locale: Locale, layer: Layer, deps: CalibrateDeps): Pr
   failed += replyScores.filter((score) => score === null).length;
 
   const redFlags = deps.readFixture(`red-flags.${locale}.json`) as RedFlagFixtures;
-  // `positives` and `modelOnly` are positives for the flags they expect; `negatives` are negatives for every flag.
+  // `positives`, `mixed` and `modelOnly` are positives for the flags they expect; `negatives` are negatives for every flag.
   const texts = [
     ...redFlags.positives.map((item, index) => ({ id: `${locale}-rf-p${String(index + 1)}`, text: item.text, expect: item.expect })),
+    ...(redFlags.mixed ?? []).map((item, index) => ({ id: `${locale}-rf-x${String(index + 1)}`, text: item.text, expect: item.expect })),
     ...redFlags.modelOnly.map((item, index) => ({ id: `${locale}-rf-m${String(index + 1)}`, text: item.text, expect: item.expect })),
     ...redFlags.negatives.map((item, index) => ({ id: `${locale}-rf-n${String(index + 1)}`, text: item.text, expect: [] as RedFlagKey[] })),
   ];

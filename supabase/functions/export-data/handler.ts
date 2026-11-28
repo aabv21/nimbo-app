@@ -3,8 +3,8 @@
 
 import type { SupabaseEnv } from '../_shared/env.ts';
 import { isRecord } from '../_shared/guards.ts';
-import { bodyProblemReply, callerOf, readBodyCapped, reply } from '../_shared/http.ts';
-import { restJson, serviceHeaders, UpstreamError, userHeaders } from '../_shared/rest.ts';
+import { bodyProblemReply, callerOf, fetchWithDeadline, readBodyCapped, reply } from '../_shared/http.ts';
+import { POSTGREST_TIMEOUT_MS, RefusedSession, restJson, serviceHeaders, sessionRefused, UpstreamError, userHeaders } from '../_shared/rest.ts';
 
 export type ExportDataDeps = { env: SupabaseEnv; fetch: typeof fetch; now?: () => number };
 
@@ -99,9 +99,22 @@ async function readAll(context: Context, table: Table): Promise<Row[]> {
 
 const textOrNull = (value: unknown): string | null => (typeof value === 'string' ? value : null);
 
-/** The caller's auth record, as Auth answers it for their own token. */
+/** The caller's auth record, as Auth answers it for their own token; `RefusedSession` when Auth refuses that session. */
 async function accountOf(context: Context): Promise<DataExport['account']> {
-  const user = await restJson(context.fetchFn, `${context.env.supabaseUrl}/auth/v1/user`, { headers: userHeaders(context.env, context.auth) });
+  const response = await fetchWithDeadline(
+    context.fetchFn,
+    `${context.env.supabaseUrl}/auth/v1/user`,
+    { headers: userHeaders(context.env, context.auth) },
+    POSTGREST_TIMEOUT_MS,
+  );
+  let user: unknown = null;
+  try {
+    user = await response.json();
+  } catch {
+    user = null;
+  }
+  if (sessionRefused(response.status, user)) throw new RefusedSession();
+  if (!response.ok) throw new UpstreamError(`auth user: HTTP ${String(response.status)}`);
   if (!isRecord(user) || typeof user.id !== 'string' || user.id.toLowerCase() !== context.userId) {
     throw new UpstreamError('auth user: not the caller');
   }
@@ -150,7 +163,8 @@ export async function handleExportData(request: Request, deps: ExportDataDeps): 
       pushDevices: of('push_tokens'),
     };
     return reply('exported', 200, exported, {}, NO_STORE);
-  } catch {
+  } catch (error) {
+    if (error instanceof RefusedSession) return reply('refused', 401, { error: 'unauthorized' });
     return reply('error', 500, { error: 'internal' });
   }
 }

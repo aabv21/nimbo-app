@@ -34,6 +34,11 @@ export const FORECAST_WAIT_END_MS = 100_000;
 export const MONITOR_BUDGET_MS = 110_000;
 /** Expo may not have a receipt before then; `push_receipts_due()` applies it. */
 export const RECEIPTS_MIN_AGE_MS = 15 * 60_000;
+/**
+ * A configured `MONITOR_SECRET` shorter than this refuses every caller: a short value could be guessed, so a weak setup
+ * fails closed (logged `misconfigured`) instead of running with everyone's data. `openssl rand -hex 32` gives 64.
+ */
+export const MIN_MONITOR_SECRET_LENGTH = 32;
 /** Cells whose forecast is looked up at once; one lookup can take about 21 s (cache read, provider, cache write). */
 export const WEATHER_CONCURRENCY = 4;
 
@@ -118,7 +123,11 @@ async function rpc(deps: MonitorDeps, name: string, args: Record<string, unknown
   return text === '' ? null : (JSON.parse(text) as unknown);
 }
 
-/** Every row `monitor_targets()` answers, page by page in user id order, so `limit`/`offset` never skip or repeat a row. */
+/**
+ * Every row `monitor_targets()` answers, page by page in user id order. A profile onboarded or deleted between pages
+ * shifts the rest by one: a repeated user is harmless (`save_signals` and `claim_signal_push` are idempotent), a skipped one waits an hour.
+ * NOTE: each page re-runs the function over every onboarded profile; page by key (a `p_after` user id) once reading the targets takes over a second.
+ */
 async function readTargets(deps: MonitorDeps): Promise<Target[]> {
   const targets: Target[] = [];
   for (let offset = 0; ; ) {
@@ -287,6 +296,7 @@ async function evaluate(target: Target, run: Run): Promise<void> {
 
 export async function handleMonitor(request: Request, deps: MonitorDeps): Promise<Response> {
   if (request.method !== 'POST') return reply('invalid', 405, { error: 'method_not_allowed' });
+  if (deps.env.monitorSecret.length < MIN_MONITOR_SECRET_LENGTH) return reply('misconfigured', 401, { error: 'unauthorized' });
   if (!secretMatches(request.headers.get('x-webhook-secret'), deps.env.monitorSecret)) {
     return reply('unauthorized', 401, { error: 'unauthorized' });
   }

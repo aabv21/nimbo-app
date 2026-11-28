@@ -47,7 +47,17 @@
     { "text": "tengo fiebre y una jaqueca fuertísima", "expect": ["fever_stiff_neck"] },
     { "text": "tengo fiebre y un dolor de cabeza muy fuerte", "expect": ["fever_stiff_neck"] },
     { "text": "fiebre y un dolor muy fuerte", "expect": ["fever_stiff_neck"] },
-    { "text": "fiebre y dolor de cabeza intenso", "expect": ["fever_stiff_neck"] }
+    { "text": "fiebre y dolor de cabeza intenso", "expect": ["fever_stiff_neck"] },
+    { "text": "p e o r dolor de mi vida", "expect": ["thunderclap"] },
+    { "text": "me quede ciega de un ojo", "expect": ["weakness"] },
+    { "text": "no puedo ablar bien desde hace rato", "expect": ["weakness"] },
+    { "text": "tengo la cara chueca", "expect": ["weakness"] },
+    { "text": "se me ador\u00admeció el brazo", "expect": ["weakness"] },
+    { "text": "fiebre y rigidez en la nuca", "expect": ["fever_stiff_neck"] },
+    { "text": "tengo fiebre y rigidez de la nuca", "expect": ["fever_stiff_neck"] },
+    { "text": "fiebre y n u c a rigida", "expect": ["fever_stiff_neck"] },
+    { "text": "fiebre alta y rigidez de nuca", "expect": ["fever_stiff_neck"] },
+    { "text": "tengo fiebre y rigidez en el cuello", "expect": ["fever_stiff_neck"] }
   ],
   "negatives": [
     { "text": "la migraña de siempre, sien izquierda, nauseas" },
@@ -86,5 +96,9 @@
     { "text": "me caí de la bici y me di con el casco contra el piso", "expect": ["head_injury"] },
     { "text": "estoy de 20 semanas y me duele muchísimo la cabeza", "expect": ["pregnancy"] },
     { "text": "ya van cuatro días con el mismo dolor sin parar", "expect": ["long_attack"] }
+  ],
+  "mixed": [
+    { "text": "tengo fiebre e o pescoço duro", "expect": ["fever_stiff_neck"] },
+    { "text": "tengo fiebre and a stiff neck", "expect": ["fever_stiff_neck"] }
   ]
 }

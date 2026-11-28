@@ -80,6 +80,7 @@
     "db:stop": "supabase stop",
     "db:reset": "supabase db reset",
     "db:test": "supabase test db",
+    "db:lint": "supabase db lint --local --level warning --fail-on warning",
     "db:types": "supabase gen types typescript --local > src/lib/database.types.ts",
     "env:local": "node scripts/env-local.ts",
     "catalog:sql": "node scripts/catalog-sql.ts",

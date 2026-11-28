@@ -71,6 +71,11 @@ export default defineConfig(
     rules: { 'security/detect-non-literal-regexp': 'off' },
   },
   {
+    // The security scan reads the repo's own files, from paths it lists under src/ itself.
+    files: ['src/__tests__/securityScan.test.ts'],
+    rules: { 'security/detect-non-literal-fs-filename': 'off' },
+  },
+  {
     // The red-flag tests read the calibration fixtures from a path built from a fixed locale tuple.
     files: ['supabase/functions/**/__tests__/*.ts'],
     rules: { 'security/detect-non-literal-fs-filename': 'off' },

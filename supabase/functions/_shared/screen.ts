@@ -12,6 +12,8 @@ import { buildInputRequest, buildReplyRequest, parseInputAnswers, parseReplyAnsw
 export interface ReplyContext {
   toolResults: readonly ToolResultRecord[];
   userText: string;
+  /** The user's earlier turns of this request, oldest first: a reply that only says "yes" is judged against them. */
+  earlierUserTexts?: readonly string[];
   redFlags: readonly RedFlagKey[];
   mode: Mode;
   locale: Locale;

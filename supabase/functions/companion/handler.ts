@@ -5,7 +5,7 @@ import { type ClientQuotaKind, type Draft, type Evidence, type Guard, parseCompa
 import { clockNumbers, readNotes, readOpenEpisode, readOwnEpisode, readProfile, zoneOrUtc } from '../_shared/companion/data.ts';
 import { buildCompanionRequest, COMPANION_EFFORT, COMPANION_MAX_TOKENS, type PromptContext, routingMessage } from '../_shared/companion/prompt.ts';
 import { createRefs } from '../_shared/companion/refs.ts';
-import { runTool, type ToolEnv } from '../_shared/companion/tools.ts';
+import { runTool, type ToolEnv, type ToolOutcome } from '../_shared/companion/tools.ts';
 import { completeSentences, extractCitations, firstSentences, parseStep, sanitizeReply } from '../_shared/companion/turns.ts';
 import { packs } from '../_shared/condition/index.ts';
 import type { ClaudeEnv, JevEnv, SupabaseEnv } from '../_shared/env.ts';
@@ -40,6 +40,8 @@ export const MIN_CALL_MS = 3_000;
 /** With less than this left, the reply screen runs its local checks only (the reply is then at best `degraded`). */
 export const REPLY_SCREEN_MIN_MS = 2_000;
 export const MAX_TOOL_ROUNDS = 3;
+/** The calls one round runs: every read tool plus a proposal. More come back as `too_many_calls` errors, unrun. */
+export const MAX_TOOL_CALLS_PER_ROUND = 6;
 /**
  * The largest body read. The contract allows 4,000 characters of turns; even every one escaped as `\uXXXX` (6 bytes)
  * with the other fields is about 26 KB, so 64 KiB leaves more than twice that.
@@ -115,6 +117,7 @@ export async function handleCompanion(request: Request, deps: CompanionDeps): Pr
   const timeZone = requestZone(input.timeZone) ?? profile.timeZone;
 
   const userText = input.messages.at(-1)?.text ?? '';
+  const earlierUserTexts = input.messages.slice(0, -1).flatMap((turn) => (turn.role === 'user' ? [turn.text] : []));
   const screenDeps = (deadline: number): ScreenDeps => ({ env, fetch: fetchFn, pack, now, deadline, ...(deps.rand === undefined ? {} : { rand: deps.rand }) });
   // Read-only and quota-free, so they run beside the input screen; a red-flag request never uses them.
   const refs = createRefs();
@@ -188,7 +191,7 @@ export async function handleCompanion(request: Request, deps: CompanionDeps): Pr
     const deadline = capped - now() < REPLY_SCREEN_MIN_MS ? now() : capped;
     const verdict = await screenReply(
       text,
-      { toolResults, userText, redFlags: [], mode: input.mode, locale: input.locale, groundingNumbers: draftClockNumbers(drafts, timeZone) },
+      { toolResults, userText, earlierUserTexts, redFlags: [], mode: input.mode, locale: input.locale, groundingNumbers: draftClockNumbers(drafts, timeZone) },
       screenDeps(deadline),
     );
     const base = { drafts, redFlags: [], intent: screened.intent };
@@ -243,7 +246,9 @@ export async function handleCompanion(request: Request, deps: CompanionDeps): Pr
 
     // A tool call on the last call (which allows none) means the model will not answer.
     if (round === MAX_TOOL_ROUNDS) return fail(round, 'tool_on_last_call');
-    const outcomes = await Promise.all(step.calls.map((call) => runTool(call, tools)));
+    // Every call gets a result, but only the first few run: a round of dozens of reads would multiply the cost.
+    const unrun: ToolOutcome = { content: { error: 'too_many_calls' }, isError: true };
+    const outcomes = await Promise.all(step.calls.map((call, index) => (index < MAX_TOOL_CALLS_PER_ROUND ? runTool(call, tools) : Promise.resolve(unrun))));
     for (const [index, call] of step.calls.entries()) {
       const outcome = outcomes.at(index);
       if (outcome === undefined) continue;

@@ -93,6 +93,7 @@ jobs:
       - run: pnpm db:start:ci
       - run: pnpm db:reset
       - run: pnpm db:test
+      - run: pnpm db:lint
       - run: pnpm env:local
       - run: pnpm test:int
       - name: Generated types match the migrations

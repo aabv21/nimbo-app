@@ -43,7 +43,32 @@ export function parseStep(body: unknown): Step {
 }
 
 const UUID_ANYWHERE = /[([]?\s*[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\s*[)\]]?/gi;
-const LINK = /\b(?:https?:\/\/|www\.)\S+/gi;
+// A Markdown link or image keeps only its text. Then a scheme or `www.` goes to the end of its run of non-spaces wherever
+// it starts, with no word boundary, so a glued prefix ("Saved:https://…", "x_www.…") stays and the link goes; the bounded
+// scheme keeps each start's scan short.
+const MARKDOWN_LINK = /!?\[([^\]]*)\]\([^)]*\)/g;
+const LINK = /[a-z][a-z0-9+.-]{0,31}:\/\/\S*|www\.\S*/gi;
+// A bare domain: letters, digits, dots and hyphens ending in a top-level domain from this list. A dose abbreviation
+// ("cp.dia/noite", "mg.kg/dia") ends in no listed one; the list leaves out units that are also country codes (kg, mg, ml).
+const HOST = /^[a-z0-9.-]+\.([a-z]{2,24})$/i;
+const TOP_LEVEL = new Set([
+  'com', 'net', 'org', 'info', 'biz', 'io', 'co', 'me', 'app', 'dev', 'ai', 'xyz', 'site', 'online', 'link', 'click', 'top',
+  'shop', 'store', 'live', 'lol', 'example', 'ly', 'gl', 'to', 'gg', 'tk', 'cc', 'tv', 'us', 'uk', 'eu', 'de', 'fr', 'it',
+  'ru', 'cn', 'in', 'br', 'es', 'mx', 'ar', 'cl', 'pe', 'uy', 've', 'ec', 'bo', 'py', 'pt',
+]);
+
+/**
+ * A bare domain followed by a path, a query or a fragment (`evil.example/c`, `evil.example?d=…`): its top-level domain
+ * is listed, or a query (`=`, `%`) follows it. Anything with a scheme or `www.` is already gone (`LINK`).
+ */
+function isBareLink(word: string): boolean {
+  const bare = word.replace(/^[^a-z0-9]+/i, '');
+  const cut = bare.search(/[/?#]/);
+  if (cut <= 0) return false;
+  const tld = HOST.exec(bare.slice(0, cut))?.[1]?.toLowerCase();
+  if (tld === undefined) return false;
+  return TOP_LEVEL.has(tld) || /[=%]/.test(bare.slice(cut));
+}
 
 /** C0 and C1 controls, zero-width and bidi marks, and line separators: they would hide, reorder or fake a line of text. */
 function invisible(code: number): boolean {
@@ -68,7 +93,11 @@ export function spaceInvisible(text: string): string {
 export function sanitizeReply(text: string): string {
   const clean = spaceInvisible(text)
     .replace(UUID_ANYWHERE, ' ')
+    .replace(MARKDOWN_LINK, '$1')
     .replace(LINK, ' ')
+    .split(/(\s+)/)
+    .map((word) => (isBareLink(word) ? ' ' : word))
+    .join('')
     .replace(/[*`#]/g, '')
     .replace(/\s+/g, ' ')
     .replace(/\s+([.,;:!?])/g, '$1')

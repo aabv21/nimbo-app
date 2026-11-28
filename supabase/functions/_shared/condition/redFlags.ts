@@ -11,6 +11,44 @@ export function normalizeText(text: string): string {
     .trim();
 }
 
+// Zero-width and other format characters (soft hyphen, joiners, bidi marks) and variation selectors.
+const INVISIBLE = /[\p{Cf}\uFE00-\uFE0F]/gu;
+
+/**
+ * Runs of three or more one-character words joined into one: "w o r s t" (or "w-o-r-s-t") reads "worst". With
+ * `keepFirst`, a run of four or more keeps its first letter apart, as the connector it may be: "y n u c a" reads "y nuca".
+ */
+function joinSpelled(normalized: string, keepFirst = false): string {
+  const out: string[] = [];
+  let run: string[] = [];
+  const flush = (): void => {
+    if (keepFirst && run.length >= 4) out.push(run[0] ?? '', run.slice(1).join(''));
+    else if (run.length >= 3) out.push(run.join(''));
+    else out.push(...run);
+    run = [];
+  };
+  for (const word of normalized.split(' ')) {
+    if (Array.from(word).length === 1) run.push(word);
+    else {
+      flush();
+      out.push(word);
+    }
+  }
+  flush();
+  return out.join(' ');
+}
+
+/**
+ * Every way `text` is read, padded: as written, with invisible characters dropped instead of splitting a word, and
+ * with spelled-out letters joined (with and without a one-letter connector before them). A flag raised by any reading counts, so a reading can only add hits.
+ */
+function readings(text: string): string[] {
+  const written = normalizeText(text);
+  const joined = normalizeText(text.replace(INVISIBLE, ''));
+  const spelled = [joinSpelled(written), joinSpelled(joined), joinSpelled(written, true), joinSpelled(joined, true)];
+  return [...new Set([written, joined, ...spelled])].map((reading) => ` ${reading} `);
+}
+
 // `padded` is normalized text with a space on each side, so a keyword only hits as whole words.
 function hits(padded: string, keywords: readonly string[]): boolean {
   return keywords.some((keyword) => padded.includes(` ${normalizeText(keyword)} `));
@@ -27,17 +65,17 @@ function raised(flag: RedFlag, padded: string, locale: Locale | null): boolean {
 }
 
 /**
- * The flags whose keywords, or one phrase of every `allOf` group, appear in `text` as whole phrases,
- * in pack order and each once.
+ * The flags whose keywords, or one phrase of every `allOf` group, appear in one reading of `text` as whole
+ * phrases, in pack order and each once.
  * Negation is not parsed on purpose: "no fever" still hits, because a miss costs more than a false hit.
  */
 export function matchRedFlags(text: string, locale: Locale, pack: ConditionPack): RedFlagKey[] {
-  const padded = ` ${normalizeText(text)} `;
-  return pack.redFlags.filter((flag) => raised(flag, padded, locale)).map((flag) => flag.key);
+  const padded = readings(text);
+  return pack.redFlags.filter((flag) => padded.some((reading) => raised(flag, reading, locale))).map((flag) => flag.key);
 }
 
 /** `matchRedFlags` over every locale's keywords at once, for text whose language is not known. */
 export function matchRedFlagsAnyLocale(text: string, pack: ConditionPack): RedFlagKey[] {
-  const padded = ` ${normalizeText(text)} `;
-  return pack.redFlags.filter((flag) => raised(flag, padded, null)).map((flag) => flag.key);
+  const padded = readings(text);
+  return pack.redFlags.filter((flag) => padded.some((reading) => raised(flag, reading, null))).map((flag) => flag.key);
 }

@@ -5,6 +5,12 @@ and `delete-account` for the user's data rights; a sixth, `monitor`, is called o
 else it reads and writes through PostgREST and the RPCs in [`database.md`](database.md). How the function works inside: [`ai.md`](ai.md) and
 [`architecture.md`](architecture.md#the-companion-function).
 
+Across all six: every error body is a fixed word, `{ "error": "<word>" }`, with no upstream status or detail; no function
+sets a CORS header (the clients are the phone and `pg_net`; the gateway answers browsers with its platform-wide
+`Access-Control-Allow-Origin: *`, never with credentials); and `verify_jwt` is on for every function that reads the
+caller from the token. The audits behind these rules: [`audits/security.md`](audits/security.md) and
+[`audits/api.md`](audits/api.md).
+
 ## `companion`
 
 `POST /functions/v1/companion` with the user's session token (`Authorization: Bearer <access token>`)
@@ -213,10 +219,11 @@ The 200 carries `cache-control: no-store`, since the file holds health data. The
 in the file: it lives only on the phone.
 
 Errors: `405 { "error": "method_not_allowed" }` for a method other than `POST`, `401 { "error": "unauthorized" }` without
-a user token (the gateway answers a malformed or expired one first), `413 { "error": "payload_too_large" }` for a body over
+a user token (the gateway answers a malformed or expired one first) or when Auth refuses the token's session (signed out,
+`session_not_found`; `session_expired`; `bad_jwt`), logged `refused`, `413 { "error": "payload_too_large" }` for a body over
 256 bytes (declared or counted while streaming), `400 { "error": "invalid_body" }` for one that broke off while streaming,
 and `500 { "error": "internal" }`, with no detail, when Auth or any read fails: a partial file is never sent. The log line
-is `{"outcome":"exported"}` or `{"outcome":"error"}`.
+is `{"outcome":"exported"}`, `{"outcome":"refused"}` or `{"outcome":"error"}`.
 
 ## `delete-account`
 
@@ -239,8 +246,8 @@ nothing to save or claim for that user and sends nothing ([`database.md`](databa
 Auth's own `auth.audit_log_entries` are not linked to the user and keep the email after the deletion; the privacy policy
 discloses them as sign-in security logs.
 
-Errors: `405`, `401`, `413` and `400` as for `export-data`, and `500 { "error": "internal" }` with no detail. The log line
-is the outcome word only: `deleted`, `already_deleted` or `error`.
+Errors: `405`, `401` (a refused session included, logged `refused`, with no admin call), `413` and `400` as for `export-data`, and `500 { "error": "internal" }` with no detail. The phone reads a `401` as "sign in again" unless Auth says the user is gone. The log line
+is the outcome word only: `deleted`, `already_deleted`, `refused` or `error`.
 
 ## `monitor`
 
@@ -248,7 +255,8 @@ is the outcome word only: `deleted`, `already_deleted` or `error`.
 (`request_monitor()`, [`database.md`](database.md#the-hourly-monitor)), never by the app. `verify_jwt` is off, since the
 job has no user; instead the header `x-webhook-secret` must equal the function secret `MONITOR_SECRET`, compared in time that
 depends only on the expected secret's length (`secretMatches`), and the job reads the same value from the Vault secret
-`monitor_secret`. The body is ignored. Everything runs with the service role (`supabase/functions/monitor/handler.ts`):
+`monitor_secret`. While `MONITOR_SECRET` is shorter than 32 characters (`MIN_MONITOR_SECRET_LENGTH`) every call answers
+`401 { "error": "unauthorized" }`, logged `misconfigured`, so a guessable secret fails closed. The body is ignored. Everything runs with the service role (`supabase/functions/monitor/handler.ts`):
 
 1. **Receipts.** `push_receipts_due()` (tickets 15 minutes to 24 hours old), Expo's `getReceipts`, then the tokens whose
    receipt says `DeviceNotRegistered` are deleted and the checked tickets forgotten. A failure here logs
@@ -284,4 +292,4 @@ Two `pg_cron` jobs run in the database; neither is called by the app ([`database
 | Job | Schedule (UTC) | Runs |
 | --- | --- | --- |
 | `monitor` | `5 * * * *` | `select public.request_monitor()`: reads `monitor_url` and `monitor_secret` from the Vault and posts to `monitor` through `pg_net` with `x-webhook-secret`; without both secrets it does nothing. A missed run is skipped, not caught up: the next hour evaluates everyone again. |
-| `prune-expired-caches` | `17 3 * * *` | `select public.prune_expired_caches()`: deletes `signals` computed over 30 days ago (except each user's newest pushed quiet stretch, which keeps that stretch from being pushed again), `weather_cache` and `push_tickets` rows over 2 days old, expired push claims, claim starts over an hour old, `usage_counters` over 30 days old, and the run history of Nimbo's jobs over 7 days old. |
+| `prune-expired-caches` | `17 * * * *` | `select public.prune_expired_caches()`: deletes `signals` computed over 30 days ago (except each user's newest pushed quiet stretch, which keeps that stretch from being pushed again), `weather_cache` and `push_tickets` rows over 2 days old, expired push claims, claim starts over an hour old, `usage_counters` over 30 days old, and the run history of Nimbo's jobs over 7 days old. |

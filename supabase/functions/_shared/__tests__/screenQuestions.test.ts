@@ -3,7 +3,7 @@
 import { GUARD_KEYS, INTENTS } from '../companion/contract.ts';
 import { packs } from '../condition/index.ts';
 import type { ReplyContext } from '../screen.ts';
-import { buildFallbackInputRequest, buildFallbackReplyRequest } from '../screenFallback.ts';
+import { buildFallbackInputRequest, buildFallbackReplyRequest, FALLBACK_SYSTEM_PROMPTS } from '../screenFallback.ts';
 import {
   buildInputRequest,
   buildReplyRequest,
@@ -71,13 +71,14 @@ describe('buildInputRequest', () => {
 describe('buildReplyRequest', () => {
   const request = buildReplyRequest('You had 5 attacks.', CONTEXT, ['5']) as JevRequest;
 
-  test('seven Nouls g_<key> and the six state fields', () => {
+  test('seven Nouls g_<key> and the seven state fields', () => {
     expect(request.model).toBe('jev-latest');
     expect(Object.keys(request.questions)).toEqual(GUARD_KEYS.map((key) => `g_${key}`));
     for (const question of Object.values(request.questions)) expect(question.type).toBe('noul');
     expect(request.state).toEqual({
       reply: 'You had 5 attacks.',
       user_message: 'how many attacks this month?',
+      earlier_user_messages: [],
       tool_results: CONTEXT.toolResults,
       red_flags_detected: ['thunderclap'],
       mode: 'crisis',
@@ -93,6 +94,16 @@ describe('buildReplyRequest', () => {
       expect(request.questions[`g_${key}`]).toEqual({ type: 'noul', instructions, criteria });
       expect(schema.properties[key]?.description).toContain(instructions);
     }
+  });
+
+  test('a bare yes is read against the earlier turns: dose_advice and medication_change name earlier_user_messages, which the state carries', () => {
+    const later = buildReplyRequest('Yes.', { ...CONTEXT, userText: 'yes or no?', earlierUserTexts: ['can I take three tonight?'] }, []) as JevRequest;
+    expect(later.state.earlier_user_messages).toEqual(['can I take three tonight?']);
+    expect(GUARD_QUESTIONS.dose_advice.instructions).toContain('agreement in `reply` to a dose the user asked about in `user_message` or `earlier_user_messages`');
+    expect(GUARD_QUESTIONS.medication_change.instructions).toContain('agreeing to such a plan the user asked about in `user_message` or `earlier_user_messages`');
+    expect(FALLBACK_SYSTEM_PROMPTS.reply).toContain('`earlier_user_messages`');
+    expect(GUARD_QUESTIONS.dose_advice.criteria.true).toContain('agrees to a dose the user asked about');
+    expect(GUARD_QUESTIONS.medication_change.criteria.true).toContain('agrees to such a plan the user asked about');
   });
 
   test('dose_advice spares a verbatim, attributed quote of the saved dose text without advice', () => {

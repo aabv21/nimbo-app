@@ -7,6 +7,7 @@ import {
   FORECAST_WAIT_END_MS,
   forecastPool,
   handleMonitor,
+  MIN_MONITOR_SECRET_LENGTH,
   MONITOR_BUDGET_MS,
   MONITOR_START_CUTOFF_MS,
   type MonitorDeps,
@@ -14,6 +15,9 @@ import {
 } from '../handler.ts';
 
 const { jest } = import.meta;
+
+// At least MIN_MONITOR_SECRET_LENGTH characters, as the owner runbook's `openssl rand -hex 32` gives.
+const SECRET = 'monitor-secret-monitor-secret-monitor';
 
 const ENV: MonitorEnv = {
   supabaseUrl: 'http://supabase.test',
@@ -23,7 +27,7 @@ const ENV: MonitorEnv = {
   openMeteoApiKey: '',
   expoPushUrl: 'http://expo.test/--/api/v2/push',
   expoAccessToken: '',
-  monitorSecret: 'monitor-secret',
+  monitorSecret: SECRET,
 };
 
 const NOW = Date.parse('2026-11-27T13:05:00Z');
@@ -154,7 +158,7 @@ function world(changes: Partial<World> = {}) {
   return { fetch, calls };
 }
 
-const post = (secret: string | null = 'monitor-secret', method = 'POST'): Request =>
+const post = (secret: string | null = SECRET, method = 'POST'): Request =>
   new Request('http://functions.test/monitor', {
     method,
     headers: secret === null ? { 'content-type': 'application/json' } : { 'content-type': 'application/json', 'x-webhook-secret': secret },
@@ -185,10 +189,23 @@ afterEach(() => {
 
 test('anything but POST is 405, and a wrong or missing secret is 401, before any call', async () => {
   const { fetch, calls } = world();
-  expect((await handleMonitor(post('monitor-secret', 'GET'), deps(fetch))).status).toBe(405);
+  expect((await handleMonitor(post(SECRET, 'GET'), deps(fetch))).status).toBe(405);
   expect((await handleMonitor(post('wrong-secret'), deps(fetch))).status).toBe(401);
   expect((await handleMonitor(post(null), deps(fetch))).status).toBe(401);
   expect(calls).toHaveLength(0);
+});
+
+test('a configured secret shorter than MIN_MONITOR_SECRET_LENGTH refuses every caller, even one sending it, before any call', async () => {
+  const { fetch, calls } = world();
+  const info = jest.spyOn(console, 'info').mockImplementation(() => undefined);
+  const short = 'x'.repeat(MIN_MONITOR_SECRET_LENGTH - 1);
+  const response = await handleMonitor(post(short), { env: { ...ENV, monitorSecret: short }, fetch, now: () => NOW });
+  expect(response.status).toBe(401);
+  expect(await response.json()).toEqual({ error: 'unauthorized' });
+  expect(info.mock.calls.map((call: unknown[]) => String(call[0]))).toEqual([JSON.stringify({ outcome: 'misconfigured' })]);
+  expect(calls).toHaveLength(0);
+  info.mockRestore();
+  expect(SECRET.length).toBeGreaterThanOrEqual(MIN_MONITOR_SECRET_LENGTH);
 });
 
 test('fixture S01 sends exactly one message: the neutral title, no body, and data with only the url', async () => {

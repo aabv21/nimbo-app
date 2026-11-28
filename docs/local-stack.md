@@ -10,6 +10,7 @@ The backend runs locally as Supabase in Docker, driven only through the `supabas
 - `pnpm db:start:ci`: the lean stack CI starts, without Studio, Realtime, the vector service, logflare and the image proxy.
 - `pnpm db:reset`: recreates the database from `supabase/migrations/` and `supabase/seed.sql`.
 - `pnpm db:test`: the pgTAP suite under `supabase/tests/` ([`database.md`](database.md#tests)).
+- `pnpm db:lint`: `supabase db lint` over the local database (plpgsql_check), failing on any warning ([`database.md`](database.md#database-audit)).
 - `pnpm db:types`: regenerates `src/lib/database.types.ts`; commit it with the migration that changed it. CI fails when it differs from the migrations.
 - `pnpm env:local`: writes `.env.local` (gitignored) from `supabase status -o env`: the app's `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` and `SUPABASE_DB_URL` for scripts only, then `TYPESAFE_BASE_URL` and `ANTHROPIC_BASE_URL` as the host reaches the [mocks](#mocks). It writes only those six keys, in that order, and keeps every other line, so a hand-set Google client id or API key survives. It never writes an API key.
 - `pnpm db:stop`: stops the stack. Leave it stopped when you are done.
@@ -41,6 +42,7 @@ the stack needs. The mocks sit just below it, clear of Dressing Room's (54498 an
 - Both emails and their subjects come in English, Spanish or Portuguese. `signUpWithEmail` stores the app's language as `user_metadata.locale`, and the templates and the `subject` lines in `config.toml` branch on `.Data.locale` (`{{ if eq .Data.locale "es" }}…{{ else if eq .Data.locale "pt" }}…{{ else }}…{{ end }}`); every branch prints `{{ .Token }}`. An account without a locale (Google or Apple sign-in, or one made before this) gets English, and a password reset uses the language of the sign-up, not the app's current one. The hosted project needs the same templates and subjects pasted into its Auth settings ([`owner-runbook.md`](owner-runbook.md)).
 - Mailpit catches local email instead of sending it; read the code there. The integration suite (`latestEmail`, `latestEmailCode`) and the Maestro sign-up flow read it through Mailpit's API (`/api/v1/messages`).
 - `site_url` is the app scheme, `nimbo://`.
+- `[auth.email].secure_password_change` is on: a session created more than 24 hours ago needs a nonce to change the password, while the recovery flow's fresh session does not; `minimum_password_length` is 8 with no character requirements. The hosted project's Auth settings must match ([`audits/security.md`](audits/security.md) SEC-16, SEC-17).
 - `[auth.rate_limit].email_sent` is raised to 100 locally so sign-up and resend tests never hit the hourly cap (confirmation emails count against it); the hosted project keeps its own limit in its Auth settings.
 
 ## Mocks
@@ -59,7 +61,11 @@ mock servers on the host, which the Edge Runtime reaches from its container as `
 | `OPEN_METEO_API_KEY` | unset | empty: the free API takes no key ([`owner-runbook.md`](owner-runbook.md)) |
 | `EXPO_PUSH_URL` | `http://host.docker.internal:54518/--/api/v2/push` | `https://exp.host/--/api/v2/push` (`/send` and `/getReceipts` are appended) |
 | `EXPO_ACCESS_TOKEN` | unset | empty unless the Expo project turns on push security |
-| `MONITOR_SECRET` | `local-only-not-a-secret` | set by the owner, equal to the Vault secret `monitor_secret` |
+| `MONITOR_SECRET` | `local-only-not-a-secret-local-only-not-a-secret` | set by the owner (`openssl rand -hex 32`; under 32 characters `monitor` refuses every call), equal to the Vault secret `monitor_secret` |
+
+The stack reads these secrets, and the `[auth]` settings, only when it starts, and `supabase/seed.sql` writes the Vault
+secret only on a reset. After a change to either (the longer `MONITOR_SECRET`, or `secure_password_change`), a running
+stack needs `pnpm db:stop && pnpm db:start && pnpm db:reset && pnpm env:local`.
 
 The mock on 54518 serves four routes. `POST /v1/systemone` is Jev. `GET /v1/forecast` is Open-Meteo's forecast:
 by default every hour reads 1013.0 hPa, from the current UTC hour, for as many hours as `forecast_hours` asks
@@ -92,7 +98,7 @@ pg_net with two Vault secrets. `supabase/seed.sql` creates them on every `pnpm d
 
 | Vault secret | Local value |
 | --- | --- |
-| `monitor_secret` | `local-only-not-a-secret`, the same as `MONITOR_SECRET` above |
+| `monitor_secret` | `local-only-not-a-secret-local-only-not-a-secret`, the same as `MONITOR_SECRET` above |
 | `monitor_url` | `http://supabase_kong_nimbo-app:8000/functions/v1/monitor`: Kong's container name on the stack's Docker network, since pg_net runs inside the database container, where `127.0.0.1` is the container itself |
 
 `[functions.monitor] verify_jwt = false`: the job has no user, so the function checks the shared secret instead
@@ -100,7 +106,7 @@ pg_net with two Vault secrets. `supabase/seed.sql` creates them on every `pnpm d
 To trigger a run by hand, with the mock on 54518 serving the forecast and Expo (`node integration/mockServices.ts --serve`):
 
 ```sh
-curl -s -X POST http://127.0.0.1:54521/functions/v1/monitor -H 'x-webhook-secret: local-only-not-a-secret'
+curl -s -X POST http://127.0.0.1:54521/functions/v1/monitor -H 'x-webhook-secret: local-only-not-a-secret-local-only-not-a-secret'
 # or the job's own path, through pg_net and the Vault:
 docker exec supabase_db_nimbo-app psql -U postgres -c 'select public.request_monitor()'
 docker exec supabase_db_nimbo-app psql -U postgres -c 'select status_code, content from net._http_response order by id desc limit 1'

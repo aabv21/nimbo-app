@@ -250,6 +250,13 @@ const iso = (time: number | null): string | null => (time === null ? null : new 
 const local = (env: ToolEnv, time: number | null): string | null => (time === null ? null : localIso(time, env.timeZone));
 const stringsOf = (value: unknown): string[] => (Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []);
 const textUpTo = (value: unknown, max: number): string | null => (typeof value === 'string' && Array.from(value).length <= max ? value : null);
+/** `text` as the model sees it: zero-width, bidi and control characters as spaces, each run of spaces as one, trimmed. */
+const visible = (text: string): string => spaceInvisible(text).replace(/\s+/g, ' ').trim();
+/** The user's own text within `max`, `visible`. */
+const visibleUpTo = (value: unknown, max: number): string | null => {
+  const text = textUpTo(value, max);
+  return text === null ? null : visible(text);
+};
 const zonedIso = (env: ToolEnv, value: unknown): string | null => (typeof value === 'string' ? localIso(Date.parse(value), env.timeZone) : null);
 
 async function getEpisodes(call: ToolCall, input: Record<string, unknown>, env: ToolEnv): Promise<ToolOutcome> {
@@ -341,11 +348,11 @@ async function getCabinet(env: ToolEnv): Promise<ToolOutcome> {
   });
   const listed = active.slice(0, MAX_CABINET_MEDICATIONS).map((med) => ({
     ref: env.refs.add('m', med.id),
-    name: med.name,
+    name: visible(med.name),
     kind: med.kind,
     class: med.class,
     form: med.form,
-    dose_text: textUpTo(med.doseText, DOSE_TEXT_MAX_CHARS),
+    dose_text: visibleUpTo(med.doseText, DOSE_TEXT_MAX_CHARS),
     has_min_interval: med.interval !== null && med.interval !== undefined,
   }));
 
@@ -422,7 +429,12 @@ async function getCrisisPlan(env: ToolEnv): Promise<ToolOutcome> {
       ['limit', String(READ_ROWS)],
     ]),
   ]);
-  const names = new Map(medications.flatMap((med) => (typeof med.id === 'string' && typeof med.name === 'string' ? [[med.id, med.name]] : [])));
+  const names = new Map(
+    medications.flatMap((med) => {
+      const name = visibleUpTo(med.name, NAME_MAX_CHARS);
+      return typeof med.id === 'string' && name !== null ? [[med.id, name]] : [];
+    }),
+  );
   const plan = crisisPlan(
     episodes.flatMap((row: Row) =>
       typeof row.id === 'string'
@@ -464,7 +476,7 @@ function insightFields(insight: Insight, env: ToolEnv, names: ReadonlyMap<string
     case 'helped': {
       if (insight.source === 'relief') return { source: 'relief', key: insight.key };
       // The medication by ref and name, never its id.
-      const name = textUpTo(names.get(insight.key), NAME_MAX_CHARS);
+      const name = visibleUpTo(names.get(insight.key), NAME_MAX_CHARS);
       return name === null ? null : { source: 'medication', medication_ref: env.refs.add('m', insight.key), name };
     }
     case 'sleep_before':

@@ -60,7 +60,7 @@ Nimbo collects only what each feature needs. For each kind of data, here is what
 - **Signals.** Short reasons computed by Nimbo’s code from your own records and, if you gave your area, the pressure forecast: for example a long attack, many days with medication in a month or a short night. They are reasons from your records, never predictions, risks or percentages.
 - **The AI companion, only with your AI consent.** What it receives is described in the next section, [Nimbo’s AI](#ai). The server keeps only Nimbo’s short notes about you.
 - **Your voice, only with the AI on and only while you hold the mic.** See [Nimbo’s AI](#ai). Nimbo never records or keeps audio.
-- **Notifications, only if you allow them.** Your phone’s push token (the address push services deliver to), your phone type (iPhone or Android), when it was last registered and a fingerprint of a random code made on your phone, so only that phone can register or remove its token. If another account already holds your phone’s token, Nimbo proves your phone receives it with a one-time code sent as a silent notification; for that check the server keeps the token, your account and fingerprints of the code for up to 1 hour. To confirm delivery, the server keeps each notification’s receipt number and token for 2 days.
+- **Notifications, only if you allow them.** Your phone’s push token (the address push services deliver to), your phone type (iPhone or Android), when it was last registered and a fingerprint of a random code made on your phone, so only that phone can register or remove its token. If another account already holds your phone’s token, Nimbo proves your phone receives it with a one-time code sent as a silent notification; for that check the server keeps the token, your account and fingerprints of the code for up to 2 hours. To confirm delivery, the server keeps each notification’s receipt number and token for 2 days.
 - **Usage counts.** How many companion messages, safety checks and dictated messages you used each day, to apply the daily limits.
 - **Consent records.** Which version of this policy and of the AI text you accepted or declined, when and in which language, to prove your consent as the law requires.
 - **Premium status.** Whether you have premium access, through a purchase or a grant from the owner, and until when.
@@ -149,7 +149,7 @@ Nimbo keeps each kind of data only as long as its purpose needs:
 - **Signals:** 30 days. Only the last quiet-stretch notification sent is kept longer, so it is not sent twice.
 - **Pressure forecasts:** 2 days. They are stored per area cell and are not linked to you.
 - **Notification receipts:** 2 days.
-- **Push ownership checks:** up to 1 hour.
+- **Push ownership checks:** up to 2 hours.
 - **Usage counts:** 30 days.
 - **Your phone’s copies:** until you sign out, delete your account or uninstall the app. Changes not yet sent when you sign out stay on the phone until you sign in again and they are sent. The conversation is capped at the last 200 messages.
 - **Sign-in security logs** (the provider’s record of sign-ins, with the IP address): {{AUTH_LOG_RETENTION}}.

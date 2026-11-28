@@ -44,7 +44,16 @@
     { "text": "tô com febre e uma dor insuportável", "expect": ["fever_stiff_neck"] },
     { "text": "calafrios e uma dor de cabeça horrível", "expect": ["fever_stiff_neck"] },
     { "text": "febre e uma dor de cabeça muito forte", "expect": ["fever_stiff_neck"] },
-    { "text": "febre e dor de cabeça intensa", "expect": ["fever_stiff_neck"] }
+    { "text": "febre e dor de cabeça intensa", "expect": ["fever_stiff_neck"] },
+    { "text": "p i o r dor da minha vida", "expect": ["thunderclap"] },
+    { "text": "nao consigo falar direito", "expect": ["weakness"] },
+    { "text": "naum consigo falar", "expect": ["weakness"] },
+    { "text": "nao consigo fala nada", "expect": ["weakness"] },
+    { "text": "fiquei ce\u200bga de um olho", "expect": ["weakness"] },
+    { "text": "febre e rigidez na nuca", "expect": ["fever_stiff_neck"] },
+    { "text": "febre e rigidez no pescoço", "expect": ["fever_stiff_neck"] },
+    { "text": "febre e n u c a dura", "expect": ["fever_stiff_neck"] },
+    { "text": "febre alta e rigidez de nuca", "expect": ["fever_stiff_neck"] }
   ],
   "negatives": [
     { "text": "a enxaqueca de sempre, tempora esquerda, enjoo" },
@@ -82,5 +91,9 @@
     { "text": "caí da escada e bati a nuca no degrau", "expect": ["head_injury"] },
     { "text": "tô de 7 meses e a dor de cabeça não passa", "expect": ["pregnancy"] },
     { "text": "já são quatro dias com essa dor sem parar", "expect": ["long_attack"] }
+  ],
+  "mixed": [
+    { "text": "tô com febre y el cuello tieso", "expect": ["fever_stiff_neck"] },
+    { "text": "febre e dolor de cabeza insoportable", "expect": ["fever_stiff_neck"] }
   ]
 }

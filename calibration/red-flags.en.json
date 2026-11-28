@@ -55,7 +55,16 @@
     { "text": "i cannot feel the left side of my body", "expect": ["weakness"] },
     { "text": "cannot feel the arm", "expect": ["weakness"] },
     { "text": "I can't feel my toes", "expect": ["weakness"] },
-    { "text": "can't feel my cheek", "expect": ["weakness"] }
+    { "text": "can't feel my cheek", "expect": ["weakness"] },
+    { "text": "w o r s t headache of my life", "expect": ["thunderclap"] },
+    { "text": "worst hedache of my life", "expect": ["thunderclap"] },
+    { "text": "WORST HEAD ACHE EVER omg", "expect": ["thunderclap"] },
+    { "text": "half my face went num\u200bb", "expect": ["weakness"] },
+    { "text": "ngl my face is all droopy rn", "expect": ["weakness"] },
+    { "text": "worst headach of my life", "expect": ["thunderclap"] },
+    { "text": "fever and stiffness in the neck", "expect": ["fever_stiff_neck"] },
+    { "text": "running a fever, stiffness in my neck", "expect": ["fever_stiff_neck"] },
+    { "text": "fever since last night and neck stiffness", "expect": ["fever_stiff_neck"] }
   ],
   "negatives": [
     { "text": "the usual migraine, left temple, nausea" },
@@ -93,5 +102,9 @@
     { "text": "slipped on the ice this morning and landed on the back of my skull, now it's throbbing", "expect": ["head_injury"] },
     { "text": "my baby is due in March and this headache won't stop", "expect": ["pregnancy"] },
     { "text": "four days now and it still hasn't let up", "expect": ["long_attack"] }
+  ],
+  "mixed": [
+    { "text": "i have fiebre and a stiff neck", "expect": ["fever_stiff_neck"] },
+    { "text": "fever and the pescoço duro since this morning", "expect": ["fever_stiff_neck"] }
   ]
 }

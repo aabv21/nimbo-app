@@ -107,6 +107,17 @@ describe('delete-account', () => {
     expect(steps.some(({ kind }) => kind === 'adminDelete')).toBe(false);
   });
 
+  test.each([
+    ['a signed-out session', () => json(403, { code: 403, error_code: 'session_not_found', msg: 'Session from session_id claim in JWT does not exist' })],
+    ['an expired session', () => json(403, { code: 403, error_code: 'session_expired', msg: 'Session expired' })],
+    ['a token Auth refuses', () => json(401, { code: 401, error_code: 'bad_jwt', msg: 'invalid JWT' })],
+  ] as const)('answers 401 and deletes nothing when Auth refuses %s', async (_label, whoami) => {
+    const { status, body, steps } = await run({ whoami });
+
+    expect([status, body]).toEqual([401, { error: 'unauthorized' }]);
+    expect(steps.map(({ kind }) => kind)).toEqual(['whoami']);
+  });
+
   test('answers deleted when the admin delete says 404 (an earlier attempt deleted the user)', async () => {
     const { status, body } = await run({ adminDelete: () => json(404, { code: 404, error_code: 'user_not_found' }) });
 

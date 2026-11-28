@@ -7,6 +7,7 @@ import { INTENT_ACT_P } from '../screen.ts';
 import { type Intent, type Mode, NOTE_MAX_CHARS } from './contract.ts';
 import { localIso, weekdayOf, zoneOrUtc } from './data.ts';
 import { COMPANION_TOOLS } from './tools.ts';
+import { spaceInvisible } from './turns.ts';
 
 export const COMPANION_MAX_TOKENS = 4096;
 /** The skill's starting point for chat on Sonnet 5.5; thinking stays adaptive, its default. */
@@ -86,9 +87,12 @@ export interface PromptContext {
   openEpisodeRef: string | null;
 }
 
-/** A note as data inside `<notes>`: `<`, `>` and `&` as entities, line breaks as spaces, at most 200 characters. */
+/**
+ * A note as data inside `<notes>`: `<`, `>` and `&` as entities, line breaks and invisible characters (zero-width,
+ * bidi) as spaces, at most 200 characters. A note saved by a direct RPC call may hold what `save_note` would clean.
+ */
 export function escapeNote(text: string): string {
-  return Array.from(text.replace(/[\r\n\u2028\u2029]+/g, ' '))
+  return Array.from(spaceInvisible(text.replace(/[\r\n\u2028\u2029]+/g, ' ')))
     .slice(0, NOTE_MAX_CHARS)
     .join('')
     .replace(/&/g, '&amp;')

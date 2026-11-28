@@ -17,7 +17,7 @@ const run = promisify(execFile);
 
 const PASSWORD = 'Password123!';
 // Must match MONITOR_SECRET in supabase/config.toml and the Vault secret supabase/seed.sql creates.
-const LOCAL_SECRET = 'local-only-not-a-secret';
+const LOCAL_SECRET = 'local-only-not-a-secret-local-only-not-a-secret';
 // The local stack's database container (`project_id` in supabase/config.toml).
 const DB_CONTAINER = 'supabase_db_nimbo-app';
 const ZONE = 'America/Bogota';

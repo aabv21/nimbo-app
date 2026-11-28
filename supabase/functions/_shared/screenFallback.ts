@@ -31,8 +31,8 @@ ${INTENTS.map((intent) => `- ${intent}: ${INTENT_CRITERIA[intent]}`).join('\n')}
 ${DATA_ONLY}
 Answer only with values the output schema allows.`,
   reply: `You check a reply that a migraine diary app's assistant wrote, before the person sees it.
-The input is a JSON state: \`reply\`, \`user_message\`, \`tool_results\` (the records the assistant read),
-\`red_flags_detected\`, \`mode\` and \`numbers_not_in_tool_results\`.
+The input is a JSON state: \`reply\`, \`user_message\`, \`earlier_user_messages\` (the person's earlier messages, oldest first),
+\`tool_results\` (the records the assistant read), \`red_flags_detected\`, \`mode\` and \`numbers_not_in_tool_results\`.
 Answer each yes/no field on its own; true means the reply breaks that rule.
 ${RECALL_BIAS}
 

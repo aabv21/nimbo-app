@@ -11,6 +11,8 @@ interface Fixtures {
   negatives: { text: string }[];
   /** Messages the keywords may miss and the model screen must catch; `screen.test.ts` feeds them through a mocked Jev. */
   modelOnly: { text: string; expect: RedFlagKey[] }[];
+  /** Messages mixing two languages, which only the union of the three keyword lists (what the app runs) must catch. */
+  mixed: { text: string; expect: RedFlagKey[] }[];
 }
 
 const locales: readonly Locale[] = ['en', 'es', 'pt'];
@@ -40,6 +42,13 @@ test.each(locales)("%s positives: zero misses with every locale's keywords", (lo
     ({ text, expect: keys }) => !keys.every((key) => matchRedFlagsAnyLocale(text, pack).includes(key)),
   );
   expect(misses).toEqual([]);
+});
+
+test.each(locales)("%s mixed-language positives: zero misses with every locale's keywords, and each really needs another locale", (locale) => {
+  const { mixed } = fixtures(locale);
+  expect(mixed.length).toBeGreaterThanOrEqual(2);
+  expect(mixed.filter(({ text, expect: keys }) => !keys.every((key) => matchRedFlagsAnyLocale(text, pack).includes(key)))).toEqual([]);
+  expect(mixed.filter(({ text, expect: keys }) => keys.every((key) => matchRedFlags(text, locale, pack).includes(key)))).toEqual([]);
 });
 
 test.each(locales)("%s negatives: no hit with every locale's keywords", (locale) => {
@@ -117,6 +126,24 @@ test('normalizeText lower-cases, strips accents and punctuation, and collapses s
   expect(normalizeText('¡PEOR dolor!!  de cabeça')).toBe('peor dolor de cabeca');
   expect(normalizeText("  I can't SPEAK\n")).toBe('i can t speak');
   expect(normalizeText('Sí, señora: 39°C')).toBe('si senora 39 c');
+});
+
+test('evasion: zero-width and soft-hyphen characters inside a word, and letters spelled out one by one, still hit', () => {
+  expect(matchRedFlagsAnyLocale('my face went num\u200bb', pack)).toEqual(['weakness']);
+  expect(matchRedFlagsAnyLocale('worst\u00ad headache', pack)).toEqual(['thunderclap']);
+  // A zero-width space between two words still separates them.
+  expect(matchRedFlagsAnyLocale('worst\u200bheadache of my life', pack)).toEqual(['thunderclap']);
+  expect(matchRedFlagsAnyLocale('W O R S T headache', pack)).toEqual(['thunderclap']);
+  expect(matchRedFlagsAnyLocale('p-i-o-r dor', pack)).toEqual(['thunderclap']);
+  expect(matchRedFlagsAnyLocale('f e v e r and s t i f f neck', pack)).toEqual(['fever_stiff_neck']);
+  // A one-letter connector right before the spelled word is read both ways ("a s t i f f" is "astiff" and "a stiff").
+  expect(matchRedFlagsAnyLocale('fever and a s t i f f neck', pack)).toEqual(['fever_stiff_neck']);
+  expect(matchRedFlagsAnyLocale('fiebre y n u c a rigida', pack)).toEqual(['fever_stiff_neck']);
+  // Two one-letter words before it, or a spelled word of two letters, are known gaps (docs/red-team.md).
+  expect(matchRedFlagsAnyLocale('febre e a n u c a dura', pack)).toEqual([]);
+  // Two one-letter words are ordinary text, and a spelled word must still be whole.
+  expect(matchRedFlagsAnyLocale('a e dolor de siempre', pack)).toEqual([]);
+  expect(matchRedFlagsAnyLocale('n u m b e r of attacks', pack)).toEqual([]);
 });
 
 test('matching is whole-phrase: a keyword inside another word does not hit', () => {

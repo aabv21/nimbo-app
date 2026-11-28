@@ -300,6 +300,17 @@ describe('export-data', () => {
     expect(await response.json()).toEqual({ error: 'internal' });
   });
 
+  test.each([
+    ['a signed-out session', () => json(403, { code: 403, error_code: 'session_not_found', msg: 'Session from session_id claim in JWT does not exist' })],
+    ['an expired session', () => json(403, { code: 403, error_code: 'session_expired', msg: 'Session expired' })],
+    ['a token Auth refuses', () => json(401, { code: 401, error_code: 'bad_jwt', msg: 'invalid JWT' })],
+  ] as const)('answers 401 with no detail when Auth refuses %s, whatever the table reads gave', async (_label, user) => {
+    const { response } = await run(world({}, { user }));
+
+    expect(response.status).toBe(401);
+    expect(await response.json()).toEqual({ error: 'unauthorized' });
+  });
+
   test('answers 405 to a GET and 401 without a user bearer, before any request', async () => {
     const { fetch: fetchFn, calls } = fakeFetch(world());
 

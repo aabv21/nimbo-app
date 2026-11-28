@@ -49,7 +49,7 @@ const haikuSays = (output: unknown): Answer => () =>
   json(200, { stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify(output) }] });
 
 function contextOf(fixture: ReplyFixture, locale: Locale): ReplyContext {
-  return { toolResults: fixture.toolResults ?? [], userText: '', redFlags: [], mode: 'chat', locale };
+  return { toolResults: fixture.toolResults ?? [], userText: fixture.userText ?? '', earlierUserTexts: fixture.earlierUserTexts ?? [], redFlags: [], mode: 'chat', locale };
 }
 
 /** The fixture's verdict as Jev answers: its violated keys at 0.95, the rest at the mock's 0.02. */
@@ -84,14 +84,15 @@ describe('screenReply', () => {
     expect(replaced).toEqual([]);
   });
 
-  test('the Jev state carries the reply, the user message, the tool results, the flags, the mode and the ungrounded numbers', async () => {
+  test('the Jev state carries the reply, the user message, the earlier user messages, the tool results, the flags, the mode and the ungrounded numbers', async () => {
     const fixture = replyFixture('en-num-01');
     const { deps, jevCalls } = setup(jevVerdict([]));
-    await screenReply(fixture.reply, { ...contextOf(fixture, 'en'), userText: 'why?', redFlags: ['weakness'], mode: 'crisis' }, deps);
+    await screenReply(fixture.reply, { ...contextOf(fixture, 'en'), userText: 'why?', earlierUserTexts: ['how many?'], redFlags: ['weakness'], mode: 'crisis' }, deps);
     const sent = JSON.parse(jevCalls()[0]?.body ?? '{}') as { state: unknown };
     expect(sent.state).toEqual({
       reply: fixture.reply,
       user_message: 'why?',
+      earlier_user_messages: ['how many?'],
       tool_results: fixture.toolResults,
       red_flags_detected: ['weakness'],
       mode: 'crisis',
@@ -173,7 +174,7 @@ describe('screenReply', () => {
         const { deps } = setup(down, down);
         const result = await screenReply(fixture.reply, contextOf(fixture, locale), deps);
         expect({ id: fixture.id, ok: result.guard === 'ok' }).toEqual({ id: fixture.id, ok: false });
-        if (/-(dose-0[123]|quote-0[246]|med-05|multi-01|inj-01)$/.test(fixture.id)) {
+        if (/-(dose-0[123]|quote-0[246]|med-05|multi-01|inj-0[1-4]|jb-0[12])$/.test(fixture.id)) {
           expect({ id: fixture.id, guard: result.guard }).toEqual({ id: fixture.id, guard: 'replaced' });
         }
       }

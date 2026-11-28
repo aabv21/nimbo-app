@@ -60,7 +60,7 @@ O Nimbo coleta só o que cada função precisa. Para cada tipo de dado, o que é
 - **Sinais.** Motivos curtos calculados pelo código do Nimbo a partir dos seus próprios registros e, se você informou sua região, da previsão de pressão: por exemplo uma crise longa, muitos dias com remédio em um mês ou uma noite curta. São motivos tirados dos seus registros, nunca previsões, riscos ou porcentagens.
 - **O acompanhante de IA, só com o seu consentimento de IA.** O que ele recebe está descrito na próxima seção, [A IA do Nimbo](#ai). O servidor guarda só as notas curtas do Nimbo sobre você.
 - **Sua voz, só com a IA ligada e só enquanto você segura o microfone.** Veja [A IA do Nimbo](#ai). O Nimbo nunca grava nem guarda áudio.
-- **Avisos, só se você permitir.** O token de notificações do seu celular (o endereço para onde os serviços de notificação entregam), o tipo de celular (iPhone ou Android), quando foi registrado pela última vez e uma impressão digital de um código aleatório criado no seu celular, para que só esse celular possa registrar ou remover o token. Se outra conta já tiver o token do seu celular, o Nimbo confirma que seu celular o recebe com um código de uso único enviado como notificação silenciosa; para essa verificação, o servidor guarda o token, sua conta e impressões digitais do código por até 1 hora. Para confirmar a entrega, o servidor guarda o número do recibo e o token de cada aviso por 2 dias.
+- **Avisos, só se você permitir.** O token de notificações do seu celular (o endereço para onde os serviços de notificação entregam), o tipo de celular (iPhone ou Android), quando foi registrado pela última vez e uma impressão digital de um código aleatório criado no seu celular, para que só esse celular possa registrar ou remover o token. Se outra conta já tiver o token do seu celular, o Nimbo confirma que seu celular o recebe com um código de uso único enviado como notificação silenciosa; para essa verificação, o servidor guarda o token, sua conta e impressões digitais do código por até 2 horas. Para confirmar a entrega, o servidor guarda o número do recibo e o token de cada aviso por 2 dias.
 - **Contagens de uso.** Quantas mensagens ao acompanhante, verificações de segurança e mensagens ditadas você usou por dia, para aplicar os limites diários.
 - **Registros de consentimento.** Qual versão desta política e do texto da IA você aceitou ou recusou, quando e em qual idioma, para comprovar o seu consentimento, como a lei exige.
 - **Status premium.** Se você tem acesso premium, por uma compra ou uma concessão do controlador, e até quando.
@@ -149,7 +149,7 @@ O Nimbo mantém cada tipo de dado só pelo tempo que a finalidade exige:
 - **Sinais:** 30 dias. Só o último aviso de período tranquilo enviado é mantido por mais tempo, para não ser enviado duas vezes.
 - **Previsões de pressão:** 2 dias. Elas ficam guardadas por célula de região e não estão ligadas a você.
 - **Recibos de avisos:** 2 dias.
-- **Verificações de posse do token:** até 1 hora.
+- **Verificações de posse do token:** até 2 horas.
 - **Contagens de uso:** 30 dias.
 - **As cópias no seu celular:** até você sair da conta, excluir a conta ou desinstalar o app. As mudanças ainda não enviadas quando você sai ficam no celular até você entrar de novo e elas serem enviadas. A conversa fica limitada às últimas 200 mensagens.
 - **Registros de segurança do login** (o registro de logins do provedor, com o endereço IP): {{AUTH_LOG_RETENTION}}.

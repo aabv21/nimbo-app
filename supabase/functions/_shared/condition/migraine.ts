@@ -38,7 +38,7 @@ const redFlags: readonly RedFlag[] = Object.freeze([
     en: [
       'worst headache', 'worst pain', 'worst migraine', 'worst of my life', 'worst ever', 'thunderclap', 'thunder clap',
       'exploded', 'exploding', 'explosion', 'all at once', 'out of nowhere', 'came on suddenly', 'sudden severe',
-      'in seconds', 'within seconds', 'like being hit',
+      'in seconds', 'within seconds', 'like being hit', 'worst hedache', 'worst headach', 'worst head ache',
     ],
     es: [
       'peor dolor', 'peor migraña', 'peor de mi vida', 'de golpe', 'de la nada', 'de repente', 'trueno', 'como un rayo',
@@ -59,8 +59,8 @@ const redFlags: readonly RedFlag[] = Object.freeze([
     ],
     es: [
       'adormecida', 'adormecido', 'adormecimiento', 'se me adormeció', 'se me duerme', 'se me durmió', 'entumida',
-      'entumido', 'entumecida', 'entumecido', 'boca chueca', 'boca torcida', 'cara caída', 'no puedo hablar',
-      'no me salen las palabras', 'hablo raro', 'hablo todo raro', 'arrastro las palabras', 'me cuesta hablar',
+      'entumido', 'entumecida', 'entumecido', 'boca chueca', 'boca torcida', 'cara caída', 'cara chueca', 'no puedo hablar',
+      'no puedo ablar', 'no me salen las palabras', 'hablo raro', 'hablo todo raro', 'arrastro las palabras', 'me cuesta hablar',
       'sin fuerza', 'debilidad', 'no puedo mover', 'confundida', 'confundido', 'confusión', 'no puedo ver', 'no veo nada', 'no veo bien', 'no veo de un ojo',
       'perdí la vista', 'me quedé ciega', 'me quedé ciego',
       'no siento el brazo', 'no siento la mano', 'no siento la pierna', 'no siento el pie', 'no siento la cara',
@@ -69,7 +69,7 @@ const redFlags: readonly RedFlag[] = Object.freeze([
     ],
     pt: [
       'dormente', 'dormência', 'adormecido', 'adormecida', 'boca torta', 'boca ficou torta', 'rosto caído',
-      'não consigo falar', 'fala enrolada', 'enrolando pra falar', 'enrolando para falar', 'as palavras não saem',
+      'não consigo falar', 'naum consigo falar', 'não consigo fala', 'fala enrolada', 'enrolando pra falar', 'enrolando para falar', 'as palavras não saem',
       'sem força', 'fraqueza', 'não consigo mexer', 'confusa', 'confuso', 'confusão', 'não consigo ver', 'não enxergo',
       'perdi a visão', 'fiquei cega', 'fiquei cego',
       'não sinto o braço', 'não sinto meu braço', 'não sinto a mão', 'não sinto minha mão', 'não sinto a perna',
@@ -97,19 +97,21 @@ const redFlags: readonly RedFlag[] = Object.freeze([
       {
         en: [
           'stiff neck', 'neck is stiff', 'neck is so stiff', "can't bend my neck", 'cant bend my neck',
-          'chin to my chest', 'chin to chest',
+          'chin to my chest', 'chin to chest', 'stiffness in the neck', 'stiffness in my neck', 'neck stiffness',
           'worst headache', 'severe headache', 'severe head pain', 'horrible headache', 'terrible headache',
           'awful headache', 'bad headache', 'unbearable headache', 'unbearable pain', 'excruciating',
         ],
         es: [
           'cuello rígido', 'cuello tieso', 'cuello bien tieso', 'nuca rígida', 'nuca tiesa',
-          'no puedo doblar el cuello', 'no puedo bajar la cabeza',
+          'no puedo doblar el cuello', 'no puedo bajar la cabeza', 'rigidez en la nuca', 'rigidez de la nuca', 'rigidez de nuca',
+          'rigidez en el cuello',
           'dolor de cabeza horrible', 'dolor horrible', 'dolor de cabeza terrible', 'dolor terrible', 'insoportable',
           'fortísimo', 'fortísima', 'fuertísimo', 'fuertísima', 'fuertisimo', 'dolor de cabeza muy fuerte',
           'dolor muy fuerte', 'dolor de cabeza intenso',
         ],
         pt: [
-          'pescoço duro', 'pescoço rígido', 'nuca dura', 'nuca rígida', 'não consigo dobrar o pescoço',
+          'pescoço duro', 'pescoço rígido', 'nuca dura', 'nuca rígida', 'não consigo dobrar o pescoço', 'rigidez na nuca',
+          'rigidez no pescoço', 'rigidez de nuca',
           'queixo no peito',
           'dor de cabeça forte', 'dor de cabeça muito forte', 'dor de cabeça intensa', 'dor de cabeça horrível',
           'dor horrível', 'insuportável',

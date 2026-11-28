@@ -47,7 +47,7 @@ pnpm start
 | `pnpm test:int` | The Jest `integration` project, against the running local stack (see `docs/testing.md`) |
 | `pnpm check:expo` | Compare packages with the SDK's expected versions (informational) |
 | `pnpm db:start` / `pnpm db:stop` | Start and stop the local Supabase stack (see `docs/local-stack.md`) |
-| `pnpm db:reset` / `pnpm db:test` / `pnpm db:types` | Rebuild the database, run the pgTAP tests, regenerate the DB types |
+| `pnpm db:reset` / `pnpm db:test` / `pnpm db:lint` / `pnpm db:types` | Rebuild the database, run the pgTAP tests, lint the database functions, regenerate the DB types |
 | `pnpm e2e` | The Maestro flows on the Android emulator, against the local stack (see `docs/testing.md`) |
 | `pnpm env:local` | Write `.env.local` from the running local stack |
 | `pnpm policy:check` | Check the three privacy policies and list the owner placeholders left (fails until the owner fills them) |

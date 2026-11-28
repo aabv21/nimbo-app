@@ -13,6 +13,17 @@ export const POSTGREST_TIMEOUT_MS = 8_000;
 
 export class UpstreamError extends Error {}
 
+/** Auth's words for a token it will not honor: signed out, expired, or not a valid JWT. */
+const REFUSED_SESSION = new Set(['session_not_found', 'session_expired', 'bad_jwt', 'no_authorization']);
+
+/** Whether Auth's answer (`GET /auth/v1/user`) refuses the caller's own session, which the function answers 401. */
+export function sessionRefused(status: number, body: unknown): boolean {
+  return status === 401 || (status === 403 && isRecord(body) && typeof body.error_code === 'string' && REFUSED_SESSION.has(body.error_code));
+}
+
+/** Thrown when Auth refuses the caller's session: the request is answered 401, never 500. */
+export class RefusedSession extends Error {}
+
 /** Headers for a request made as the caller: RLS applies. */
 export function userHeaders(env: SupabaseEnv, auth: string): Record<string, string> {
   return { apikey: env.anonKey, authorization: auth };

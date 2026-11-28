@@ -110,15 +110,37 @@ permission must list it here with the reason and the plugin that adds it.
 - **Android:** a monochrome adaptive icon, `predictiveBackGestureEnabled: false`, and
   `allowBackup: false`, so Android's cloud and device-transfer backup never copies `nimbo.db` (health
   records) or the stored session off the phone.
-- **iOS backup (known gap):** expo-sqlite keeps its databases in `Documents/SQLite`, which iCloud
-  backup includes, and the SDK 58 docs offer no supported way to exclude a database file; a later
-  security audit should decide on a native exclusion or an encrypted store.
+- **iOS backup:** not excluded yet; a blocker before iOS ships ([below](#ios-backup-apple-513)).
 
 Google sign-in is not configured yet: the sign-in screens hide its button until the build has
 `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` and `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`. Once the OAuth clients
 exist, add the `@react-native-google-signin/google-signin` config plugin with Nimbo's iOS URL scheme
 (the iOS client id reversed, `com.googleusercontent.apps.<ios-client-id>`) and rebuild; the step is
 in [`owner-runbook.md`](owner-runbook.md).
+
+## iOS backup (Apple 5.1.3)
+
+Apple's guideline 5.1.3 says health data must not be stored in iCloud. On iOS, expo-sqlite keeps its databases in
+`Documents/SQLite`, which iCloud and device backups include: `nimbo.db` (health records, the outbox and the chat) and
+the kv store (the cached profile and the session). Android is closed: `allowBackup: false`.
+
+**Decision (security audit, 2026-11-28, [`audits/security.md`](audits/security.md) SEC-12):** no Expo SDK 58 API
+excludes them, so the exclusion is a **blocker before the first iOS submission**, built when iOS unparks:
+
+- The SDK 58 docs for `expo-sqlite` and `expo-file-system` offer no backup attribute. `expo-sqlite`'s config plugin
+  options are `customBuildFlags`, `enableFTS`, `useSQLCipher` and `withSQLiteVecExtension`, none about backup.
+- `openDatabaseSync(name, options, directory)` could open `nimbo.db` in the cache directory, which iOS does not back
+  up, but iOS may purge that directory under storage pressure: queued health writes not yet sent would be lost, and the
+  kv store (with the session) cannot be moved that way. Rejected.
+- Encrypting the databases (`useSQLCipher`) would keep a readable copy out of the backup but still stores health data
+  in iCloud. Not enough on its own.
+- **The fix:** a local Expo module (`modules/backup-exclusion`, Expo Modules API, Swift) that sets
+  `NSURLIsExcludedFromBackupKey` on `Documents/SQLite` (and so on every database in it) at launch, before `localDb()`
+  opens, with a JS wrapper that is a no-op on Android. It is added through `app.json` and autolinking, never by editing
+  `ios/`, then checked on a device by making a backup and listing the app's backed-up files. The step is in
+  [`owner-runbook.md`](owner-runbook.md).
+
+The export file is written to the cache directory, which iOS never backs up.
 
 ## Changing native config
 

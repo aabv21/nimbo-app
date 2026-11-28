@@ -6,7 +6,7 @@
 import type { SupabaseEnv } from '../_shared/env.ts';
 import { isRecord } from '../_shared/guards.ts';
 import { bodyProblemReply, callerOf, fetchWithDeadline, readBodyCapped, reply } from '../_shared/http.ts';
-import { serviceHeaders, UpstreamError, userHeaders } from '../_shared/rest.ts';
+import { RefusedSession, serviceHeaders, sessionRefused, UpstreamError, userHeaders } from '../_shared/rest.ts';
 
 export type DeleteAccountDeps = { env: SupabaseEnv; fetch: typeof fetch };
 
@@ -16,8 +16,9 @@ export const AUTH_TIMEOUT_MS = 10_000;
 export const MAX_BODY_BYTES = 256;
 
 /**
- * False only on Auth's `user_not_found`. Throws on anything else, a bare 404 included (a misrouted gateway answers 404
- * too), so nothing is reported deleted on an answer that can't be trusted.
+ * False only on Auth's `user_not_found`; throws `RefusedSession` when Auth refuses this session (signed out, expired).
+ * Throws on anything else, a bare 404 included (a misrouted gateway answers 404 too), so nothing is reported deleted on
+ * an answer that can't be trusted.
  */
 async function callerExists(env: SupabaseEnv, fetchFn: typeof fetch, auth: string, userId: string): Promise<boolean> {
   const response = await fetchWithDeadline(fetchFn, `${env.supabaseUrl}/auth/v1/user`, { headers: userHeaders(env, auth) }, AUTH_TIMEOUT_MS);
@@ -28,6 +29,7 @@ async function callerExists(env: SupabaseEnv, fetchFn: typeof fetch, auth: strin
     body = null;
   }
   if (isRecord(body) && body.error_code === 'user_not_found') return false;
+  if (sessionRefused(response.status, body)) throw new RefusedSession();
   if (!response.ok) throw new UpstreamError(`auth user: HTTP ${String(response.status)}`);
   if (!isRecord(body) || typeof body.id !== 'string' || body.id.toLowerCase() !== userId) {
     throw new UpstreamError('auth user: not the caller');
@@ -60,7 +62,8 @@ export async function handleDeleteAccount(request: Request, deps: DeleteAccountD
   try {
     if (!(await callerExists(env, fetchFn, auth, userId))) return reply('already_deleted', 200, { outcome: 'deleted' });
     if (!(await deleteUser(env, fetchFn, userId))) return reply('already_deleted', 200, { outcome: 'deleted' });
-  } catch {
+  } catch (error) {
+    if (error instanceof RefusedSession) return reply('refused', 401, { error: 'unauthorized' });
     return reply('error', 500, { error: 'internal' });
   }
   return reply('deleted', 200, { outcome: 'deleted' });

@@ -125,6 +125,10 @@ describe('notes', () => {
     expect(Array.from(escapeNote('x'.repeat(250)))).toHaveLength(200);
   });
 
+  test('zero-width, bidi and control characters become spaces, so a note cannot hide or reorder text', () => {
+    expect(escapeNote('a\u200bb\u202ec\u2066d\u0007e\ufefff')).toBe('a b c d e f');
+  });
+
   test('21 notes in give 20 out', () => {
     const notes = Array.from({ length: 21 }, (_, i) => ({ ref: `n${String(i + 1)}`, text: `note ${String(i + 1)}` }));
     const block = userBlock({ ...base, notes });

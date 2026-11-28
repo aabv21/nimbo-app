@@ -1,5 +1,5 @@
 -- weather_cache: a service-role-only shared cache (no client may read, write or delete), the cell key's
--- format, and public.prune_expired_caches() with its daily pg_cron job.
+-- format, and public.prune_expired_caches() with its hourly pg_cron job.
 begin;
 
 create extension if not exists pgtap with schema extensions;
@@ -111,8 +111,8 @@ select is(
 -- 4. The job.
 select is(
   (select schedule || ' | ' || command || ' | ' || active::text from cron.job where jobname = 'prune-expired-caches'),
-  '17 3 * * * | select public.prune_expired_caches() | true',
-  'the prune runs daily at 03:17 GMT'
+  '17 * * * * | select public.prune_expired_caches() | true',
+  'the prune runs hourly at :17'
 );
 select is(
   (select count(*)::int from cron.job where jobname = 'prune-expired-caches'),

@@ -81,6 +81,26 @@ describe('sanitizeReply', () => {
     expect(long.endsWith('…')).toBe(true);
   });
 
+  test('removes a Markdown link (keeping its text), an image, any scheme and a bare domain with a path', () => {
+    expect(sanitizeReply('See [your list](https://evil.example/?d=ibuprofen) and ![x](http://e.example/p.png).')).toBe('See your list and x.');
+    expect(sanitizeReply('Open evil.example/c?d=400mg or ftp://e.example/a or intent://x#y now.')).toBe('Open or or now.');
+    // Glued to a word, a link still goes and the word stays.
+    expect(sanitizeReply('Saved:https://evil.example/c?d=x ok')).toBe('Saved: ok');
+    expect(sanitizeReply('Saved\u2014https://evil.example/c?d=x ok')).toBe('Saved\u2014 ok');
+    expect(sanitizeReply('see www.evil.example and(www.e.example/x) now')).toBe('see and( now');
+    expect(sanitizeReply('Saved_https://evil.example/c?d=x ok')).toBe('Saved_ ok');
+    expect(sanitizeReply('x_www.evil.com/x?d=1 ok')).toBe('x_ ok');
+    // A glued prefix longer than the bounded scheme: the letters before the last 32 stay, the link goes.
+    expect(sanitizeReply(`${'a'.repeat(40)}https://evil.example/c?d=x ok`)).not.toMatch(/:\/\/|evil/);
+    // Not links: an abbreviation, a clock time, a word and a colon, and "www" as a word.
+    expect(sanitizeReply('e.g. at 8:30, notes:foo, www is fine.')).toBe('e.g. at 8:30, notes:foo, www is fine.');
+    // A bare domain with a query goes; one whose top-level domain is not listed goes only with a query.
+    expect(sanitizeReply('Open evil.example?d=x or evil.lol/x or evil.zz/x?d=1 or evil.zz/x now.')).toBe('Open or or or evil.zz/x now.');
+    // Not links: a decimal with a unit, a ratio, a clock time, an abbreviation and pt dose shorthand.
+    expect(sanitizeReply('A 2.5 mg/kg dose, 3/10 pain, 8:30 a.m./p.m. e.g. rest.')).toBe('A 2.5 mg/kg dose, 3/10 pain, 8:30 a.m./p.m. e.g. rest.');
+    expect(sanitizeReply('Você salvou: «1 cp.dia/noite» e «5 mg.kg/dia».')).toBe('Você salvou: «1 cp.dia/noite» e «5 mg.kg/dia».');
+  });
+
   test('keeps the citation markers for extractCitations', () => {
     expect(sanitizeReply('3 attacks [r1].')).toBe('3 attacks [r1].');
   });
