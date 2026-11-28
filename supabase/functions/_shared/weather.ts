@@ -1,5 +1,5 @@
 // The pressure forecast: the only module that talks to a weather provider (its URL, its response and the
-// shared `weather_cache`), so a provider swap stays here (docs/architecture.md#signals-and-the-pressure-forecast).
+// shared `weather_cache`), so a provider swap stays here (docs/architecture.md#weather).
 
 import type { SupabaseEnv, WeatherEnv } from './env.ts';
 import { isRecord } from './guards.ts';

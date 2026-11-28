@@ -103,8 +103,7 @@ and [`api.md`](api.md#push-claim).
 - `PushSync.tsx`: mounted for an onboarded user; flushes the pending list, then registers when the permission is already
   granted (it never asks).
 - `PushClaimSync.tsx`: resumes a pending claim and confirms it when its data-only code push arrives (foreground only).
-- `PushTapSync.tsx`: a tap on a push opens Today when `data.url` is `/today`, and nothing otherwise; `signalId` is not
-  read yet.
+- `PushTapSync.tsx`: a tap on a push opens Today when `data.url` is `/today`, and nothing otherwise.
 
 The onboarding notifications step calls `registerPush` after a granted "Allow notifications", and the sign-out cleanup in
 `SyncProvider` calls `forgetPushTokenLater` then `flushPendingUnregister`.
@@ -131,7 +130,8 @@ Hermes has no `Intl.PluralRules`), falling back to `.other`, and fills `{n}` wit
   `entrance(motion, dy, delay)` (a rise, or the reduced fade) and `crossFade(motion)` (a value changing in place);
   `usePressFeedback.ts`: press feedback; `useAccessibilityFlag.ts`: reduce motion and reduce transparency.
 - Components: `Screen`, `DockedScreen` (a scrolling screen with its actions docked at the bottom, outside the
-  scroll, so they stay in the thumb zone at every text size; Today and the onboarding steps use it), `Button`,
+  scroll, so they stay in the thumb zone at every text size; Today and the onboarding steps use it; `scrollRef` lets
+  a screen scroll to one of its parts), `Button`,
   `TextField`, `TextLink`, `Notice`, `ChoiceGroup`, `SwitchRow`, `CheckRow`, `CodeBoxes`, `BackButton`, `TabBar`
   (the floating Liquid Glass bar) and `TabScene` (a tab's entrance when it gains focus). Components read
   colours only from `useTheme()` and durations only from `useMotion()`. `Button` and `SwitchRow` pass an optional
@@ -210,7 +210,8 @@ transaction, shows the change at once, and the outbox sends it when it can.
   request made during one runs one more. A timer wakes it when the head of the queue's backoff ends. On
   sign-out or an account switch it pauses the previous user's outbox and, once that and any running
   cycle have settled, purges their rows and, when nothing of theirs is left queued, their cached
-  profile (`removeCachedProfile`); at launch it purges every other user's.
+  profile (`removeCachedProfile`); at launch it purges every other user's. Its cleanup also forgets the user's
+  cached notes, finished debriefs, today's pressure row (kv `signals.<userId>`) and push token.
   `useSyncState()` gives `pending`, `failed`, `syncing` and `retry()`.
 - `sync/SyncNotice.tsx`: the sync banner. It shows nothing while synced. After 600 ms of pending work it
   shows one muted line ("Saved on this phone, syncing · 2 records to upload"). With failures it shows a
@@ -297,7 +298,8 @@ the attacks behind it (`episodeIds`) as evidence.
 - `safeFacts.ts`: the facts a replaced dose answer may still show: the latest acute dose of the 24 h before the reply
   whose medication has an interval, with that interval in hours.
 - The tab (`src/app/(tabs)/companion.tsx`) has Today's start (or return to) an attack in its top bar, a due debrief
-  (`DebriefCard`; while it asks its questions, typed words go in `debrief` mode with the attack's id, after the same
+  (`DebriefCard`; the route param `debrief=<episode id>`, from Today's debrief row, makes that attack due even before
+  05:00, as the signal fires on the local date; while it asks its questions, typed words go in `debrief` mode with the attack's id, after the same
   red-flag check; during its saved confirmation they go in `chat` mode),
   and its parts: `MessageList` (an inverted `FlatList` with day dividers; new
   items rise in and nothing else moves, and the typing line mounts only after 300 ms), `EvidenceChips` and
@@ -484,7 +486,8 @@ Medications and doses live in the local mirrors and reach the server through the
   `useCheckins(userId, from, to)` (the rows, oldest first, inclusive) feeds the insights.
 - `checkin/CheckinCard.tsx`: Today's two questions. The sleep tap saves nothing; the second answer, in either order, saves
   both with a success haptic and the card turns into the done line, with Change (reopens the questions with the saved answers
-  marked) and More details (opens `/checkin`). `checkin/Chip.tsx` is the 48 pt answer chip.
+  marked) and More details (opens `/checkin`); `headingRef` gives Today its heading for a screen reader's focus.
+  `checkin/Chip.tsx` is the 48 pt answer chip.
 - `app/checkin.tsx`: the full check-in (sleep, its quality, stress, five optional facts, and the period question only when
   `profile.trackPeriod`). It is a transparent modal that draws its own scrim and bottom sheet with a grip: in Day the sheet
   slides up on a spring, in Dim and reduced motion it fades (Dim with an 8 pt rise). Tapping the scrim closes it. Save sends
@@ -516,9 +519,45 @@ Medications and doses live in the local mirrors and reach the server through the
   the last one ended), the open attack's card, and from 12 hours the "is it over?" question (`Not yet` waits for the next
   12-hour multiple, kept per attack in kv). `today/MedicationSummary.tsx`: the month's dose days per class against its limit,
   the most urgent overuse notice and the next preventive dose due today.
-- `(tabs)/today.tsx` puts them together with the sync line and the AI-off card, and docks Start an attack (or Back to the
-  attack) above the tab bar; starting writes the attack before opening crisis mode. The date follows a minute clock, so it
+- `(tabs)/today.tsx` puts them together with the sync line, the companion note, the AI-off card and the signals
+  section ([Signals on Today](#signals-on-today)), and docks Start an attack (or Back to the attack) above the tab bar;
+  starting writes the attack before opening crisis mode. The date follows a minute clock, so it
   turns over at midnight and on every return to the app.
+
+## Signals on Today
+
+`src/signals/`, the phone's side of the signals (the rules and the monitor: [`architecture.md`](architecture.md#signals-and-the-monitor)).
+
+- `index.ts` re-exports `supabase/functions/_shared/signals.ts` (`computeSignals`, `todayRows`, `withStoredPressure`,
+  `signalFromRow`, `freshPressureFromRow`, the `Signal` type), so Today, the companion and the monitor rank the same rows.
+- `signalRepository.ts`: `fetchTodayPressure(userId, localDate)` reads the day's newest stored `pressure` row (named
+  columns with `computed_at`, the user's token) and keeps it in kv `signals.<userId>` with its date; a row computed more
+  than `maxForecastAgeHours` ago reads as none, online or kept (`freshPressureFromRow`); a failed read answers the kept
+  row for that date, an answer that settles after the account changed is not kept, and of concurrent reads for the same
+  day only the newest reply is answered and kept. `readCachedPressure` gives the kept row at once;
+  `removeCachedSignals` is for the sign-out cleanup only.
+- `useTodaySignals.ts`: `useTodaySignals(userId, now)` runs `computeSignals` over `useRecords` (no forecast, the device
+  zone), merges the stored pressure row with `withStoredPressure` (another day's row, a stale one, or one during an
+  open attack, is left out) and cuts to `todayRows`. It reads the pressure row on focus and on resume. `empty` is `new` while the user
+  has fewer than 3 check-ins and no attack, `none` when nothing fires, null with rows.
+- `signalText.ts`: every word of a row, pure: title, reason, detail, source, the action (`debrief`, `crisis`, `checkin`
+  or `cabinet`) and whether it carries the weather credit (pressure only). A short night names the check-in's band
+  ("You slept under 5 h") and the average of the nights before an attack in hours with the locale's separator ("5.1 h",
+  "5,1 h") over a count of nights ("over 6 nights", "over 1 night"), never minutes; the pressure reason says "you marked weather" only when `weather` is a chosen trigger, else
+  "you tagged weather on some of your attacks"; times are on the device zone's clock.
+- `companionNote.ts`: `companionNote` picks the note (an open attack, then the top row, then a brand-new user, else
+  none) and `noteText` its words and the short night's count line. `CompanionNoteCard.tsx` renders it with "this morning"
+  before 12:00 and "just now" after, and Reply (opens the Companion tab) only with the AI on.
+- `SignalsSection.tsx` and `SignalRow.tsx`: "Signals today" with up to three rows, or `today.signals.empty` (new) or
+  `today.signals.none`. A row is a button (`accessibilityState.expanded`, read as its title and reason) that opens onto
+  the detail, the source, the pressure row's "Weather data by Open-Meteo.com" link and the action button. In Day and
+  Dark the chevron turns (`fast`), the detail drops in from −8 pt 40 ms after the tap and the rows below glide on a
+  spring at `base`; in Dim the chevron cross-fades between two icons, the detail drops from −4 pt and the rows below
+  snap; with reduced motion everything cross-fades at 150 ms. On the first render in an app session the rows rise in
+  40 ms apart (60 ms in Dim, all at once with reduced motion); after that they snap.
+- Today's actions: the debrief row opens `/companion?debrief=<id>` with the AI on, else `/episode/<id>`; a long
+  attack returns to crisis mode; no check-in lately scrolls to the check-in card and moves the screen reader's focus to
+  its heading; medication days open `/cabinet`.
 
 ## History and the episode screens (`src/history/`, `src/app/(tabs)/history.tsx`, `src/app/episode/`)
 

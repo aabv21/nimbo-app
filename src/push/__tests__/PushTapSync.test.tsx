@@ -17,7 +17,7 @@ beforeEach(() => {
 });
 
 test('a signal push tap that launched the app opens Today and is cleared', async () => {
-  mocked.getLastNotificationResponse.mockReturnValueOnce(tap({ url: '/today', signalId: 'signal-1' }));
+  mocked.getLastNotificationResponse.mockReturnValueOnce(tap({ url: '/today' }));
 
   await render(<PushTapSync />);
 
@@ -35,7 +35,7 @@ test('a tap while the app runs opens Today; the listener goes away on unmount', 
   const view = await render(<PushTapSync />);
 
   await act(() => {
-    listener?.(tap({ url: '/today', signalId: 'signal-1' }));
+    listener?.(tap({ url: '/today' }));
   });
 
   expect(router.navigate).toHaveBeenCalledWith('/today');

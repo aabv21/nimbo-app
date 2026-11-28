@@ -44,16 +44,25 @@ function daysSince(ended: string, now: Date, timeZone: string): number {
 /**
  * The attack to ask about: the one that ended last, on a local day before today (yesterday's only from
  * `DEBRIEF_FROM_HOUR`) and at most `DEBRIEF_MAX_AGE_DAYS` ago, not debriefed and not in `skipped` (those finished on
- * this phone); null when there is none.
+ * this phone); null when there is none. `requested` (Today's debrief row) is due before that hour too.
  */
-export function debriefDue(episodes: readonly Episode[], now: Date, timeZone: string, skipped: ReadonlySet<string>): Episode | null {
+export function debriefDue(
+  episodes: readonly Episode[],
+  now: Date,
+  timeZone: string,
+  skipped: ReadonlySet<string>,
+  requested: string | null = null,
+): Episode | null {
   let due: Episode | null = null;
   const morning = localHourIn(now, timeZone) >= DEBRIEF_FROM_HOUR;
   for (const episode of episodes) {
     const { endedAt } = episode;
     if (endedAt === null || episode.debriefedAt !== null || skipped.has(episode.id)) continue;
     const days = daysSince(endedAt, now, timeZone);
-    if (days < 1 || days > DEBRIEF_MAX_AGE_DAYS || (days === 1 && !morning)) continue;
+    if (days < 1 || days > DEBRIEF_MAX_AGE_DAYS) continue;
+    // The row's signal fires on the local date, so a tap at 01:30 still finds its questions.
+    if (episode.id === requested) return episode;
+    if (days === 1 && !morning) continue;
     if (due?.endedAt == null || Date.parse(endedAt) > Date.parse(due.endedAt)) due = episode;
   }
   return due;

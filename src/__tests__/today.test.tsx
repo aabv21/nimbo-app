@@ -34,6 +34,7 @@ jest.mock('expo-router', () => ({
     }, []);
   },
 }));
+jest.mock('../signals/signalRepository', () => ({ fetchTodayPressure: jest.fn(() => Promise.resolve(null)), readCachedPressure: () => null }));
 const mockSync = { pending: 0, failed: 0, syncing: false, retry: jest.fn() };
 jest.mock('../lib/sync/SyncProvider', () => ({ useSyncState: () => mockSync }));
 
@@ -86,6 +87,7 @@ afterEach(() => {
 });
 
 test('the first day says so, and each section says what fills it', async () => {
+  resetAuth({ profile: { ...READY_PROFILE, onboardingCompletedAt: NOW.toISOString() } });
   await render(<Today />);
 
   expect(screen.getByRole('header', { name: t('today.status.first') })).toBeOnTheScreen();
@@ -93,6 +95,7 @@ test('the first day says so, and each section says what fills it', async () => {
   expect(screen.getByText(t('today.signals.empty'))).toBeOnTheScreen();
   expect(screen.getByText(t('today.med.empty'))).toBeOnTheScreen();
   expect(screen.getByRole('button', { name: t('today.start') })).toBeOnTheScreen();
+  expect(screen.getByText(t('today.note.first'))).toBeOnTheScreen();
 });
 
 test('an open attack shows its running time, this attack and the way back to it', async () => {
@@ -253,4 +256,59 @@ test('with the AI off, Today says where to turn it on', async () => {
   resetAuth({ profile: { ...READY_PROFILE, aiEnabled: false } });
   await render(<Today />);
   expect(screen.getByText(t('today.summary.ai_off'))).toBeOnTheScreen();
+});
+
+test('the companion note sits above the sections, and Reply opens the companion', async () => {
+  resetAuth({ profile: { ...READY_PROFILE, onboardingCompletedAt: NOW.toISOString() } });
+  await render(<Today />);
+  expect(screen.getByText(t('today.note.by_now'))).toBeOnTheScreen();
+  expect(textIndex(t('today.note.first'))).toBeLessThan(textIndex(t('today.signals.title')));
+
+  await fireEvent.press(screen.getByRole('button', { name: t('today.note.reply') }));
+  expect(router.push).toHaveBeenCalledWith('/companion');
+});
+
+test('during an attack the note says Nimbo is here', async () => {
+  startEpisode('user-1', new Date(2026, 10, 26, 13, 0));
+  await render(<Today />);
+  expect(screen.getByText(t('today.note.during'))).toBeOnTheScreen();
+});
+
+test('with the AI off the note has no Reply', async () => {
+  resetAuth({ profile: { ...READY_PROFILE, aiEnabled: false, onboardingCompletedAt: NOW.toISOString() } });
+  await render(<Today />);
+  expect(screen.getByText(t('today.note.first'))).toBeOnTheScreen();
+  expect(screen.queryByRole('button', { name: t('today.note.reply') })).not.toBeOnTheScreen();
+});
+
+async function pressDebrief(): Promise<string> {
+  const ended = new Date(2026, 10, 25, 18, 40);
+  const id = startEpisode('user-1', new Date(2026, 10, 25, 17, 0));
+  endEpisode('user-1', id, ended);
+  doCheckin();
+  await render(<Today />);
+  const title = t('signal.debrief.title');
+  const reason = t('signal.debrief.reason', { time: formatClock(ended, 'en') });
+  await fireEvent.press(screen.getByRole('button', { name: `${title}. ${reason}` }));
+  await fireEvent.press(screen.getByRole('button', { name: t('signal.debrief.action') }));
+  return id;
+}
+
+test('the debrief row opens the companion on that attack with the AI on', async () => {
+  const id = await pressDebrief();
+  expect(router.push).toHaveBeenCalledWith({ pathname: '/companion', params: { debrief: id } });
+});
+
+test('with the AI off the debrief row opens the attack instead', async () => {
+  resetAuth({ profile: { ...READY_PROFILE, aiEnabled: false } });
+  const id = await pressDebrief();
+  expect(router.push).toHaveBeenCalledWith({ pathname: '/episode/[id]', params: { id } });
+});
+
+test('with no check-in for days, the row’s action goes to the check-in card', async () => {
+  await render(<Today />);
+  await fireEvent.press(screen.getByRole('button', { name: `${t('signal.quiet.title')}. ${t('signal.quiet.reason')}` }));
+  await fireEvent.press(screen.getByRole('button', { name: t('signal.quiet.action') }));
+  expect(router.push).not.toHaveBeenCalled();
+  expect(screen.getByRole('header', { name: t('today.checkin.title') })).toBeOnTheScreen();
 });

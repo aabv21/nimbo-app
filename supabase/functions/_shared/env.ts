@@ -4,7 +4,7 @@
 export type SupabaseEnv = { supabaseUrl: string; anonKey: string; serviceRoleKey: string };
 export type JevEnv = { typesafeApiKey: string; typesafeBaseUrl: string };
 export type ClaudeEnv = { anthropicApiKey: string; anthropicBaseUrl: string };
-/** The key is empty on the free API and set on the commercial one (docs/architecture.md#signals-and-the-pressure-forecast). */
+/** The key is empty on the free API and set on the commercial one (docs/architecture.md#weather). */
 export type WeatherEnv = { openMeteoUrl: string; openMeteoApiKey: string };
 /** Expo's push API base (`/send` and `/getReceipts` are appended); the access token is empty unless push security is on. */
 export type PushEnv = { expoPushUrl: string; expoAccessToken: string };

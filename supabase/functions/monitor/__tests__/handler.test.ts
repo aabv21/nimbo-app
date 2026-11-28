@@ -191,7 +191,7 @@ test('anything but POST is 405, and a wrong or missing secret is 401, before any
   expect(calls).toHaveLength(0);
 });
 
-test('fixture S01 sends exactly one message: the neutral title, no body, and data with only the url and the signal id', async () => {
+test('fixture S01 sends exactly one message: the neutral title, no body, and data with only the url', async () => {
   const { fetch, calls } = world();
 
   const response = await handleMonitor(post(), deps(fetch));
@@ -209,7 +209,7 @@ test('fixture S01 sends exactly one message: the neutral title, no body, and dat
     receipts_checked: 0,
     tokens_removed: 0,
   });
-  expect(sends(calls)).toEqual([[{ to: 'ExponentPushToken[phone-1]', title: 'You have a note from Nimbo', data: { url: '/today', signalId: SIGNAL_ID }, channelId: 'signals', sound: 'default' }]]);
+  expect(sends(calls)).toEqual([[{ to: 'ExponentPushToken[phone-1]', title: 'You have a note from Nimbo', data: { url: '/today' }, channelId: 'signals', sound: 'default' }]]);
 
   const save = bodyOf(rpcCalls(calls, 'save_signals')[0] as Call);
   expect(save.p_user_id).toBe(USER_1);
@@ -242,7 +242,7 @@ test('with the lock-screen opt-in and Spanish, the title is the kind and the bod
   const [message] = sends(calls)[0] ?? [];
   expect(message?.title).toBe('Cambio de presión');
   expect(message?.body).toContain('6,5');
-  expect(message?.data).toEqual({ url: '/today', signalId: SIGNAL_ID });
+  expect(message?.data).toEqual({ url: '/today' });
 });
 
 test('Open-Meteo answering 500 still saves and pushes a debrief for that user, and the run answers 200', async () => {
@@ -318,6 +318,13 @@ test('a failed receipts read is logged and the run goes on', async () => {
   expect(response.status).toBe(200);
   expect(logged).toContain(JSON.stringify({ outcome: 'receipts_failed' }));
   expect(sends(calls)).toHaveLength(1);
+});
+
+test('the targets are read page by page in user id order, so limit and offset paging is stable', async () => {
+  const { fetch, calls } = world({ targets: [target(USER_1), target(USER_2)] });
+  await handleMonitor(post(), deps(fetch));
+  const pages = calls.filter((call) => call.url.pathname === '/rest/v1/rpc/monitor_targets').map((call) => call.url.search);
+  expect(pages).toEqual(['?order=user_id&limit=1000&offset=0', '?order=user_id&limit=1000&offset=2']);
 });
 
 test('a failed targets read answers 500 internal', async () => {
@@ -485,12 +492,12 @@ describe('what never leaks', () => {
     }
   });
 
-  test.each([false, true])('an Expo body (opt-in %p) holds a token only in `to` and a UUID only as the signal id', async (lockScreenDetail) => {
+  test.each([false, true])('an Expo body (opt-in %p) holds a token only in `to`, no UUID, and `data` only the url', async (lockScreenDetail) => {
     const messages = await runPrivacy(lockScreenDetail);
     expect(messages).toHaveLength(2);
     for (const message of messages) {
-      expect(Object.keys(message.data).sort()).toEqual(['signalId', 'url']);
-      const rest = JSON.stringify({ ...message, to: undefined, data: { ...message.data, signalId: undefined } });
+      expect(message.data).toEqual({ url: '/today' });
+      const rest = JSON.stringify({ ...message, to: undefined });
       expect(rest).not.toMatch(UUID_ANYWHERE);
       expect(rest).not.toMatch(/evidence|ExponentPushToken|e-debrief/);
       if (!lockScreenDetail) expect(rest).not.toMatch(/hPa/);

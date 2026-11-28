@@ -1,5 +1,5 @@
 // The six signal rules and the push decision: pure and synchronous, so the phone, the companion and the hourly
-// monitor compute the same rows and the caller owns every read (docs/architecture.md#signals-and-the-pressure-forecast).
+// monitor compute the same rows and the caller owns every read (docs/architecture.md#signals-and-the-monitor).
 import { doseDaysForMonth, localDateIn } from './condition/doseDays.ts';
 import { overuseStatus } from './condition/overuse.ts';
 import type { ConditionPack, MedicationClass, SignalKind, SleepBand } from './condition/types.ts';
@@ -444,6 +444,18 @@ export function signalFromRow(row: unknown): Signal | null {
     default:
       return null;
   }
+}
+
+/**
+ * A stored pressure row (`signalFromRow`'s columns plus `computed_at`) while its forecast is fresh; null once it was
+ * computed more than the pack's `maxForecastAgeHours` ago. The monitor refreshes a row that still holds every hour, so
+ * an older one is a forecast nobody re-checked (docs/architecture.md#signals-and-the-monitor).
+ */
+export function freshPressureFromRow(row: unknown, now: Date, pack: ConditionPack): Signal | null {
+  if (!isRecord(row) || !isTime(row.computed_at)) return null;
+  if (!(now.getTime() - Date.parse(row.computed_at) <= pack.signals.pressure.maxForecastAgeHours * HOUR_MS)) return null;
+  const signal = signalFromRow(row);
+  return signal?.kind === 'pressure' ? signal : null;
 }
 
 /**

@@ -12,7 +12,8 @@ import { Text, View } from 'react-native';
 // - `withTiming`, `withSpring`, `withDelay`: settle at once on the target, as Reanimated's own mock does;
 //   `withTiming` also calls its completion callback with `finished: true`.
 // - `interpolate`, `interpolateColor`: linear and nearest-stop, enough to assert a settled style.
-// - `FadeIn`, `FadeOut`: layout-animation builders whose modifiers chain and do nothing; the view mounts settled.
+// - `FadeIn`, `FadeOut`, `LinearTransition`: layout-animation builders whose modifiers chain and do nothing; the view
+//   mounts settled.
 // - `LayoutAnimationConfig`: renders its children; no entering animation runs here anyway.
 
 export function useReducedMotion(): boolean {
@@ -129,6 +130,7 @@ function layoutAnimation(): unknown {
 
 export const FadeIn = layoutAnimation();
 export const FadeOut = layoutAnimation();
+export const LinearTransition = layoutAnimation();
 
 export const ReduceMotion = { System: 'system', Always: 'always', Never: 'never' } as const;
 

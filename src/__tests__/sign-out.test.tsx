@@ -117,6 +117,7 @@ test('signing out with a record not uploaded asks first, then clears the session
   kvSet('memory.user-1', JSON.stringify([{ id: 'n1', text: 'Works night shifts on Thursdays', createdAt: '2026-11-20T10:00:00Z' }]));
   // Debriefs finished on this phone.
   kvSet('debrief.done.user-1', JSON.stringify(['clean-episode']));
+  kvSet('signals.user-1', JSON.stringify({ localDate: '2026-11-26', row: null }));
   // This phone's push token, registered for the account.
   kvSet('push.user-1', JSON.stringify({ token: 'ExponentPushToken[device-1]' }));
 
@@ -154,6 +155,7 @@ test('signing out with a record not uploaded asks first, then clears the session
   // The cached notes and the debriefs marked done leave whatever the outbox holds.
   expect(kvGet('memory.user-1')).toBeNull();
   expect(kvGet('debrief.done.user-1')).toBeNull();
+  expect(kvGet('signals.user-1')).toBeNull();
   // Sign-out tried to delete the row with the session first; offline, the token waits for push-unregister with its account.
   expect(kvGet('push.user-1')).toBe(JSON.stringify({ token: null }));
   expect(kvGet('push.pendingUnregister')).toBe(JSON.stringify([{ token: 'ExponentPushToken[device-1]', userId: 'user-1' }]));

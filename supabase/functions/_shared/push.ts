@@ -15,7 +15,7 @@ export const EXPO_RECEIPT_BATCH = 1000;
 export const EXPO_PUSH_TIMEOUT_MS = 5_000;
 
 /** A visible signal push: neutral copy unless the user opted in, and `data` never says more than where a tap goes. */
-export type PushMessage = { to: string; title: string; body?: string; data: { url: '/today'; signalId: string } };
+export type PushMessage = { to: string; title: string; body?: string; data: { url: '/today' } };
 /** A data-only message the app reads silently: push-claim's code for the claiming phone. */
 export type ClaimMessage = { to: string; data: { type: 'push-claim'; code: string; nonce: string } };
 

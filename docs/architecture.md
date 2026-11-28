@@ -2,15 +2,15 @@
 
 This page covers where Nimbo runs, what each part does, how the app decides which screen to show,
 how consent is recorded, how it starts offline, how health data is kept and synced offline, crisis mode,
-the red-flag paths, the companion and its guards, the overuse guard, the pressure forecast, reminders, premium, the security
-model, the reasons behind the design choices, and how to regenerate the diagrams. Parts that later waves
+the red-flag paths, the companion and its guards, the overuse guard, the insights, the signals and the hourly monitor,
+Today's companion note, the weather, push notifications, reminders, premium, the security model, the reasons behind the design choices, and how to regenerate the diagrams. Parts that later waves
 add are drawn as planned and marked that way.
 
-![System context: the Expo app keeps nimbo.db, the outbox and the chat on the phone, and talks to the Supabase project's Auth and REST API and to the companion Edge Function with the user's token, and to Apple and Google for native sign-in; Postgres holds the tracking tables, the agent's notes and the quotas; companion reads the caller's rows with the caller's JWT and calls Anthropic for the tool loop and the fallback screen and TypeSafe's Jev for the screens; the email relay and a GitHub Actions keep-alive call are planned](diagrams/system-context.svg)
+![System context: the Expo app keeps nimbo.db, the outbox and the chat on the phone, and talks to the Supabase project's Auth, its REST API and its Edge Functions (companion, push-claim, push-unregister) with the user's token, and to Apple and Google for native sign-in; companion reads the caller's rows with the caller's JWT and calls Anthropic for the tool loop and the fallback screen and TypeSafe's Jev for the screens; Postgres runs pg_cron, pg_net and the Vault, and its hourly job calls the monitor function with a Vault secret; monitor reads the pressure forecast for a coarse cell from Open-Meteo and sends neutral pushes through Expo push, which delivers them to the app over FCM and APNs; the email relay and a GitHub Actions keep-alive call are planned](diagrams/system-context.svg)
 
 System context: [interactive page](diagrams/system-context.html) · [source](diagrams/system-context.json)
 
-The diagram tool [archify](https://github.com/tt-a1i/archify) generates the five diagrams on this
+The diagram tool [archify](https://github.com/tt-a1i/archify) generates the six diagrams on this
 page from their JSON sources; [Regenerating the diagrams](#regenerating-the-diagrams) shows how.
 Each interactive page adds search, focus and both color themes; open it in a browser.
 
@@ -30,8 +30,10 @@ or Portuguese. It is not a medical device and never diagnoses or prescribes.
   classifier) and TypeSafe (Jev screens every message and reply), called only from the `companion`
   function, never from the phone. Locally they are mocks on the host ([`local-stack.md`](local-stack.md#mocks)).
 - **The forecast provider.** Open-Meteo's forecast API gives the hourly sea-level pressure for a coarse
-  cell, fetched by the Edge Functions only and cached in `weather_cache`
-  ([Signals and the pressure forecast](#signals-and-the-pressure-forecast)). Locally it is a mock on the host.
+  cell, fetched by the `monitor` function only and cached in `weather_cache` ([Weather](#weather)). Locally it is a
+  mock on the host.
+- **The push service.** Expo's push service sends the monitor's pushes on to FCM (Android) and APNs (iOS)
+  ([Push notifications](#push-notifications)). Locally it is a mock on the host.
 - **Planned services.** An email relay for the hosted project and a daily GitHub Actions call to
   `keep_alive()` so a free project is not paused.
 
@@ -52,12 +54,16 @@ or Portuguese. It is not a medical device and never diagnoses or prescribes.
 | `keep_alive` | Postgres | A no-op the anon key may call. |
 | Condition pack | Shared code | The migraine catalogs, medication classes, overuse limits, red flags, emergency numbers, dose days and the crisis plan, in `supabase/functions/_shared/condition/`, imported by the app and the functions. |
 | `companion` | Edge Function | One chat message: the input screen, the quota, a bounded Claude tool loop over the caller's own rows and the reply screen ([The companion](#the-companion)). |
+| `push-claim`, `push-unregister` | Edge Functions | Reclaim a push token another account holds, by a code pushed to it; forget a token after a sign-out, with the device secret ([Push notifications](#push-notifications)). |
+| `monitor` | Edge Function | Every hour, from `pg_cron`: Expo's receipts, then each user's signals computed, stored and at most one neutral push sent ([Signals and the monitor](#signals-and-the-monitor)). |
+| Insights and signal rules | Shared code | `_shared/insights.ts` and `_shared/signals.ts`, pure, run on the phone over the mirror and on the server over `record_inputs` ([Insights](#insights)). |
+| Open-Meteo, Expo push | External | The pressure forecast and the push relay to FCM and APNs, called only by `monitor` (and `push-claim` for its code push). |
 | Anthropic, TypeSafe | External | Claude Sonnet 5.5 and Haiku 5.5, and Jev, called only by `companion` with the function's secrets ([`ai.md`](ai.md)). |
-| Email relay, data APIs, keep-alive workflow | Planned | Not built yet. |
+| Email relay, keep-alive workflow | Planned | Not built yet. |
 
 ## Data model
 
-![Data model: the signup trigger inserts a profiles row for each auth.users row; the app updates thirteen settings columns of profiles directly and records consent and the end of onboarding only through the profile RPCs, which stamp the server time; it writes episodes, doses, medications and checkins only through the nine tracking RPCs that the outbox calls, set_dose_helped included, where a dose references its medication and loses its episode when the episode is deleted; has_premium reads the caller's own entitlements row; the note RPCs save_agent_note and delete_agent_note write agent_notes; the companion function spends AI units through consume_quota, the only writer of usage_counters](diagrams/data-model.svg)
+![Data model: the signup trigger inserts a profiles row for each auth.users row, whose zone a trigger checks; the app updates thirteen settings columns of profiles directly and records consent and the end of onboarding only through the profile RPCs, which stamp the server time; it writes episodes, doses, medications and checkins only through the nine tracking RPCs that the outbox calls, set_dose_helped included, where a dose references its medication and loses its episode when the episode is deleted; has_premium reads the caller's own entitlements row; the note RPCs write agent_notes; the companion function spends AI units through consume_quota, the only writer of usage_counters; the push token RPCs write push_tokens and its claims (push_claims, push_claim_starts); pg_cron calls monitor with the Vault secret, and monitor reads weather_cache by cell and the records through record_inputs, and through the monitor RPCs upserts and claims signals and queues push_tickets; prune_expired_caches deletes old tickets, signals and cached forecasts daily](diagrams/data-model.svg)
 
 Data model: [interactive page](diagrams/data-model.html) · [source](diagrams/data-model.json)
 
@@ -73,7 +79,11 @@ tracking RPC, and only the service role writes an entitlement. The debrief lives
 key), and `doses.helped` (set by `set_dose_helped`). `agent_notes` holds the agent's short notes about how the
 user likes things, written only by `save_agent_note` and `delete_agent_note`. `usage_counters` holds the daily
 AI units; it has no policy and no grant, so only `consume_quota`, called by the function's service role, touches
-it. The columns, policies, grants and RPC contracts are in [`database.md`](database.md).
+it. This wave adds `signals` (one row per user and cause key, read by its owner, written only by the monitor),
+`push_tokens` (written only through `register_push_token` with the device secret, with `push_claims` and
+`push_claim_starts` behind `push-claim`), and the server-only `weather_cache` and `push_tickets`. `record_inputs`
+reads a user's records for the rules, and `profiles_check_timezone` refuses a zone `private.is_time_zone` does not
+know. The columns, policies, grants and RPC contracts are in [`database.md`](database.md).
 
 ## Sign-in and the gate
 
@@ -410,7 +420,78 @@ not count; an archived acute medication's doses still do. Today and the cabinet 
 notice (a class limit before a combined one, a limit before a warning). The guard informs and never
 blocks a dose.
 
-## Signals and the pressure forecast
+## Insights
+
+History's Patterns and the companion's `get_insights` run one module, `supabase/functions/_shared/insights.ts`: pure
+code over the records (`_shared/records.ts`), fed on the phone by the local mirror (`src/insights/useRecords.ts`) and on
+the server by `record_inputs`. There are seven kinds (`INSIGHT_KINDS`): attacks per month, the attack-free streak, the
+triggers the user tagged, the part of the day, the weekday, what helped and sleep before an attack. Each insight carries
+`count`, `of`, `windowDays` (90) and the attacks behind it, and is a count, never a percentage. A kind shows only past
+its minimum in the condition pack (`insights`: 60 tracked days for the monthly chart, 14 for the streak, 5 attacks for
+triggers, 8 for the part of the day, 12 for the weekday, 3 debriefs for what helped, 14 check-ins with 5 short and 5
+other nights for sleep); below it the card says what is still needed, never a number. A time-of-day or weekday
+spread gets a sentence only when an even spread would give a top count that high at most one time in ten
+(`patternChanceMax`);
+otherwise it shows the bars and no sentence. Wording never says "causes", "risk", "likely" or "predict"; the triggers
+and sleep cards add that showing up together does not prove one causes the other.
+
+## Signals and the monitor
+
+![Monitor run: at :05 pg_cron calls monitor through pg_net with the Vault secret; monitor first reads the due push receipts, asks Expo push for them, deletes the tokens Expo reports gone and forgets the checked tickets; it then reads monitor_targets, the users with a valid zone who finished onboarding, starting one place further each hour; for each user while under the time budget it reads record_inputs for 90 days, the forecast for the user's cell from weather_cache, or on a miss from Open-Meteo, saves the signals with save_signals, claims one push with claim_signal_push when decidePush sends, sends the neutral push through Expo push and saves its tickets; it answers 200 with counts. Separately, Today on the phone reads only today's pressure row and computes its other rows itself](diagrams/monitor-run.svg)
+
+Monitor run: [interactive page](diagrams/monitor-run.html) · [source](diagrams/monitor-run.json)
+
+A signal is a short reason to take care today, computed by code from the user's own records and never by a model.
+`supabase/functions/_shared/signals.ts` holds the six rules and the push decision, pure, so the phone, the companion's
+`get_signals` and the monitor compute the same rows. The values live in the condition pack (`signals`, `push`):
+
+| Signal | Fires when | Pack value |
+| --- | --- | --- |
+| Long attack | An open attack reaches 12 hours, then 72 | `longAttackHours` [12, 72] |
+| Medication days (warn, limit) | A class, or the combined count, reaches 80 % of its monthly limit, or the limit (the overuse guard's counts) | `overuseWarnRatio` 0.8, the limits table above |
+| Debrief | An attack ended yesterday (local date) and has no debrief | none |
+| Short night | Today's check-in band is under the average of the nights before an attack, with at least 5 such nights in 90 days and other nights longer by 0.5 h or more | `shortSleep` { `minAttackNights`: 5, `minGapHours`: 0.5 } |
+| Pressure change | Sea-level pressure drops 6 hPa or more from this hour to the same hour tomorrow, for a user who chose `weather` or tagged it on 3 attacks in 90 days, from a forecast at most 3 hours old | `pressure` { `dropHpa`: 6, `horizonHours`: 24, `minTaggedEpisodes`: 3, `maxForecastAgeHours`: 3 } |
+| No check-in lately | No check-in for 3 days, once the user has been onboarded that long | `quietTrackerDays` 3 |
+
+Signals are ranked long attack, medication limit, debrief, medication warning, short night, pressure, no check-in
+(`priority`). During an open attack, pressure, short night and no check-in are held back (`suppressDuringAttack`).
+Today shows at most three (`maxOnToday`). Each signal has a `cause_key` (for example `short_sleep:2026-11-27`), so a
+reason is stored and pushed once.
+
+- **Who is evaluated.** Every onboarded user with a valid zone, every hour, whatever the hour: Today needs the pressure
+  row at any time, and the window decides only whether to push.
+- **The push rules** (`decidePush`). A push goes out only inside the user's hours `[notify_start, notify_end)` on their
+  clock; a start after the end crosses midnight, and equal hours are an empty window. At most `notify_daily_cap` (0 to 2)
+  a local day, never the same cause twice in 24 hours (`sameCauseHours`), never the same `cause_key` twice, and one push
+  per user per run, the highest-ranked signal left.
+- **The claim.** Before sending, `claim_signal_push` takes a per-user advisory lock and re-checks the key, the cap since
+  local midnight and the 24-hour rule in one transaction, and claims nothing for a user with no token, so overlapping or
+  retried runs never send one twice; a claim whose send fails is lost rather than doubled.
+- **Receipts.** Each push's tickets go into `push_tickets`. Each run first asks Expo for the receipts of tickets 15
+  minutes to 24 hours old, deletes the tokens Expo reports `DeviceNotRegistered` and forgets the checked tickets.
+- **The run.** A `pg_cron` job calls `monitor` at :05 every hour through `pg_net`, with a shared secret kept in the Vault
+  ([`api.md`](api.md#monitor)). Forecasts are looked up once per distinct cell, a few at a time, and a cell not answered by
+  100 s leaves that user without the pressure signal. No user starts after 90 s and no push is claimed after 110 s; each
+  run starts one place further along the user list, so the users a run leaves out change every hour
+  ([`database.md`](database.md#the-hourly-monitor)). `profiles.timezone` accepts only IANA names, checked before any
+  `AT TIME ZONE`.
+- **Today on the phone.** Today runs `computeSignals` over the local mirror itself, without the forecast, so its rows
+  work offline and follow a check-in at once. It reads only today's stored pressure row from `signals` (with the user's
+  token, kept in kv `signals.<userId>` for an offline view) and merges it by rank; a row from another day, one computed
+  more than `maxForecastAgeHours` (3 h) ago, online or kept, or one while an attack is open, is left out. A row whose
+  drop still holds is re-saved every hour, so only a forecast nobody re-checked ages out. Of two reads in flight for
+  the same day, only the newest reply is shown and kept. Only the server pushes.
+
+### Today's companion note
+
+The note at the top of Today is template text chosen by code (`src/signals/companionNote.ts`), never a model call.
+In order: an open attack gives "I'm here…"; otherwise Today's top signal gives its own note (a short night names the
+check-in's band, with the count of attack nights under it as plain text); a brand-new user with no records gets the
+first-day note; anyone else gets no card. Its header reads "this morning" before 12:00 and "just now" after. "Reply"
+opens the Companion tab and is hidden with the AI off. Evidence chips stay in the chat.
+
+## Weather
 
 The pressure signal needs the only input the phone does not have: the forecast. Everything about the provider
 lives in `supabase/functions/_shared/weather.ts` (the URL, the parameters and the parsing), so changing provider
@@ -426,20 +507,29 @@ or plan touches one module and its mock.
   progress, or a cache that cannot be read, gives no forecast (and nothing is cached), and the pressure signal is
   skipped for that run; an hour the provider leaves empty is dropped. No
   stale forecast is used past the age asked for, nor a cached one that no longer reaches 24 hours ahead.
+- **Attribution.** The pressure row's detail ends with "Weather data by Open-Meteo.com", linked to
+  `https://open-meteo.com/`, as the provider's terms ask.
 - **The plan.** Open-Meteo's free API is non-commercial, so it serves development and closed testing only.
   Before the public store release the owner buys the commercial API Standard plan (`OPEN_METEO_URL` set to the
   customer endpoint and `OPEN_METEO_API_KEY` to its key, which `pressureUrl` then sends) or switches provider
   ([`owner-runbook.md`](owner-runbook.md)).
-- **The hourly monitor.** A `pg_cron` job calls the `monitor` function at :05 every hour through `pg_net`, with a shared
-  secret kept in the Vault ([`api.md`](api.md#monitor)). It evaluates every onboarded user with a valid zone, whatever
-  the hour: the window decides only whether to push. Forecasts are looked up once per distinct cell, a few at a time, and
-  a cell not answered by 100 s simply leaves that user without the pressure signal. No user starts after 90 s and no
-  push is claimed after 110 s, and each run starts one place further along the user list, so the users a run leaves out
-  change every hour. Each push is claimed
-  in SQL first (`claim_signal_push`, under a per-user advisory lock that re-checks the key, the cap since local midnight
-  and the 24-hour cause rule), so overlapping or retried runs never send one twice; a claim whose send fails is lost
-  rather than doubled. Expo's receipts are read on the next runs and dead tokens deleted ([`database.md`](database.md#the-hourly-monitor)).
-  `profiles.timezone` accepts only IANA names, checked before any `AT TIME ZONE`.
+
+## Push notifications
+
+- **Registration.** A `push_tokens` row means "this phone gets signal pushes"; there are no per-kind switches, and the
+  daily cap (0 to 2) with the system permission is the opt-out. The phone registers on launch and after "Allow
+  notifications" whenever the permission is granted, through `register_push_token` with its device secret (256 random
+  bits made once per install; the server keeps only its SHA-256), never by a table write ([`app.md`](app.md#push-srcpush)).
+- **The device secret.** It proves the phone where there is no session: at sign-out `push-unregister` deletes the named
+  account's row holding that token under that secret, and a token another account holds can move only through
+  `push-claim`, by a code pushed to that token ([`api.md`](api.md#push-claim)).
+- **Neutral copy.** A signal push's title is "You have a note from Nimbo" in the profile's language, with no body. The
+  kind's title and a short body appear only with the lock-screen opt-in (`lock_screen_detail`), and even then never a
+  medication's name. Its `data` is only `{ url: '/today' }`; a tap opens Today.
+- **The Android channel** `signals` is created before the token request, with the system's lock-screen visibility, so
+  the copy carries the privacy ([`native-config.md`](native-config.md#permissions)).
+- **Not live yet.** Tokens need the owner's EAS project and Firebase (FCM) setup, and iOS remote push waits for the
+  Apple account; until then registration reads `unavailable`, which Profile states ([`owner-runbook.md`](owner-runbook.md)).
 
 ## Reminders and lock-screen privacy
 
@@ -470,7 +560,7 @@ No feature is gated yet; the server check is the authority.
   writes `entitlements`.
 - **Coarse location only.** The phone rounds a fix to one decimal before saving it, the columns hold
   nothing finer, and the app never reads the area back (`PROFILE_COLUMNS` leaves it out). The forecast
-  request carries that cell and nothing else ([Signals and the pressure forecast](#signals-and-the-pressure-forecast)).
+  request carries that cell and nothing else ([Weather](#weather)).
 - **No secrets in the bundle.** `EXPO_PUBLIC_*` holds only the Supabase URL, the anon key and the
   Google OAuth client ids. The service-role key is read by `integration/helpers.ts` and scripts
   only, never under `src/`.
@@ -481,9 +571,13 @@ No feature is gated yet; the server check is the authority.
   carries a nonce; Google's does not, because the Google Sign-In library cannot send one Supabase
   Auth would match, so a Google ID token has no replay protection beyond its short lifetime
   (`src/auth/socialAuth.ts`).
-- **No health text in logs, route params or notification payloads.** Routes carry ids only; the
-  urgent-care request stays in memory; a reminder's `data` is empty and its body is neutral unless the
-  user turns on the lock-screen detail.
+- **No health text in logs, route params or notification payloads.** Routes carry ids only (Today's debrief row
+  opens the Companion tab with `debrief=<episode id>`); the urgent-care request stays in memory; a reminder's `data`
+  is empty and a signal push's is `{ url: '/today' }`, and both are neutral unless the user turns on the
+  lock-screen detail.
+- **The monitor and the push functions.** `monitor` is the only code that uses the service role for a whole request,
+  runs only from the `pg_cron` job with the Vault's secret, and makes no model call. Every function that takes a body
+  caps it (64 KiB, 2048 bytes and 1024 bytes; `monitor` reads none) ([`red-team.md`](red-team.md#request-bodies-push-and-the-monitor)).
 - **Health records on the phone.** `nimbo.db` keeps the user's records for offline use. On sign-out
   or an account switch the previous user's rows are deleted, and a launch deletes any other user's
   rows left by a sign-out made while the app was closed. Only rows still waiting to be sent (dirty, or
@@ -559,6 +653,20 @@ No feature is gated yet; the server check is the authority.
   unscreened reply is always marked.
 - **Recall first for red flags.** The keywords match the union of the three languages and the models add
   to them, never subtract; a false hit costs one "I'm safe, continue".
+- **Signals on the phone, pushes from the server.** Today computes its rows over the local mirror with the same rules
+  as the monitor and fetches only the pressure row, so rows work offline and follow a check-in at once; a server-only
+  read would lag up to an hour. The monitor evaluates everyone hourly and the window gates only the push.
+- **Sleep in bands, not minutes.** Check-ins store a band, so signals and pushes name the band ("You slept under 5 h")
+  and averages are band midpoints in hours with one decimal in the locale's separator, never minutes.
+- **"Weather in your history" means tags.** The pressure signal applies to a user who chose `weather` or tagged it on
+  3 attacks in 90 days; there is no per-user statistical test, and only drops count.
+- **Two sleep insights.** Trigger frequency counts the user's own tags; sleep before an attack reads check-in nights
+  against the other nights. One is what the user suspects, the other what they logged.
+- **No `weather` endpoint.** The forecast is a shared module and a cache read only by `monitor`; an endpoint comes only
+  when a screen needs live weather.
+- **Equal notification hours are an empty window.** No push goes out, and no constraint refuses the save; Profile says so
+  under equal hours.
+- **The neutral push says "You have a note from Nimbo".** The approved copy, the same line the reminders use.
 - **Commits by milestone.** Each wave's branch history has one commit per milestone, each reviewed
   before it is kept, so the history reads as the build order.
 
@@ -578,6 +686,7 @@ install. Keep it outside this repo, so `pnpm lint` does not scan its files, and 
 | `gate-flow.json` | `workflow` |
 | `crisis-logging.json` | `sequence` |
 | `companion-message.json` | `sequence` |
+| `monitor-run.json` | `sequence` |
 
 Run the commands from the repo root, because each source's `meta.output` path is relative to it.
 For one diagram, with its type and name:
@@ -591,5 +700,5 @@ For one diagram, with its type and name:
 4. `node "$ARCHIFY" visual-check <copy>.html --json` checks a copy of the page in a real browser; it
    writes PNG screenshots next to the page, so run it on a copy outside the repo.
 
-Update the diagrams when the schema, the gate rules, the sync path, the companion's request or a planned service changes, and
+Update the diagrams when the schema, the gate rules, the sync path, the companion's request, the monitor's run or a planned service changes, and
 keep the alt text above in step with them.

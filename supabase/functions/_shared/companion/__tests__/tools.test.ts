@@ -313,7 +313,8 @@ describe('get_signals', () => {
   /** A triptan dose at 15:00 local on day `day` of November 2026. */
   const triptan = (n: number, day: number) => ({ id: id(800 + n), medicationId: SUMATRIPTAN, episodeId: null, takenAt: `2026-11-${String(day).padStart(2, '0')}T20:00:00.000Z`, helped: null });
   const PRESSURE_EVIDENCE = { nowHpa: 1012, laterHpa: 1006, laterAt: '2026-11-28T13:00:00Z', dropHpa: 6.5 };
-  const pressureRow = (localDate: string): Row => ({
+  /** Computed at 11:05 local by default, 55 minutes before `NOW`. */
+  const pressureRow = (localDate: string, computedAt = `${localDate}T16:05:00.000Z`): Row => ({
     id: id(990),
     user_id: USER_ID,
     kind: 'pressure',
@@ -321,7 +322,7 @@ describe('get_signals', () => {
     cause_key: `pressure:${localDate}`,
     local_date: localDate,
     evidence: PRESSURE_EVIDENCE,
-    computed_at: `${localDate}T13:05:00.000Z`,
+    computed_at: computedAt,
   });
   // Yesterday's attack (09:00–13:00 local on the 26th), not debriefed.
   const YESTERDAY = id(610);
@@ -372,7 +373,14 @@ describe('get_signals', () => {
     expect(outcome.evidence).toEqual([]);
     const read = calls.find((call) => call.url.pathname === '/rest/v1/signals');
     expect(read?.headers.get('authorization')).toBe(USER_AUTH);
-    expect(Object.fromEntries(read?.url.searchParams ?? [])).toMatchObject({ kind: 'eq.pressure', local_date: 'eq.2026-11-27', select: 'kind,cause,cause_key,evidence' });
+    expect(Object.fromEntries(read?.url.searchParams ?? [])).toMatchObject({ kind: 'eq.pressure', local_date: 'eq.2026-11-27', select: 'kind,cause,cause_key,evidence,computed_at' });
+  });
+
+  test('a pressure row computed more than 3 hours ago is left out: its forecast is stale', async () => {
+    const fresh = signalsSetup({}, [pressureRow('2026-11-27', '2026-11-27T14:00:00.000Z')]);
+    const kindsOf = async (world: typeof fresh) => ((await world.run('get_signals', {})).content as { signals: Row[] }).signals.map((signal) => signal.kind);
+    expect(await kindsOf(fresh)).toEqual(['pressure']);
+    expect(await kindsOf(signalsSetup({}, [pressureRow('2026-11-27', '2026-11-27T13:59:00.000Z')]))).toEqual([]);
   });
 
   test('no UUID reaches the content: attacks by ref, never an id, a cause key or a row id', async () => {

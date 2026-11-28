@@ -4,7 +4,7 @@ import { en } from '../../../../src/i18n/en.ts';
 import { es } from '../../../../src/i18n/es.ts';
 import { pt } from '../../../../src/i18n/pt.ts';
 import type { Locale } from '../condition/types.ts';
-import { NEUTRAL, pushLanguageOf, signalPushCopy, TITLES } from '../pushCopy.ts';
+import { NEUTRAL, pushLanguageOf, signalPushCopy, SLEPT, TITLES } from '../pushCopy.ts';
 import type { Signal } from '../signals.ts';
 
 const SIGNALS: readonly Signal[] = [
@@ -129,6 +129,17 @@ describe('parity with the app catalogs', () => {
       quiet: catalog['signal.quiet.title'],
     });
     for (const signal of SIGNALS) expect(Object.values(TITLES[language])).toContain(signalPushCopy(signal, language, true).title);
+  });
+
+  test.each(LOCALES)('each %s sleep band phrase equals its signal.sleep.slept.<band> key', (language) => {
+    const catalog = catalogs[language];
+    expect(SLEPT[language]).toEqual({
+      lt5: catalog['signal.sleep.slept.lt5'],
+      '5_6': catalog['signal.sleep.slept.5_6'],
+      '6_7': catalog['signal.sleep.slept.6_7'],
+      '7_8': catalog['signal.sleep.slept.7_8'],
+      gt8: catalog['signal.sleep.slept.gt8'],
+    });
   });
 });
 

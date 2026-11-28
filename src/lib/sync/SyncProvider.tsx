@@ -10,6 +10,7 @@ import { removeDebriefsDone } from '../../companion/debriefDone';
 import { removeCachedNotes } from '../../memory/agentNotesRepository';
 import { removeCachedProfile } from '../../profile/profileRepository';
 import { flushPendingUnregister, forgetPushTokenLater } from '../../push/pushRegistration';
+import { removeCachedSignals } from '../../signals/signalRepository';
 import { onEnqueue, outboxState, resetFailed, wakeOffline } from '../outbox/outbox';
 import { pauseOutbox, resumeOutbox, rpcSender, runOutbox } from '../outbox/runOutbox';
 import type { OutboxDeps } from '../outbox/runOutbox';
@@ -18,11 +19,13 @@ import { useOnResume } from '../useOnResume';
 import { pullAll } from './pull';
 
 /**
- * The agent's notes (the user's words about themselves, never queued), the debriefs marked done, and this phone's
- * push token, unregistered through `push-unregister` with the device secret since the session is gone.
+ * The agent's notes (the user's words about themselves, never queued), the debriefs marked done, today's pressure
+ * row, and this phone's push token, unregistered through `push-unregister` with the device secret since the session
+ * is gone.
  */
 function forgetUserCaches(userId: string): void {
   removeCachedNotes(userId);
+  removeCachedSignals(userId);
   removeDebriefsDone(userId);
   forgetPushTokenLater(userId);
   void flushPendingUnregister();

@@ -84,7 +84,7 @@ permission must list it here with the reason and the plugin that adds it.
   has no APNs entitlement and gets no token; its reminders still work.
 - **Content:** a reminder's title is "Nimbo" and its body the neutral line, unless the user turned on the lock-screen
   detail in Profile; its `data` carries nothing. A signal push's title is "You have a note from Nimbo" with no body,
-  unless the same opt-in is on; its `data` is only `{ url: '/today', signalId }`, and a tap opens Today.
+  unless the same opt-in is on; its `data` is only `{ url: '/today' }`, and a tap opens Today.
 
 ## What `app.json` sets
 

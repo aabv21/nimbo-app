@@ -17,7 +17,7 @@ import { isRecord, UUID } from '../guards.ts';
 import { computeInsights, type Insight, INSIGHT_KINDS, insightNeeds } from '../insights.ts';
 import { INSIGHT_SINCE_DAYS, parseRecordInputs, type RecordInputs, trackingSinceOf } from '../records.ts';
 import { rpcClient } from '../rest.ts';
-import { computeSignals, type Signal, type SignalUser, signalFromRow, signalRecords, withStoredPressure } from '../signals.ts';
+import { computeSignals, freshPressureFromRow, type Signal, type SignalUser, signalRecords, withStoredPressure } from '../signals.ts';
 import { type CheckinDraft, type Draft, type DoseDraft, type EpisodeDraft, type Evidence, isLocalDate, NOTE_MAX_CHARS } from './contract.ts';
 import { addDays, type Caller, type EpisodeSpan, localIso, parseZonedTime, readCountedRows, readRows, type Row, zonedMidnight, zoneOrUtc } from './data.ts';
 import type { RefPrefix, Refs } from './refs.ts';
@@ -533,17 +533,20 @@ function signalFields(signal: Signal, env: ToolEnv, timeZone: string): Record<st
   }
 }
 
-/** Today's pressure row, which only the monitor can compute; a failed read leaves it out, as a missing forecast does. */
-async function storedPressure(env: ToolEnv, today: string): Promise<Signal | null> {
+/**
+ * Today's pressure row, which only the monitor can compute, while its forecast is fresh; a failed read leaves it out,
+ * as a missing forecast does.
+ */
+async function storedPressure(env: ToolEnv, today: string, now: Date): Promise<Signal | null> {
   try {
     const rows = await readRows(env, 'signals', [
-      ['select', 'kind,cause,cause_key,evidence'],
+      ['select', 'kind,cause,cause_key,evidence,computed_at'],
       ['kind', 'eq.pressure'],
       ['local_date', `eq.${today}`],
       ['order', 'computed_at.desc'],
       ['limit', '1'],
     ]);
-    return signalFromRow(rows[0]);
+    return freshPressureFromRow(rows[0], now, env.pack);
   } catch {
     return null;
   }
@@ -554,7 +557,7 @@ async function getSignals(env: ToolEnv): Promise<ToolOutcome> {
   // Signal dates are local dates, and an unknown zone would throw: the handler's zone, checked again.
   const timeZone = zoneOrUtc(env.timeZone);
   const today = localDateIn(now, timeZone);
-  const [records, stored] = await Promise.all([readRecords(env, now, env.pack.insights.windowDays), storedPressure(env, today)]);
+  const [records, stored] = await Promise.all([readRecords(env, now, env.pack.insights.windowDays), storedPressure(env, today, now)]);
   // Not yet onboarded reads as onboarded now, so a quiet tracker cannot fire.
   const user: SignalUser = { ...records, timeZone, onboardedAt: records.onboardedAt ?? now.toISOString(), pressure: null };
   const signals = withStoredPressure(computeSignals(user, now, env.pack), stored, user, now, env.pack);

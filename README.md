@@ -1,6 +1,6 @@
 # Nimbo
 
-**Demo** · status: companion (the tracking core plus an AI companion that answers from your own records)
+**Demo** · status: signals (the tracking core, an AI companion that answers from your own records, insights, and signals with push notifications)
 
 A migraine companion for iPhone and Android: log attacks, spot your patterns and get calm guidance, in English, Spanish or Portuguese. Built with Expo and Supabase as a portfolio demo.
 
@@ -11,7 +11,7 @@ Nimbo is not a medical device. It does not diagnose, prescribe or replace a clin
 - Sign-up with an email code, sign-in with email, and Apple and Google sign-in (their live provider checks are pending).
 - Two consent gates before the app: the adult and medical-boundary confirmation, then the AI question. Declining AI keeps the app complete and hides the Companion tab.
 - A short intro, then five optional setup steps: known triggers, what matters most, medications, notifications and a rough area for weather.
-- Today: the status line, the daily check-in in two taps, the month's medication days and Start an attack, ordered by what the user said matters most.
+- Today: the status line, a short note from the companion, up to three signals for the day (a short night, a pressure drop, medication days, yesterday's debrief, a long attack, no check-in lately), each opening onto its reason and source, the daily check-in in two taps, the month's medication days and Start an attack, ordered by what the user said matters most. The signals are counts from your own records, computed on the phone, and never a forecast.
 - Crisis mode: a dim, calm screen with 56 pt controls for intensity, symptoms, where it hurts and doses, with the countdown to the next dose. Every time stays editable, the start included.
 - A medicine cabinet with a medication-overuse guard on the ICHD-3 limits, and private local reminders for preventive medications.
 - History as a calendar, a searchable, filtered list and Patterns: counts from your own records (attacks per month, days without an attack, triggers, time of day, weekday, what helped and sleep the night before), never a percentage, and what is still needed below each minimum. The companion reads the same counts.
@@ -19,11 +19,12 @@ Nimbo is not a medical device. It does not diagnose, prescribe or replace a clin
 - Everything is logged offline first and synced when the network returns, exactly once.
 - The companion: a chat that answers from your own records and shows where each number comes from, turns what you say into drafts you confirm, keeps short notes on how you like things ("What I know about you"), and asks a day-after debrief that builds your crisis plan. Every message and reply is screened for warning signs, dose advice, diagnosis and invented numbers; it never prescribes. The chat stays on the phone.
 - Dictation: hold the mic in the Companion tab, or "Tell me" in crisis mode, with short replies you can have read aloud.
+- An hourly server check that computes the same signals and sends at most one neutral notification a run, inside your notification hours and under your daily cap (0 to 2); the details show on the lock screen only if you turn them on. Push needs the owner's EAS and Firebase setup before it reaches a phone, and the weather uses Open-Meteo's free API until the commercial plan (or another provider) before the store launch.
 - Premium access the owner can grant; no feature is gated yet.
 - Four tabs (Today, Companion, History, Profile) with a Liquid Glass tab bar; English, Spanish and Portuguese; three appearances (Day, Dark, Dim) plus Automatic.
 - A local Supabase stack with row-level security on every table and RPC-only health writes, tested with pgTAP and integration suites, and Maestro flows for onboarding, crisis mode, a red flag and a companion draft.
 
-Signals and push notifications are planned. How it works: [`docs/architecture.md`](docs/architecture.md).
+How it works: [`docs/architecture.md`](docs/architecture.md).
 
 ## Quick start
 

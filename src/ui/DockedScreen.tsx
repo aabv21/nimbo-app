@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import type { ReactNode } from 'react';
+import type { ComponentRef, ReactNode, Ref } from 'react';
 import { StyleSheet, View } from 'react-native';
+import type { ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Screen } from './Screen';
@@ -13,10 +14,11 @@ interface DockedScreenProps {
   dock: ReactNode;
   /** How far above the screen's bottom edge the dock sits (the tab bar's room); omitted, it sits on the safe area. */
   above?: number;
+  scrollRef?: Ref<ComponentRef<typeof ScrollView>>;
 }
 
 /** A scrolling screen with a docked action area; the content leaves room for the dock's measured height. */
-export function DockedScreen({ children, dock, above }: DockedScreenProps): React.JSX.Element {
+export function DockedScreen({ children, dock, above, scrollRef }: DockedScreenProps): React.JSX.Element {
   const { color } = useTheme();
   const insets = useSafeAreaInsets();
   const [height, setHeight] = useState(0);
@@ -24,7 +26,7 @@ export function DockedScreen({ children, dock, above }: DockedScreenProps): Reac
 
   return (
     <View style={styles.root}>
-      <Screen bottomInset={bottom + height}>{children}</Screen>
+      <Screen bottomInset={bottom + height} {...(scrollRef === undefined ? {} : { scrollRef })}>{children}</Screen>
       <View
         onLayout={(event) => {
           setHeight(event.nativeEvent.layout.height);

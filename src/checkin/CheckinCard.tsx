@@ -3,6 +3,7 @@ import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { ChevronRight } from 'lucide-react-native';
 import { useState } from 'react';
+import type { ComponentRef, Ref } from 'react';
 import { AccessibilityInfo, Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 
@@ -25,9 +26,11 @@ interface CheckinCardProps {
   userId: string;
   /** The device's calendar day the check-in belongs to. */
   localDate: string;
+  /** The heading, for a screen reader's focus when Today scrolls here. */
+  headingRef?: Ref<ComponentRef<typeof Text>>;
 }
 
-export function CheckinCard({ userId, localDate }: CheckinCardProps): React.JSX.Element {
+export function CheckinCard({ userId, localDate, headingRef }: CheckinCardProps): React.JSX.Element {
   const { t } = useI18n();
   const { color } = useTheme();
   const motion = useMotion();
@@ -70,7 +73,7 @@ export function CheckinCard({ userId, localDate }: CheckinCardProps): React.JSX.
 
   return (
     <View style={styles.root}>
-      <Text accessibilityRole="header" style={[styles.heading, { color: color.text }]}>
+      <Text ref={headingRef} accessibilityRole="header" style={[styles.heading, { color: color.text }]}>
         {t('today.checkin.title')}
       </Text>
       {done && checkin !== null && checkin.sleepBand !== null && checkin.stress !== null ? (

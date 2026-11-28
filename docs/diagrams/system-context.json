@@ -13,7 +13,7 @@
     "cellW": 150,
     "cellH": 64,
     "gapX": 110,
-    "gapY": 90,
+    "gapY": 80,
     "origin": [
       40,
       80
@@ -21,10 +21,18 @@
   },
   "components": [
     {
+      "id": "idp",
+      "type": "external",
+      "label": "Apple · Google",
+      "sublabel": "sign-in ID tokens",
+      "row": 0,
+      "col": 0
+    },
+    {
       "id": "app",
       "type": "frontend",
       "label": "Nimbo app",
-      "sublabel": "nimbo.db \u00b7 outbox \u00b7 chat",
+      "sublabel": "nimbo.db · outbox · chat",
       "row": 1,
       "col": 0,
       "size": [
@@ -33,42 +41,54 @@
       ]
     },
     {
-      "id": "idp",
+      "id": "expo",
       "type": "external",
-      "label": "Apple \u00b7 Google",
-      "sublabel": "sign-in ID tokens",
-      "row": 2,
+      "label": "Expo push",
+      "sublabel": "FCM · APNs behind it",
+      "row": 3,
       "col": 0
     },
     {
       "id": "auth",
       "type": "security",
       "label": "Auth",
-      "sublabel": "email code \u00b7 ID tokens",
+      "sublabel": "email code · ID tokens",
       "row": 0,
       "col": 2
+    },
+    {
+      "id": "fns",
+      "type": "backend",
+      "label": "Edge Functions",
+      "sublabel": "companion · push-claim · unregister",
+      "row": 1,
+      "col": 2,
+      "size": [
+        210,
+        64
+      ]
     },
     {
       "id": "pg",
       "type": "database",
       "label": "Postgres 17",
-      "sublabel": "tracking \u00b7 notes \u00b7 quotas",
-      "row": 1,
+      "sublabel": "pg_cron · pg_net · Vault",
+      "row": 2,
       "col": 2,
       "size": [
-        180,
+        210,
         64
       ]
     },
     {
-      "id": "fn",
+      "id": "monitor",
       "type": "backend",
-      "label": "companion",
-      "sublabel": "Edge Function",
-      "row": 2,
+      "label": "monitor",
+      "sublabel": "hourly Edge Function",
+      "row": 3,
       "col": 2,
       "size": [
-        180,
+        210,
         64
       ]
     },
@@ -78,6 +98,22 @@
       "label": "Email relay",
       "sublabel": "planned, hosted only",
       "row": 0,
+      "col": 3
+    },
+    {
+      "id": "jev",
+      "type": "external",
+      "label": "TypeSafe",
+      "sublabel": "Jev screens",
+      "row": 0,
+      "col": 4
+    },
+    {
+      "id": "claude",
+      "type": "external",
+      "label": "Anthropic",
+      "sublabel": "Sonnet 5.5 · Haiku 5.5",
+      "row": 1,
       "col": 4
     },
     {
@@ -85,22 +121,14 @@
       "type": "external",
       "label": "GitHub Actions",
       "sublabel": "keep-alive, planned",
-      "row": 1,
-      "col": 4
-    },
-    {
-      "id": "claude",
-      "type": "external",
-      "label": "Anthropic",
-      "sublabel": "Sonnet 5.5 \u00b7 Haiku 5.5",
       "row": 2,
       "col": 4
     },
     {
-      "id": "jev",
+      "id": "meteo",
       "type": "external",
-      "label": "TypeSafe",
-      "sublabel": "Jev screens",
+      "label": "Open-Meteo",
+      "sublabel": "pressure_msl by cell",
       "row": 3,
       "col": 4
     }
@@ -111,8 +139,9 @@
       "label": "Supabase project (local stack today)",
       "wraps": [
         "auth",
+        "fns",
         "pg",
-        "fn"
+        "monitor"
       ]
     }
   ],
@@ -122,9 +151,8 @@
       "from": "app",
       "to": "idp",
       "label": "native sign-in",
-      "fromSide": "bottom",
-      "toSide": "top",
-      "labelDy": 24
+      "fromSide": "top",
+      "toSide": "bottom"
     },
     {
       "id": "app-auth",
@@ -136,20 +164,18 @@
       "toSide": "left"
     },
     {
+      "id": "app-fns",
+      "from": "app",
+      "to": "fns",
+      "label": "chat, token + JWT",
+      "variant": "emphasis"
+    },
+    {
       "id": "app-pg",
       "from": "app",
       "to": "pg",
       "label": "REST + user JWT",
       "variant": "emphasis"
-    },
-    {
-      "id": "app-fn",
-      "from": "app",
-      "to": "fn",
-      "label": "chat + user JWT",
-      "variant": "emphasis",
-      "fromSide": "right",
-      "toSide": "left"
     },
     {
       "id": "auth-smtp",
@@ -159,26 +185,26 @@
       "variant": "dashed"
     },
     {
-      "id": "fn-pg",
-      "from": "fn",
+      "id": "fns-pg",
+      "from": "fns",
       "to": "pg",
       "label": "caller's JWT",
-      "fromSide": "top",
-      "toSide": "bottom"
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 24
     },
     {
-      "id": "fn-claude",
-      "from": "fn",
+      "id": "fns-claude",
+      "from": "fns",
       "to": "claude",
       "label": "tool loop, fallback"
     },
     {
-      "id": "fn-jev",
-      "from": "fn",
+      "id": "fns-jev",
+      "from": "fns",
       "to": "jev",
       "label": "screens",
-      "fromSide": "bottom",
-      "toSide": "left"
+      "toSide": "bottom"
     },
     {
       "id": "gh-pg",
@@ -186,6 +212,35 @@
       "to": "pg",
       "label": "keep_alive()",
       "variant": "dashed"
+    },
+    {
+      "id": "pg-monitor",
+      "from": "pg",
+      "to": "monitor",
+      "label": "cron :05, Vault secret",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 24
+    },
+    {
+      "id": "monitor-meteo",
+      "from": "monitor",
+      "to": "meteo",
+      "label": "forecast, coarse cell"
+    },
+    {
+      "id": "monitor-expo",
+      "from": "monitor",
+      "to": "expo",
+      "label": "neutral push"
+    },
+    {
+      "id": "expo-app",
+      "from": "expo",
+      "to": "app",
+      "label": "notification",
+      "fromSide": "top",
+      "toSide": "bottom"
     }
   ],
   "cards": [
@@ -193,32 +248,32 @@
       "dot": "emerald",
       "title": "On the phone",
       "items": [
-        "Health data is saved to nimbo.db first and each write is queued",
-        "The chat is kept only on this phone"
+        "Health data goes to nimbo.db first, each write queued",
+        "Today's rows are computed here; only pressure is fetched"
       ]
     },
     {
       "dot": "cyan",
-      "title": "The companion",
+      "title": "The functions",
       "items": [
-        "Model calls run only in the companion function",
-        "Requests carry no name, email, id or location"
+        "Model calls run only in companion; monitor makes none",
+        "Only monitor holds the service role for a whole request"
       ]
     },
     {
       "dot": "amber",
       "title": "Planned",
       "items": [
-        "The boxes marked planned and the dashed lines arrive in later waves",
-        "Weather and other data APIs come with insights"
+        "Boxes marked planned and dashed lines come later",
+        "Push needs EAS and Firebase; Open-Meteo free is for testing"
       ]
     },
     {
       "dot": "rose",
-      "title": "Keys",
+      "title": "Keys and payloads",
       "items": [
-        "The app holds the URL and the anon key",
-        "Provider keys are function secrets, never in src/"
+        "The app holds the URL and the anon key only",
+        "A push carries a url and a signal id, neutral by default"
       ]
     }
   ]

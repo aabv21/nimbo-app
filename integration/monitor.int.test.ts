@@ -115,11 +115,11 @@ test('a POST with the local secret sends one neutral push and stamps the signal'
   expect(pushes[0]?.title).toBe('You have a note from Nimbo');
   expect(pushes[0]?.body).toBeUndefined();
 
-  const { data, error } = await serviceClient().from('signals').select('id, cause_key, pushed_at').eq('user_id', userId());
+  expect(pushes[0]?.data).toEqual({ url: '/today' });
+  const { data, error } = await serviceClient().from('signals').select('cause_key, pushed_at').eq('user_id', userId());
   expect(error).toBeNull();
   const pressure = data?.find((row) => row.cause_key.startsWith('pressure:'));
   expect(pressure?.pushed_at).not.toBeNull();
-  expect(pushes[0]?.data).toEqual({ url: '/today', signalId: pressure?.id });
 });
 
 test('a second POST in the same hour sends no second push', async () => {

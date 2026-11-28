@@ -1,6 +1,6 @@
 // The Companion tab: the chat kept on this phone, evidence behind each number, and drafts the user confirms.
-// The tab exists only while the AI is on (the tab list in this folder's layout).
-import { router } from 'expo-router';
+// The tab exists only while the AI is on (the tab list in this folder's layout); `debrief=<id>` asks about that attack.
+import { router, useLocalSearchParams } from 'expo-router';
 import { Plus } from 'lucide-react-native';
 import { useCallback, useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native';
@@ -54,7 +54,10 @@ function CompanionScreen({ userId }: { userId: string }): React.JSX.Element {
     const done = readDebriefsDone(userId);
     return new Set(episodes.filter((episode) => done.has(episode.id)).map((episode) => episode.id));
   }, [episodes, userId]);
-  const due = useMemo(() => debriefDue(episodes, now, deviceTimeZone(), skipped), [episodes, now, skipped]);
+  // Today's debrief row opens the tab with the attack's id, never its words.
+  const params = useLocalSearchParams<{ debrief?: string }>();
+  const requested = typeof params.debrief === 'string' ? params.debrief : null;
+  const due = useMemo(() => debriefDue(episodes, now, deviceTimeZone(), skipped, requested), [episodes, now, skipped, requested]);
   const debrief = holding ?? due;
   // Only while the card is on its questions are typed words about that attack; its saved confirmation is not a question.
   const asking = holding === null ? due : null;

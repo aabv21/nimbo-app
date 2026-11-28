@@ -118,11 +118,11 @@ async function rpc(deps: MonitorDeps, name: string, args: Record<string, unknown
   return text === '' ? null : (JSON.parse(text) as unknown);
 }
 
-/** Every row `monitor_targets()` answers, page by page (it orders them itself). */
+/** Every row `monitor_targets()` answers, page by page in user id order, so `limit`/`offset` never skip or repeat a row. */
 async function readTargets(deps: MonitorDeps): Promise<Target[]> {
   const targets: Target[] = [];
   for (let offset = 0; ; ) {
-    const page = await rpc(deps, 'monitor_targets', {}, `?limit=${String(PAGE)}&offset=${String(offset)}`);
+    const page = await rpc(deps, 'monitor_targets', {}, `?order=user_id&limit=${String(PAGE)}&offset=${String(offset)}`);
     if (!Array.isArray(page) || !page.every(isTarget)) throw new UpstreamError('monitor_targets: unexpected rows');
     if (page.length === 0) return targets;
     targets.push(...page);
@@ -274,7 +274,7 @@ async function evaluate(target: Target, run: Run): Promise<void> {
   const messages: PushMessage[] = claimed.map((row) => ({
     to: row.token,
     ...signalPushCopy(signal, pushLanguageOf(row.language), target.lock_screen_detail, quiet),
-    data: { url: '/today', signalId: row.signal_id },
+    data: { url: '/today' },
   }));
   const result = await sendPushes(deps.env, deps.fetch, messages);
   counts.pushed += result.sent;

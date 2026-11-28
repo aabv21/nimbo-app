@@ -42,7 +42,7 @@ test('a claim code push is handed to confirmPushClaim for this account', async (
 });
 
 test.each([
-  ['a signal push', { url: '/today', signalId: 'signal-1' }],
+  ['a signal push', { url: '/today' }],
   ['a claim push without a code', { type: 'push-claim' }],
   ['a code that isn’t a string', { type: 'push-claim', code: 12345678, nonce: 'a1'.repeat(16) }],
   ['a claim push without a nonce', { type: 'push-claim', code: 'K7M2P9QX' }],

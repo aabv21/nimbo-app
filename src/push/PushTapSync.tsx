@@ -1,5 +1,5 @@
 // Mounted while signed in and onboarded: a tap on a signal push opens Today. Only `data.url === '/today'` is
-// followed, so a push can open nothing else; `signalId` is not read yet.
+// followed, so a push can open nothing else.
 import * as Notifications from 'expo-notifications';
 import { router } from 'expo-router';
 import { useEffect } from 'react';

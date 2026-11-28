@@ -25,8 +25,10 @@ import { clearLocalDb } from '../test/localDbTest';
 jest.mock('expo-sqlite', () => require('../test/sqliteNode'));
 jest.mock('expo-crypto', () => ({ randomUUID: () => (require('node:crypto') as typeof import('node:crypto')).randomUUID() }));
 jest.mock('../auth/AuthProvider', () => require('../test/authMock'));
+const mockParams: { value: { debrief?: string } } = { value: {} };
 jest.mock('expo-router', () => ({
   router: { push: jest.fn(), back: jest.fn() },
+  useLocalSearchParams: () => mockParams.value,
   useIsFocused: () => true,
   useFocusEffect: (effect: () => void) => {
     jest.requireActual<typeof import('react')>('react').useEffect(() => {
@@ -86,6 +88,7 @@ beforeEach(() => {
   clearLocalDb();
   resetAuth();
   mockNetwork.state = { isConnected: true, isInternetReachable: true };
+  mockParams.value = {};
   for (const kind of ['companion', 'dictation']) kvRemove(`companion.quota.${kind}.${USER}.${localDate(NOW)}`);
 });
 
@@ -385,4 +388,18 @@ describe('the mic', () => {
     await settle();
     expect(screen.getByText(t('voice.denied'))).toBeOnTheScreen();
   });
+});
+
+test('Today’s debrief row (an id in the route) asks about that attack even at 01:30', async () => {
+  jest.setSystemTime(new Date(2026, 10, 27, 1, 30));
+  const id = seedEpisode(USER, new Date(2026, 10, 26, 17, 0), new Date(2026, 10, 26, 18, 40));
+  const greeting = t('debrief.q.helped.yesterday', { duration: '1 h 40 min' });
+  const before = await render(<Companion />);
+  // Without the row's id, nothing is asked before the morning.
+  expect(screen.queryByText(greeting)).not.toBeOnTheScreen();
+  await before.unmount();
+
+  mockParams.value = { debrief: id };
+  await render(<Companion />);
+  expect(screen.getByText(greeting)).toBeOnTheScreen();
 });

@@ -110,6 +110,10 @@ describe('insightLines', () => {
     };
     expect(insightLines(sleep, en).basis).toBe('Based on 1 attack and 20 check-ins.');
     expect(insightLines(sleep, ctxFor('pt')).basis).toBe('Com base em 1 crise e 20 check-ins.');
+    const oneCheckin: Insight = { ...sleep, count: 2, checkins: 1 };
+    expect(insightLines(oneCheckin, en).basis).toBe('Based on 2 attacks and 1 check-in.');
+    expect(insightLines(oneCheckin, ctxFor('es')).basis).toBe('Basado en 2 crisis y 1 check-in.');
+    expect(insightLines(oneCheckin, ctxFor('pt')).basis).toBe('Com base em 2 crises e 1 check-in.');
     const helped: Insight = { kind: 'helped', key: 'dark_room', source: 'relief', count: 1, of: 2, windowDays: 90, episodeIds: ['a'] };
     expect(insightLines(helped, en).basis).toBe('Based on 1 answered debrief.');
     expect(insightLines(helped, ctxFor('es')).basis).toBe('Basado en 1 repaso respondido.');
@@ -143,6 +147,15 @@ describe('needLine', () => {
     expect(needLine({ kind: 'attack_free_streak', unit: 'recent_record', min: 7, have: 1 }, ctxFor('pt').tp)).toBe(
       'Volta a aparecer quando você registrar algo. Seu último registro foi há 1 dia.',
     );
+  });
+
+  test('the attack and check-in lines agree with a have of one in es and pt', () => {
+    const attacks: InsightNeed = { kind: 'weekday', unit: 'attacks', min: 12, have: 1 };
+    const checkins: InsightNeed = { kind: 'sleep_before', unit: 'checkins', min: 14, have: 1 };
+    expect(needLine(attacks, ctxFor('pt').tp)).toBe('Preciso de pelo menos 12 crises para mostrar isto. Até agora você tem 1.');
+    expect(needLine(checkins, ctxFor('pt').tp)).toBe('Preciso de 14 check-ins, com e sem crise, para comparar. Até agora você tem 1.');
+    expect(needLine(attacks, ctxFor('es').tp)).toBe('Necesito al menos 12 crisis para mostrar esto. Llevas 1.');
+    expect(needLine(checkins, ctxFor('es').tp)).toBe('Necesito 14 check-ins, con y sin crisis, para comparar. Llevas 1.');
   });
 });
 

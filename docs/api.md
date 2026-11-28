@@ -194,7 +194,7 @@ depends only on the expected secret's length (`secretMatches`), and the job read
 1. **Receipts.** `push_receipts_due()` (tickets 15 minutes to 24 hours old), Expo's `getReceipts`, then the tokens whose
    receipt says `DeviceNotRegistered` are deleted and the checked tickets forgotten. A failure here logs
    `{"outcome":"receipts_failed"}` and the run goes on.
-2. **Targets.** `monitor_targets()` page by page (1000 rows). A failed read answers `500 { "error": "internal" }`.
+2. **Targets.** `monitor_targets()` page by page (1000 rows, `order=user_id` so `limit`/`offset` paging is stable). A failed read answers `500 { "error": "internal" }`.
    The visit order starts one place further each hour (the hours since the epoch, modulo the number of targets) and
    wraps round, so a budget cut never falls on the same users every hour. Forecast lookups start at once, in that order,
    one per distinct cell, 4 at a time, for the users who chose `weather`; a lookup a user is waiting for goes ahead of the
@@ -206,7 +206,7 @@ depends only on the expected secret's length (`secretMatches`), and the job read
    push log; `decidePush` (with `quiet:never` dropped after a pushed dated stretch); on `send`, unless `MONITOR_BUDGET_MS`
    (110 s) has passed (then the signals stay saved and the next hour decides again), `claim_signal_push`, and
    with rows one message per token, `signalPushCopy` (the neutral title unless `lock_screen_detail`) with
-   `data: { url: '/today', signalId }`; then `save_push_tickets` and the deletion of the tokens Expo answered
+   `data: { url: '/today' }`; then `save_push_tickets` and the deletion of the tokens Expo answered
    `DeviceNotRegistered`. An error inside one user counts as `failed` and never stops the next. A claim whose send then
    fails stays stamped: that push is lost, never doubled.
 4. **Reply.** `200 { "outcome": "done", "targets", "evaluated", "skipped", "failed", "signals", "pushed",
@@ -216,3 +216,12 @@ depends only on the expected secret's length (`secretMatches`), and the job read
 Other answers: `405 { "error": "method_not_allowed" }` for a method other than `POST`, `401 { "error": "unauthorized" }`
 for a missing or wrong secret, both before any call. The log line is the outcome word and the same counts, never a user
 id, a token, a zone or a signal.
+
+## Scheduled jobs
+
+Two `pg_cron` jobs run in the database; neither is called by the app ([`database.md`](database.md#the-hourly-monitor)).
+
+| Job | Schedule (UTC) | Runs |
+| --- | --- | --- |
+| `monitor` | `5 * * * *` | `select public.request_monitor()`: reads `monitor_url` and `monitor_secret` from the Vault and posts to `monitor` through `pg_net` with `x-webhook-secret`; without both secrets it does nothing. A missed run is skipped, not caught up: the next hour evaluates everyone again. |
+| `prune-expired-caches` | `17 3 * * *` | `select public.prune_expired_caches()`: deletes `signals` computed over 30 days ago (except each user's newest pushed quiet stretch, which keeps that stretch from being pushed again), `weather_cache` and `push_tickets` rows over 2 days old, expired push claims, claim starts over an hour old, and the run history of Nimbo's jobs over 7 days old. |

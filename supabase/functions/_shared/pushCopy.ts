@@ -44,7 +44,8 @@ export const TITLES: Readonly<Record<Locale, Readonly<Record<TitleKey, string>>>
   },
 });
 
-const SLEPT: Readonly<Record<Locale, Readonly<Record<SleepBand, string>>>> = Object.freeze({
+/** `signal.sleep.slept.<band>`, the same text as the app's catalogs. */
+export const SLEPT: Readonly<Record<Locale, Readonly<Record<SleepBand, string>>>> = Object.freeze({
   en: { lt5: 'You slept under 5 h', '5_6': 'You slept 5 to 6 h', '6_7': 'You slept 6 to 7 h', '7_8': 'You slept 7 to 8 h', gt8: 'You slept over 8 h' },
   es: { lt5: 'Dormiste menos de 5 h', '5_6': 'Dormiste de 5 a 6 h', '6_7': 'Dormiste de 6 a 7 h', '7_8': 'Dormiste de 7 a 8 h', gt8: 'Dormiste más de 8 h' },
   pt: {

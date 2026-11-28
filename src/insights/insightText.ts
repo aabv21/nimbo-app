@@ -181,7 +181,7 @@ export function cardLines(insights: readonly Insight[], ctx: InsightTextContext)
       ];
       const max = Math.max(1, ...nights.map((night) => night.hours ?? 0));
       return withRows({
-        ...empty(title, tp('insight.rests_checkins', first.count + first.baseline.count, { c: first.checkins })),
+        ...empty(title, tp('insight.rests_checkins', first.count + first.baseline.count, { checkins: tp('insight.checkins', first.checkins) })),
         bars: nights.flatMap((night) => (night.hours === null ? [] : [{ label: night.label, value: t('insight.sleep.hours', { h: night.hours }), fraction: night.hours / max }])),
         read: t('insight.sleep.read', { short: first.of, count: first.count, other: first.baseline.of, base: first.baseline.count }),
         note: t('insight.triggers.note'),

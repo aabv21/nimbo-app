@@ -108,6 +108,7 @@ export default defineConfig(
       'src/auth/__tests__/AuthProvider.test.tsx',
       'src/lib/{local,outbox,sync}/__tests__/*.test.{ts,tsx}',
       'src/insights/__tests__/*.test.{ts,tsx}',
+      'src/signals/__tests__/useTodaySignals.test.ts',
     ],
     rules: {
       '@typescript-eslint/no-require-imports': 'off',

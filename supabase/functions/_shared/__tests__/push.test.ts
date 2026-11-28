@@ -17,7 +17,7 @@ const ENV: PushEnv & SupabaseEnv = {
 const message = (n: number): PushMessage => ({
   to: `ExponentPushToken[${String(n)}]`,
   title: 'You have a note from Nimbo',
-  data: { url: '/today', signalId: `signal-${String(n)}` },
+  data: { url: '/today' },
 });
 
 const bodyOf = (body: string | undefined): unknown[] => JSON.parse(body ?? '[]') as unknown[];

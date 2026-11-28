@@ -26,6 +26,7 @@ jest.mock('expo-crypto', () => ({ randomUUID: () => (require('node:crypto') as t
 jest.mock('../../auth/AuthProvider', () => require('../../test/authMock'));
 jest.mock('expo-router', () => ({
   router: { push: jest.fn(), back: jest.fn() },
+  useLocalSearchParams: () => ({}),
   useIsFocused: () => true,
   useFocusEffect: (effect: () => void) => {
     jest.requireActual<typeof import('react')>('react').useEffect(() => {
