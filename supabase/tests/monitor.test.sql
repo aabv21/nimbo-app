@@ -144,9 +144,9 @@ select is(
   'a second identical claim answers no row'
 );
 select is(
-  (select count(*)::int from public.claim_signal_push('00000000-0000-4000-8000-00000000000a', 'no-such-key', 'America/Bogota', 2, 24)),
+  (select count(*)::int from public.claim_signal_push('00000000-0000-4000-8000-00000000000a', 'missing-cause', 'America/Bogota', 2, 24)),
   0,
-  'a key with no row claims nothing'
+  'a cause with no row claims nothing'
 );
 
 -- The cap: E pushed another cause at 08:00 local today.
