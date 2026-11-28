@@ -7,6 +7,7 @@ import Animated from 'react-native-reanimated';
 import { matchRedFlagsAnyLocale, packs } from '../condition';
 import { useI18n } from '../i18n';
 import type { MessageKey } from '../i18n';
+import { AlertText } from '../ui/AlertText';
 import { controlHeight, fonts, radius, space, type } from '../ui/theme';
 import { useTheme, useTones } from '../ui/themeContext';
 import { usePressFeedback } from '../ui/usePressFeedback';
@@ -61,9 +62,7 @@ export function Composer({ disabled, placeholder, busy, dictationOver, onSend }:
   return (
     <View style={styles.column}>
       {problem === null ? null : (
-        <Text accessibilityRole="alert" style={[styles.caption, { color: color.textMuted }]}>
-          {t(PROBLEM_KEY[problem])}
-        </Text>
+        <AlertText text={t(PROBLEM_KEY[problem])} style={[styles.caption, { color: color.textMuted }]} />
       )}
       <View style={styles.row}>
         <TextInput
@@ -79,7 +78,7 @@ export function Composer({ disabled, placeholder, busy, dictationOver, onSend }:
           multiline
           maxLength={TURN_MAX_CHARS}
           placeholder={t(placeholder)}
-          placeholderTextColor={color.textMuted}
+          placeholderTextColor={disabled ? tones.disabledInk : color.textMuted}
           style={[
             styles.input,
             { color: color.text, borderColor: color.border, backgroundColor: disabled ? tones.disabledFill : color.surface },
@@ -106,7 +105,7 @@ export function Composer({ disabled, placeholder, busy, dictationOver, onSend }:
             style={[styles.send, { backgroundColor: canSend ? color.accent : tones.disabledFill }]}
           >
             <Animated.View pointerEvents="none" style={[styles.pressed, { backgroundColor: tones.pressAccent }, pressedStyle]} />
-            <ArrowUp size={24} color={canSend ? color.onAccent : color.textMuted} />
+            <ArrowUp size={24} color={canSend ? color.onAccent : tones.disabledInk} />
           </Pressable>
         </Animated.View>
       </View>

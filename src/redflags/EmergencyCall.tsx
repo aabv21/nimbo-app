@@ -30,7 +30,7 @@ interface CallButtonProps {
   testID: string;
 }
 
-/** The screen's one filled control: danger fill, 56 pt, full width, with the region under the number. */
+/** The call control: danger fill, 56 pt, full width, with the region under the number; on the boundary screen it sits beside Continue, which is filled too. */
 export function CallButton({ label, sub, disabled, onPress, testID }: CallButtonProps): React.JSX.Element {
   const { color } = useTheme();
   const { scaleStyle, pressedStyle, onPressIn, onPressOut } = usePressFeedback();

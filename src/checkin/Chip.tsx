@@ -41,7 +41,9 @@ export function Chip({ label, selected, onPress, role }: ChipProps): React.JSX.E
 }
 
 const styles = StyleSheet.create({
+  // At most the row's width, with a label that wraps at large text sizes rather than running past the edge.
   chip: {
+    maxWidth: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     gap: space[1],
@@ -53,5 +55,5 @@ const styles = StyleSheet.create({
   },
   pressed: { ...StyleSheet.absoluteFill, opacity: 0 },
   markSlot: { width: MARK, height: MARK },
-  label: { fontFamily: fonts.bodySemiBold, fontSize: type.label, lineHeight: 20 },
+  label: { flexShrink: 1, fontFamily: fonts.bodySemiBold, fontSize: type.label, lineHeight: 20 },
 });

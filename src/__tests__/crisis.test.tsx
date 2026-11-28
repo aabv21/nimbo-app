@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
-import { BackHandler } from 'react-native';
+import { BackHandler, StyleSheet } from 'react-native';
 import * as Reanimated from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { useKeepAwake } from 'expo-keep-awake';
@@ -383,4 +383,19 @@ test('with the AI off, "Tell me" is absent', async () => {
   resetAuth({ profile: { ...READY_PROFILE, aiEnabled: false } });
   await open();
   expect(screen.queryByRole('button', { name: t('crisis.tell') })).toBeNull();
+});
+
+test('at large text sizes the chips and the saved line wrap inside the screen instead of running past its edge', async () => {
+  const wraps = (style: unknown): boolean => StyleSheet.flatten(style as never).flexShrink === 1;
+  await open();
+  const nausea = screen.getByRole('checkbox', { name: t('condition.symptoms.nausea') });
+  expect(StyleSheet.flatten(nausea.props.style as never).maxWidth).toBe('100%');
+  expect(wraps(screen.getByText(t('condition.symptoms.nausea')).props.style)).toBe(true);
+  expect(wraps(screen.getByText(t('crisis.saved_local')).props.style)).toBe(true);
+
+  await fireEvent.press(screen.getByRole('button', { name: /^Mark it on the head/ }));
+  await fireEvent.press(screen.getByRole('checkbox', { name: t('condition.painAreas.temple_left') }));
+  const marked = screen.getByRole('button', { name: t('condition.painAreas.temple_left') });
+  expect(StyleSheet.flatten(marked.props.style as never).maxWidth).toBe('100%');
+  expect(wraps(screen.getByText(t('condition.painAreas.temple_left')).props.style)).toBe(true);
 });

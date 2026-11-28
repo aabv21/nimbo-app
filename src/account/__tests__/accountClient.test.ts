@@ -169,6 +169,7 @@ describe('exportData', () => {
 
   test.each([
     ['an HTTP error', { data: null, error: httpError(500) }, 'unknown'],
+    ['a 401 (the session refused)', { data: null, error: httpError(401) }, 'reauth'],
     ['a network error', { data: null, error: new FunctionsFetchError(new TypeError('x')) }, 'network'],
     ['an empty body', { data: null, error: null }, 'unknown'],
     ['a body without schemaVersion 1', { data: { ...EXPORT, schemaVersion: 2 }, error: null }, 'unknown'],

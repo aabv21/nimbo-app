@@ -183,6 +183,7 @@ function CompanionSetting({ enabled, pending }: { enabled: boolean; pending: boo
       {pending && asking === undefined ? (
         <Notice
           tone="info"
+          announce={false}
           title={t('consent.paused')}
           action={{
             label: t('companion.reconsent.open'),

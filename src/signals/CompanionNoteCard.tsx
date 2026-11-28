@@ -7,9 +7,10 @@ import { TextLink } from '../ui/TextLink';
 import { fonts, radius, space, type } from '../ui/theme';
 import { useTheme } from '../ui/themeContext';
 import { noteText } from './companionNote';
+import { localHourIn } from './index';
 import type { NoteState } from './companionNote';
 
-/** Before this local hour the note is "this morning"'s; after it, "just now"'s. */
+/** Before this hour in the rows' zone the note is "this morning"'s; after it, "just now"'s. */
 const MORNING_UNTIL_HOUR = 12;
 
 interface CompanionNoteCardProps {
@@ -27,7 +28,7 @@ export function CompanionNoteCard({ state, now, timeZone, onReply }: CompanionNo
 
   return (
     <View style={[styles.card, { backgroundColor: color.surface, borderColor: color.border }]}>
-      <Text style={[styles.by, { color: color.textMuted }]}>{t(now.getHours() < MORNING_UNTIL_HOUR ? 'today.note.by_morning' : 'today.note.by_now')}</Text>
+      <Text style={[styles.by, { color: color.textMuted }]}>{t(localHourIn(now, timeZone) < MORNING_UNTIL_HOUR ? 'today.note.by_morning' : 'today.note.by_now')}</Text>
       <Text style={[styles.text, { color: color.text }]}>{text}</Text>
       {count === null ? null : <Text style={[styles.count, { color: color.textMuted }]}>{count}</Text>}
       {onReply === null ? null : (

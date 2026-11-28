@@ -242,7 +242,7 @@ function CrisisMode({ forceDim }: { forceDim: (on: boolean) => void }): React.JS
           {episode.dirty ? (
             <View style={styles.inline}>
               <HardDrive size={16} color={color.textMuted} />
-              <Text style={[styles.caption, { color: color.textMuted }]}>{t('crisis.saved_local')}</Text>
+              <Text style={[styles.caption, styles.inlineText, { color: color.textMuted }]}>{t('crisis.saved_local')}</Text>
             </View>
           ) : null}
         </View>
@@ -403,7 +403,9 @@ const styles = StyleSheet.create({
   textButton: { flexDirection: 'row', alignItems: 'center', gap: space[0], minHeight: controlHeight, paddingRight: space[2] },
   textButtonLabel: { fontFamily: fonts.bodyBold, fontSize: type.body, lineHeight: 22 },
   topTitle: { fontFamily: fonts.bodyBold, fontSize: type.body, lineHeight: 22 },
-  inline: { flexDirection: 'row', alignItems: 'center', gap: space[0] },
+  // The saved-on-this-phone line shrinks and wraps beside Hide at large text sizes instead of running off the screen.
+  inline: { flexShrink: 1, flexDirection: 'row', alignItems: 'center', gap: space[0] },
+  inlineText: { flexShrink: 1 },
   caption: { fontFamily: fonts.body, fontSize: type.caption, lineHeight: 18 },
   head: { gap: space[1] },
   title: { fontFamily: fonts.display, fontSize: type.title, lineHeight: 27 },
@@ -413,7 +415,9 @@ const styles = StyleSheet.create({
   section: { gap: space[2] },
   sectionTitle: { fontFamily: fonts.bodyBold, fontSize: type.label, lineHeight: 20 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space[1] },
+  // At most the row's width, with a label that wraps: a long symptom at 200 % text takes two lines, never the edge.
   chip: {
+    maxWidth: '100%',
     minHeight: crisisControlHeight,
     flexDirection: 'row',
     alignItems: 'center',
@@ -422,7 +426,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.control,
     borderWidth: 1,
   },
-  chipLabel: { fontFamily: fonts.body, fontSize: type.body, lineHeight: 22 },
+  chipLabel: { flexShrink: 1, fontFamily: fonts.body, fontSize: type.body, lineHeight: 22 },
   row: {
     minHeight: crisisControlHeight,
     flexDirection: 'row',

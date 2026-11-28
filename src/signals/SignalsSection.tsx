@@ -12,7 +12,8 @@ import { SignalRow } from './SignalRow';
 import { signalText } from './signalText';
 import type { SignalActionKind } from './signalText';
 
-// The rows rise in once per app session; after that a new visit shows them in place.
+// The rows on screen at the first render of a session rise in; after that a new visit, or a row that arrives later
+// (the pressure row from the server, a row a check-in adds), shows in place.
 let staggered = false;
 
 interface SignalsSectionProps {
@@ -27,7 +28,7 @@ export function SignalsSection({ rows, empty, knownTriggers, timeZone, onAction 
   const { t, tp, locale } = useI18n();
   const { color } = useTheme();
   const motion = useMotion();
-  const [stagger] = useState(() => !staggered && rows.length > 0);
+  const [firstRows] = useState<ReadonlySet<string>>(() => new Set(staggered ? [] : rows.map((signal) => signal.causeKey)));
   useEffect(() => {
     if (rows.length > 0) staggered = true;
   }, [rows.length]);
@@ -49,7 +50,7 @@ export function SignalsSection({ rows, empty, knownTriggers, timeZone, onAction 
               key={signal.causeKey}
               {...(layout === undefined ? {} : { layout })}
               // Reduced motion fades every row at once: no stagger.
-              {...(stagger ? { entering: entrance(motion, rise, motion.level === 'fade' ? 0 : index * gap) } : {})}
+              {...(firstRows.has(signal.causeKey) ? { entering: entrance(motion, rise, motion.level === 'fade' ? 0 : index * gap) } : {})}
             >
               <SignalRow
                 signal={signal}

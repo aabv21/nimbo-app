@@ -17,6 +17,7 @@ import { DateTimeField } from '../../../history/DateTimeField';
 import { useI18n } from '../../../i18n';
 import type { MessageKey } from '../../../i18n';
 import { useRedFlagCheck } from '../../../redflags/useRedFlagCheck';
+import { AlertText } from '../../../ui/AlertText';
 import { BackButton } from '../../../ui/BackButton';
 import { Button } from '../../../ui/Button';
 import { Screen } from '../../../ui/Screen';
@@ -211,9 +212,7 @@ function Editor({ userId, episode }: { userId: string; episode: Episode }): Reac
           }}
         />
         {endBeforeStart ? (
-          <Text accessibilityRole="alert" style={[styles.error, { color: color.danger }]}>
-            {t('episode.end.error')}
-          </Text>
+          <AlertText text={t('episode.end.error')} style={[styles.error, { color: color.danger }]} />
         ) : null}
       </View>
 
@@ -278,9 +277,7 @@ function Editor({ userId, episode }: { userId: string; episode: Episode }): Reac
       />
 
       {error === null ? null : (
-        <Text accessibilityRole="alert" style={[styles.error, { color: color.danger }]}>
-          {error}
-        </Text>
+        <AlertText text={error} style={[styles.error, { color: color.danger }]} />
       )}
       <View style={styles.actions}>
         <Button variant="secondary" label={t('common.cancel')} onPress={leave} />

@@ -15,7 +15,7 @@
     "gapX": 110,
     "gapY": 80,
     "origin": [
-      40,
+      90,
       80
     ]
   },
@@ -60,7 +60,7 @@
       "id": "fns",
       "type": "backend",
       "label": "Edge Functions",
-      "sublabel": "companion · push-claim · unregister",
+      "sublabel": "companion · push · export · delete",
       "row": 1,
       "col": 2,
       "size": [
@@ -95,8 +95,8 @@
     {
       "id": "smtp",
       "type": "external",
-      "label": "Email relay",
-      "sublabel": "planned, hosted only",
+      "label": "Brevo SMTP",
+      "sublabel": "hosted only",
       "row": 0,
       "col": 3
     },
@@ -120,7 +120,7 @@
       "id": "gh",
       "type": "external",
       "label": "GitHub Actions",
-      "sublabel": "keep-alive, planned",
+      "sublabel": "keepalive.yml, daily",
       "row": 2,
       "col": 4
     },
@@ -131,6 +131,18 @@
       "sublabel": "pressure_msl by cell",
       "row": 3,
       "col": 4
+    },
+    {
+      "id": "pages",
+      "type": "external",
+      "label": "GitHub Pages",
+      "sublabel": "privacy policy, en · es · pt",
+      "row": 2,
+      "col": 0,
+      "size": [
+        210,
+        64
+      ]
     }
   ],
   "boundaries": [
@@ -167,7 +179,7 @@
       "id": "app-fns",
       "from": "app",
       "to": "fns",
-      "label": "chat, token + JWT",
+      "label": "requests + user JWT",
       "variant": "emphasis"
     },
     {
@@ -210,8 +222,7 @@
       "id": "gh-pg",
       "from": "gh",
       "to": "pg",
-      "label": "keep_alive()",
-      "variant": "dashed"
+      "label": "keep_alive()"
     },
     {
       "id": "pg-monitor",
@@ -239,8 +250,21 @@
       "from": "expo",
       "to": "app",
       "label": "notification",
-      "fromSide": "top",
-      "toSide": "bottom"
+      "fromSide": "left",
+      "toSide": "left",
+      "labelAt": [
+        66,
+        446
+      ]
+    },
+    {
+      "id": "app-pages",
+      "from": "app",
+      "to": "pages",
+      "label": "opens in browser",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 24
     }
   ],
   "cards": [
@@ -256,24 +280,16 @@
       "dot": "cyan",
       "title": "The functions",
       "items": [
-        "Model calls run only in companion; monitor makes none",
-        "Only monitor holds the service role for a whole request"
+        "Model calls only in companion; monitor makes none",
+        "Service role: monitor, export-data, delete-account"
       ]
     },
     {
       "dot": "amber",
-      "title": "Planned",
+      "title": "Owner setup",
       "items": [
-        "Boxes marked planned and dashed lines come later",
-        "Push needs EAS and Firebase; Open-Meteo free is for testing"
-      ]
-    },
-    {
-      "dot": "rose",
-      "title": "Keys and payloads",
-      "items": [
-        "The app holds the URL and the anon key only",
-        "A push carries a url and a signal id, neutral by default"
+        "Dashed lines wait on the owner; Open-Meteo free is for testing",
+        "Push needs EAS and Firebase; a push stays neutral"
       ]
     }
   ]

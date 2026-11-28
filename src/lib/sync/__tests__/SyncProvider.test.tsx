@@ -6,7 +6,7 @@ import { kvGet, kvKeys, kvRemove, kvSet } from '../../kv';
 import { readStoredSession } from '../../supabase';
 import { resetAuth, setAuth } from '../../../test/authMock';
 import { clearLocalDb, insertEpisode } from '../../../test/localDbTest';
-import { localDb } from '../../local/db';
+import { localDb, notifyChanged } from '../../local/db';
 import { enqueue, listOutbox } from '../../outbox/outbox';
 import { pauseOutbox, resumeOutbox, runOutbox } from '../../outbox/runOutbox';
 import { pullAll } from '../pull';
@@ -96,6 +96,41 @@ test("an enqueue syncs again, and the counts are the signed-in user's only", asy
   expect(runOutbox).toHaveBeenCalledWith('user-1', expect.anything());
   expect(state?.pending).toBe(1);
   expect(listOutbox('other')).toHaveLength(1);
+});
+
+test('an enqueue while a pass is still sending runs one more cycle once that pass ends', async () => {
+  let finish: () => void = () => undefined;
+  jest.mocked(runOutbox).mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = () => {
+          resolve({ sent: 0, failed: 0, waiting: 0 });
+        };
+      }),
+  );
+  await render(
+    <SyncProvider>
+      <Probe />
+    </SyncProvider>,
+  );
+  await flush();
+  expect(runOutbox).toHaveBeenCalledTimes(1);
+
+  await act(() => {
+    localDb().withTransactionSync(() => {
+      insertEpisode('user-1', 'e1');
+      enqueue('user-1', 'log_episode', { p_id: 'e1', p_started_at: '2026-11-27T10:00:00Z', p_fields: {} });
+    });
+  });
+  await flush();
+  // The running pass is not asked twice at once.
+  expect(runOutbox).toHaveBeenCalledTimes(1);
+
+  await act(() => {
+    finish();
+  });
+  await flush();
+  expect(runOutbox).toHaveBeenCalledTimes(2);
 });
 
 test("an account switch pauses the previous user's outbox and syncs the new one", async () => {
@@ -485,4 +520,20 @@ describe('waking up for a backoff', () => {
     await flush();
     expect(runOutbox).not.toHaveBeenCalledWith('user-1', expect.anything());
   });
+});
+
+test('an outbox change that leaves the counts as they were hands consumers the same value, so nothing re-renders', async () => {
+  await render(
+    <SyncProvider>
+      <Probe />
+    </SyncProvider>,
+  );
+  await flush();
+  const before = state;
+
+  await act(async () => {
+    notifyChanged(['outbox']);
+    await Promise.resolve();
+  });
+  expect(state).toBe(before);
 });

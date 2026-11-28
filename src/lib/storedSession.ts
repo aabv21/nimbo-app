@@ -1,8 +1,5 @@
+import { isRecord } from './guards';
 import { parseJson } from './kv';
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 
 export type StoredSession = { userId: string; email: string | null };
 

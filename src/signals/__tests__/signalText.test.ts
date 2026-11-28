@@ -47,7 +47,7 @@ test('the pressure detail keeps four-digit values whole and gives the time in th
 
 test('short sleep says the band and the average in hours, with the locale separator', () => {
   const en = signalText(SHORT_SLEEP, ctx('en'));
-  expect(en.reason).toBe('You slept under 5 h, under your average before an attack.');
+  expect(en.reason).toBe('You slept under 5 h, less than your average before an attack.');
   expect(en.detail).toBe('Your average on nights before an attack: 5.1 h, over 6 nights.');
   expect(signalText(SHORT_SLEEP, ctx('es')).detail).toBe('Tu media en las noches antes de una crisis: 5,1 h, en 6 noches.');
   expect(signalText(SHORT_SLEEP, ctx('pt')).reason).toContain('Você dormiu menos de 5 h');

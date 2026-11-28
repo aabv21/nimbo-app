@@ -67,6 +67,10 @@ The stack reads these secrets, and the `[auth]` settings, only when it starts, a
 secret only on a reset. After a change to either (the longer `MONITOR_SECRET`, or `secure_password_change`), a running
 stack needs `pnpm db:stop && pnpm db:start && pnpm db:reset && pnpm env:local`.
 
+These values must never reach the hosted project: `supabase secrets set` run from this repo also pushes every
+`[edge_runtime.secrets]` value, so hosted secrets are set from an empty directory
+([`owner-session.md`](owner-session.md#3-after-the-merges-the-supabase-project)).
+
 The mock on 54518 serves four routes. `POST /v1/systemone` is Jev. `GET /v1/forecast` is Open-Meteo's forecast:
 by default every hour reads 1013.0 hPa, from the current UTC hour, for as many hours as `forecast_hours` asks
 (28 when it is missing), in Open-Meteo's `timezone=GMT` shape. Like the real API it answers 400 with

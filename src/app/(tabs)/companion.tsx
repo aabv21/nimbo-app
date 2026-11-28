@@ -53,7 +53,7 @@ function ReconsentPrompt(): React.JSX.Element {
       <Text accessibilityRole="header" style={[styles.reconsentTitle, { color: color.text }]}>
         {t('consent.title')}
       </Text>
-      <Notice tone="info" title={t('consent.updated')} />
+      <Notice tone="info" announce={false} title={t('consent.updated')} />
       <Button
         testID="companion-reconsent"
         label={t('companion.reconsent.open')}

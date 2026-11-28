@@ -1,6 +1,6 @@
 # Nimbo
 
-**Demo** · status: signals (the tracking core, an AI companion that answers from your own records, insights, and signals with push notifications)
+**Demo** · status: v1.0.0 release candidate for closed testing (the tracking core, an AI companion that answers from your own records, insights, signals with push notifications, versioned consent, data export and account deletion, and eight audits). The live accounts, deployments and builds are the owner's session: [`docs/owner-session.md`](docs/owner-session.md).
 
 A migraine companion for iPhone and Android: log attacks, spot your patterns and get calm guidance, in English, Spanish or Portuguese. Built with Expo and Supabase as a portfolio demo.
 
@@ -9,7 +9,7 @@ Nimbo is not a medical device. It does not diagnose, prescribe or replace a clin
 ## What works now
 
 - Sign-up with an email code, sign-in with email, and Apple and Google sign-in (their live provider checks are pending).
-- Two consent gates before the app: the adult and medical-boundary confirmation, then the AI question. Declining AI keeps the app complete and hides the Companion tab.
+- Two consent gates before the app: the adult, medical-boundary and health-data confirmation, then the AI question, each recorded with the version of the text and the language. A newer text is asked again: the terms before anything else (with an emergency call on that screen), the AI by pausing it on the phone until you answer. Declining AI keeps the app complete and hides the Companion tab.
 - A short intro, then five optional setup steps: known triggers, what matters most, medications, notifications and a rough area for weather.
 - Today: the status line, a short note from the companion, up to three signals for the day (a short night, a pressure drop, medication days, yesterday's debrief, a long attack, no check-in lately), each opening onto its reason and source, the daily check-in in two taps, the month's medication days and Start an attack, ordered by what the user said matters most. The signals are counts from your own records, computed on the phone, and never a forecast.
 - Crisis mode: a dim, calm screen with 56 pt controls for intensity, symptoms, where it hurts and doses, with the countdown to the next dose. Every time stays editable, the start included.
@@ -20,9 +20,18 @@ Nimbo is not a medical device. It does not diagnose, prescribe or replace a clin
 - The companion: a chat that answers from your own records and shows where each number comes from, turns what you say into drafts you confirm, keeps short notes on how you like things ("What I know about you"), and asks a day-after debrief that builds your crisis plan. Every message and reply is screened for warning signs, dose advice, diagnosis and invented numbers; it never prescribes. The chat stays on the phone.
 - Dictation: hold the mic in the Companion tab, or "Tell me" in crisis mode, with short replies you can have read aloud.
 - An hourly server check that computes the same signals and sends at most one neutral notification a run, inside your notification hours and under your daily cap (0 to 2); the details show on the lock screen only if you turn them on. Push needs the owner's EAS and Firebase setup before it reaches a phone, and the weather uses Open-Meteo's free API until the commercial plan (or another provider) before the store launch.
+- Your data: Export my data gives a JSON file of everything the server keeps about you, through the share sheet; Delete my account removes the account and every record on the server and on the phone, and finishes even if the app is closed halfway.
 - Premium access the owner can grant; no feature is gated yet.
 - Four tabs (Today, Companion, History, Profile) with a Liquid Glass tab bar; English, Spanish and Portuguese; three appearances (Day, Dark, Dim) plus Automatic.
-- A local Supabase stack with row-level security on every table and RPC-only health writes, tested with pgTAP and integration suites, and Maestro flows for onboarding, crisis mode, a red flag and a companion draft.
+- A local Supabase stack with row-level security on every table and RPC-only health writes, tested with pgTAP and integration suites, and Maestro flows for onboarding, crisis mode, a red flag, a companion draft and the export and deletion.
+- Eight audits before release (security, API, agent guardrails with an AI red team, database, accessibility, motion, React Native performance, over-engineering), each with its findings and fixes: [`docs/audits/`](docs/audits/README.md).
+
+## Privacy
+
+The privacy policy, in [English](docs/privacy-policy.md), [Spanish](docs/privacy-policy.es.md) and
+[Portuguese](docs/privacy-policy.pt.md), says what Nimbo collects and why, who processes it, how long it is kept and how
+to export or delete it. It is a draft with the owner's placeholders until it is published at
+`https://aabv21.github.io/nimbo-privacy/`.
 
 How it works: [`docs/architecture.md`](docs/architecture.md).
 
@@ -48,7 +57,7 @@ pnpm start
 | `pnpm check:expo` | Compare packages with the SDK's expected versions (informational) |
 | `pnpm db:start` / `pnpm db:stop` | Start and stop the local Supabase stack (see `docs/local-stack.md`) |
 | `pnpm db:reset` / `pnpm db:test` / `pnpm db:lint` / `pnpm db:types` | Rebuild the database, run the pgTAP tests, lint the database functions, regenerate the DB types |
-| `pnpm e2e` | The Maestro flows on the Android emulator, against the local stack (see `docs/testing.md`) |
+| `pnpm e2e` | The Maestro flows on the Android emulator (`E2E_PLATFORM=ios` for the simulator), against the local stack (see `docs/testing.md`) |
 | `pnpm env:local` | Write `.env.local` from the running local stack |
 | `pnpm policy:check` | Check the three privacy policies and list the owner placeholders left (fails until the owner fills them) |
 | `pnpm catalog:sql` | Print `catalog_keys()` from the condition pack, for a new migration when a catalog changes |
@@ -58,10 +67,10 @@ pnpm start
 
 ## Documentation
 
-- [`docs/architecture.md`](docs/architecture.md): where it runs, the gate flow, consent, offline logging and sync, crisis mode, red flags, the overuse guard, reminders, premium, security and the design decisions, with diagrams.
-- [`docs/ai.md`](docs/ai.md): the companion's models, prompts, guards and costs. [`docs/red-team.md`](docs/red-team.md): the attacks the guards cover. [`docs/api.md`](docs/api.md): the `companion` function's request and statuses.
+- [`docs/architecture.md`](docs/architecture.md): where it runs, the gate flow, consent, offline logging and sync, crisis mode, red flags, the overuse guard, reminders, premium, privacy and data rights, security and the design decisions, with diagrams.
+- [`docs/ai.md`](docs/ai.md): the companion's models, prompts, guards and costs. [`docs/red-team.md`](docs/red-team.md): the attacks the guards cover. [`docs/api.md`](docs/api.md): each Edge Function's request and statuses.
 - [`docs/app.md`](docs/app.md): the modules under `src/`. [`docs/database.md`](docs/database.md): the schema. [`docs/local-stack.md`](docs/local-stack.md): the local stack.
-- [`docs/testing.md`](docs/testing.md): the test suites. [`docs/native-config.md`](docs/native-config.md): native config. [`docs/owner-runbook.md`](docs/owner-runbook.md): the owner's steps.
+- [`docs/testing.md`](docs/testing.md): the test suites. [`docs/native-config.md`](docs/native-config.md): native config. [`docs/owner-runbook.md`](docs/owner-runbook.md): the owner's steps. [`docs/owner-session.md`](docs/owner-session.md): the live session for v1.0.0. [`docs/audits/`](docs/audits/README.md): the audits.
 
 See [`AGENTS.md`](AGENTS.md) for the guardrails and [`CONTRIBUTING.md`](CONTRIBUTING.md) for the pull request flow.
 

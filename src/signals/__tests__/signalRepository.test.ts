@@ -7,7 +7,7 @@ import type { Client } from '../../auth/emailAuth';
 import { setCurrentUserId } from '../../auth/currentUser';
 import type { Database } from '../../lib/database.types';
 import { kvGet, kvRemove } from '../../lib/kv';
-import { fetchTodayPressure, readCachedPressure, removeCachedSignals } from '../signalRepository';
+import { fetchTodayPressure, freshPressure, readCachedPressure, removeCachedSignals } from '../signalRepository';
 
 const NOW = new Date('2026-11-27T17:00:00Z');
 const ROW = {
@@ -39,47 +39,67 @@ beforeEach(() => {
   setCurrentUserId('user-1');
 });
 
-test('reads the day’s newest pressure row with named columns and keeps it for that day', async () => {
-  const { client, urls } = clientAnswering(200, [ROW]);
-  const signal = await fetchTodayPressure('user-1', '2026-11-27', client, NOW);
+const TODAY = ['2026-11-27'] as const;
+const signalAt = (row: unknown, now = NOW) => freshPressure(row, now);
 
-  expect(signal).toMatchObject({ kind: 'pressure', causeKey: 'pressure:2026-11-27', evidence: { dropHpa: 7 } });
+test('reads the day’s pressure row with named columns and keeps it for that day', async () => {
+  const { client, urls } = clientAnswering(200, [ROW]);
+  const row = await fetchTodayPressure('user-1', TODAY, client);
+
+  expect(signalAt(row)).toMatchObject({ kind: 'pressure', causeKey: 'pressure:2026-11-27', evidence: { dropHpa: 7 } });
   const [url] = urls;
   expect(url?.pathname).toBe('/rest/v1/signals');
   expect(Object.fromEntries(url?.searchParams ?? [])).toEqual({
     select: 'kind,cause,cause_key,evidence,computed_at',
     kind: 'eq.pressure',
-    local_date: 'eq.2026-11-27',
+    local_date: 'in.(2026-11-27)',
     order: 'computed_at.desc',
-    limit: '1',
   });
-  expect(readCachedPressure('user-1', '2026-11-27', NOW)).toEqual(signal);
-  expect(readCachedPressure('user-1', '2026-11-28', NOW)).toBeNull();
+  expect(readCachedPressure('user-1', '2026-11-27')).toEqual(row);
+  expect(readCachedPressure('user-1', '2026-11-28')).toBeNull();
+});
+
+test("of the device zone's and the profile zone's dates, the newest row wins, so a stale one never hides a fresh one", async () => {
+  // Rows come back newest first (`order=computed_at.desc`).
+  const freshProfileDay = { ...ROW, cause_key: 'pressure:2026-11-28', computed_at: '2026-11-27T16:50:00Z' };
+  const staleDeviceDay = { ...ROW, computed_at: '2026-11-27T12:00:00Z' };
+  const profileNewer = clientAnswering(200, [freshProfileDay, staleDeviceDay]);
+  const row = await fetchTodayPressure('user-1', ['2026-11-27', '2026-11-28'], profileNewer.client);
+  expect(row).toEqual(freshProfileDay);
+  expect(signalAt(row)).toMatchObject({ causeKey: 'pressure:2026-11-28' });
+  expect(profileNewer.urls[0]?.searchParams.get('local_date')).toBe('in.(2026-11-27,2026-11-28)');
+
+  const staleProfileDay = { ...freshProfileDay, computed_at: '2026-11-27T12:00:00Z' };
+  const deviceNewer = clientAnswering(200, [ROW, staleProfileDay]);
+  expect(await fetchTodayPressure('user-1', ['2026-11-27', '2026-11-28'], deviceNewer.client)).toEqual(ROW);
+  // Kept under the device's date, the one Today asks for offline.
+  expect(readCachedPressure('user-1', '2026-11-27')).toEqual(ROW);
 });
 
 test('a failed read falls back to the kept row; an answer for a signed-out account is not kept', async () => {
-  await fetchTodayPressure('user-1', '2026-11-27', clientAnswering(200, [ROW]).client, NOW);
-  expect(await fetchTodayPressure('user-1', '2026-11-27', clientAnswering(500, { message: 'down' }).client, NOW)).toMatchObject({ kind: 'pressure' });
+  await fetchTodayPressure('user-1', TODAY, clientAnswering(200, [ROW]).client);
+  expect(signalAt(await fetchTodayPressure('user-1', TODAY, clientAnswering(500, { message: 'down' }).client))).toMatchObject({ kind: 'pressure' });
 
   removeCachedSignals('user-1');
   setCurrentUserId(null);
-  await fetchTodayPressure('user-1', '2026-11-27', clientAnswering(200, [ROW]).client, NOW);
+  await fetchTodayPressure('user-1', TODAY, clientAnswering(200, [ROW]).client);
   expect(kvGet('signals.user-1')).toBeNull();
 });
 
 test('no row, or one that is not a pressure signal, reads as none', async () => {
-  expect(await fetchTodayPressure('user-1', '2026-11-27', clientAnswering(200, []).client, NOW)).toBeNull();
-  expect(await fetchTodayPressure('user-1', '2026-11-27', clientAnswering(200, [{ ...ROW, evidence: {} }]).client, NOW)).toBeNull();
+  expect(signalAt(await fetchTodayPressure('user-1', TODAY, clientAnswering(200, []).client))).toBeNull();
+  expect(signalAt(await fetchTodayPressure('user-1', TODAY, clientAnswering(200, [{ ...ROW, evidence: {} }]).client))).toBeNull();
 });
 
-test('a row computed more than 3 hours ago is a stale forecast: dropped online and from the kept copy', async () => {
-  expect(await fetchTodayPressure('user-1', '2026-11-27', clientAnswering(200, [STALE]).client, NOW)).toBeNull();
+test('a row computed more than 3 hours ago is a stale forecast, online and from the kept copy', async () => {
+  expect(signalAt(await fetchTodayPressure('user-1', TODAY, clientAnswering(200, [STALE]).client))).toBeNull();
 
-  await fetchTodayPressure('user-1', '2026-11-27', clientAnswering(200, [ROW]).client, NOW);
-  expect(readCachedPressure('user-1', '2026-11-27', new Date('2026-11-27T19:05:00Z'))).toMatchObject({ kind: 'pressure' });
-  expect(readCachedPressure('user-1', '2026-11-27', new Date('2026-11-27T19:06:00Z'))).toBeNull();
+  await fetchTodayPressure('user-1', TODAY, clientAnswering(200, [ROW]).client);
+  expect(signalAt(readCachedPressure('user-1', '2026-11-27'), new Date('2026-11-27T19:05:00Z'))).toMatchObject({ kind: 'pressure' });
+  expect(signalAt(readCachedPressure('user-1', '2026-11-27'), new Date('2026-11-27T19:06:00Z'))).toBeNull();
   // Offline later the same day, the kept row has aged past the limit too.
-  expect(await fetchTodayPressure('user-1', '2026-11-27', clientAnswering(500, { message: 'down' }).client, new Date('2026-11-27T19:06:00Z'))).toBeNull();
+  const offline = await fetchTodayPressure('user-1', TODAY, clientAnswering(500, { message: 'down' }).client);
+  expect(signalAt(offline, new Date('2026-11-27T19:06:00Z'))).toBeNull();
 });
 
 test('concurrent fetches for the same day all answer with the newest reply, and only it is kept', async () => {
@@ -87,12 +107,12 @@ test('concurrent fetches for the same day all answer with the newest reply, and 
   const slow = clientAnswering(200, [ROW], new Promise<void>((resolve) => {
     release = resolve;
   })).client;
-  const older = fetchTodayPressure('user-1', '2026-11-27', slow, NOW);
-  const newer = fetchTodayPressure('user-1', '2026-11-27', clientAnswering(200, []).client, NOW);
+  const older = fetchTodayPressure('user-1', TODAY, slow);
+  const newer = fetchTodayPressure('user-1', TODAY, clientAnswering(200, []).client);
 
   expect(await newer).toBeNull();
   release();
   expect(await older).toBeNull();
-  expect(readCachedPressure('user-1', '2026-11-27', NOW)).toBeNull();
+  expect(readCachedPressure('user-1', '2026-11-27')).toBeNull();
   expect(kvGet('signals.user-1')).toBe(JSON.stringify({ localDate: '2026-11-27', row: null }));
 });

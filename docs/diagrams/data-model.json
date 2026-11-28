@@ -48,8 +48,8 @@
     {
       "id": "profileRpcs",
       "type": "security",
-      "label": "Profile RPCs",
-      "sublabel": "terms, AI, onboarding",
+      "label": "Consent RPCs",
+      "sublabel": "+ complete_onboarding",
       "row": 0,
       "col": 3
     },
@@ -58,7 +58,7 @@
       "type": "database",
       "label": "public.entitlements",
       "sublabel": "grant and purchase",
-      "row": 0,
+      "row": 1,
       "col": 4,
       "tag": "RLS"
     },
@@ -213,7 +213,7 @@
       "type": "security",
       "label": "Push token RPCs",
       "sublabel": "register, claim",
-      "row": 0,
+      "row": 1,
       "col": 5,
       "size": [
         170,
@@ -224,8 +224,8 @@
       "id": "prune",
       "type": "security",
       "label": "prune_expired_caches()",
-      "sublabel": "pg_cron, daily",
-      "row": 4,
+      "sublabel": "pg_cron, hourly at :17",
+      "row": 3,
       "col": 5,
       "size": [
         170,
@@ -246,19 +246,53 @@
       "label": "public.push_tickets",
       "sublabel": "receipts queue",
       "row": 4,
-      "col": 4
+      "col": 5,
+      "size": [
+        170,
+        60
+      ]
     },
     {
       "id": "tokens",
       "type": "database",
       "label": "public.push_tokens",
       "sublabel": "+ push_claims, push_claim_starts",
-      "row": 1,
+      "row": 2,
       "col": 5,
       "size": [
         170,
         60
       ]
+    },
+    {
+      "id": "consentEvents",
+      "type": "database",
+      "label": "consent_events",
+      "sublabel": "append-only history",
+      "row": 0,
+      "col": 4,
+      "tag": "RLS"
+    },
+    {
+      "id": "consentTexts",
+      "type": "database",
+      "label": "consent_texts",
+      "sublabel": "published versions",
+      "row": 0,
+      "col": 5,
+      "tag": "RLS",
+      "size": [
+        170,
+        60
+      ]
+    },
+    {
+      "id": "accountFns",
+      "type": "backend",
+      "label": "export-data",
+      "sublabel": "and delete-account",
+      "row": 4,
+      "col": 4
     }
   ],
   "connections": [
@@ -304,9 +338,7 @@
       "id": "premium-entitlements",
       "from": "premium",
       "to": "entitlements",
-      "label": "reads",
-      "fromSide": "right",
-      "toSide": "bottom"
+      "label": "reads"
     },
     {
       "id": "app-trackingRpcs",
@@ -431,13 +463,45 @@
       "from": "prune",
       "to": "tickets",
       "label": "2 days",
-      "variant": "security"
+      "variant": "security",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 24
     },
     {
       "id": "tokenRpcs-tokens",
       "from": "tokenRpcs",
       "to": "tokens",
       "variant": "security"
+    },
+    {
+      "id": "consentRpcs-events",
+      "from": "profileRpcs",
+      "to": "consentEvents",
+      "label": "appends",
+      "variant": "security"
+    },
+    {
+      "id": "events-texts",
+      "from": "consentEvents",
+      "to": "consentTexts",
+      "label": "known version",
+      "variant": "dashed"
+    },
+    {
+      "id": "prune-usage",
+      "from": "prune",
+      "to": "usage",
+      "label": "30 days",
+      "variant": "security"
+    },
+    {
+      "id": "account-usage",
+      "from": "accountFns",
+      "to": "usage",
+      "label": "service-role read",
+      "fromSide": "top",
+      "toSide": "bottom"
     }
   ],
   "cards": [
@@ -445,8 +509,8 @@
       "dot": "emerald",
       "title": "Ownership",
       "items": [
-        "Rows key to auth.users, deleted with it",
-        "Read-own select, except server-only tables"
+        "Every user table cascades from auth.users",
+        "delete-account deletes the user, export-data reads all"
       ]
     },
     {
@@ -454,7 +518,7 @@
       "title": "RPC-only writes",
       "items": [
         "Health rows, consent and tokens via RPCs",
-        "A zone is_time_zone rejects is refused"
+        "accept_terms, set_ai_consent take version, locale"
       ]
     },
     {
@@ -470,7 +534,7 @@
       "title": "Quotas and jobs",
       "items": [
         "consume_quota counts per user and day",
-        "prune_expired_caches runs daily at 03:17"
+        "prune_expired_caches runs hourly at :17"
       ]
     }
   ]

@@ -107,8 +107,7 @@ interface Day {
   windowStart: string;
 }
 
-function dayOf(user: SignalUser, now: Date, pack: ConditionPack): Day {
-  const today = localDateIn(now, user.timeZone);
+function dayOf(user: SignalUser, now: Date, pack: ConditionPack, today = localDateIn(now, user.timeZone)): Day {
   return { user, now, pack, today, windowStart: addDays(today, 1 - pack.insights.windowDays) };
 }
 
@@ -278,9 +277,12 @@ function suppressed(signals: readonly Signal[], episodes: readonly RecordEpisode
   return signals.filter((signal) => !pack.signals.suppressDuringAttack.includes(signal.kind));
 }
 
-/** Every signal for `now`, highest priority first; `user.timeZone` must be one the runtime knows (`monitorSelects`). */
-export function computeSignals(user: SignalUser, now: Date, pack: ConditionPack): Signal[] {
-  const day = dayOf(user, now, pack);
+/**
+ * Every signal for `now`, highest priority first; `user.timeZone` must be one the runtime knows (`monitorSelects`).
+ * `today` defaults to `now`'s date in that zone; the companion passes the request's day.
+ */
+export function computeSignals(user: SignalUser, now: Date, pack: ConditionPack, today?: string): Signal[] {
+  const day = dayOf(user, now, pack, today);
   const all = [
     ...longAttacks(day),
     ...overuse(day),
@@ -297,8 +299,17 @@ export function todayRows(signals: readonly Signal[], pack: ConditionPack): Sign
   return signals.slice(0, pack.signals.maxOnToday);
 }
 
-/** The records a signal counts, for its evidence: the month's doses behind an overuse, the attacks behind short sleep's nights. */
-export function signalRecords(signal: Signal, user: SignalUser, now: Date, pack: ConditionPack): { episodeIds: string[]; doseIds: string[] } {
+/**
+ * The records a signal counts, for its evidence: the month's doses behind an overuse, and for short sleep each attack
+ * night's first attack, so the sheet lists as many as the chip's count of nights.
+ */
+export function signalRecords(
+  signal: Signal,
+  user: SignalUser,
+  now: Date,
+  pack: ConditionPack,
+  today?: string,
+): { episodeIds: string[]; doseIds: string[] } {
   switch (signal.kind) {
     case 'overuse_warn':
     case 'overuse_limit': {
@@ -312,7 +323,13 @@ export function signalRecords(signal: Signal, user: SignalUser, now: Date, pack:
       return { episodeIds: [], doseIds };
     }
     case 'short_sleep':
-      return { episodeIds: nightsOf(dayOf(user, now, pack)).attack.flatMap((night) => night.episodes.map((episode) => episode.id)), doseIds: [] };
+      return {
+        episodeIds: nightsOf(dayOf(user, now, pack, today)).attack.flatMap((night) => {
+          const [first] = [...night.episodes].sort((a, b) => Date.parse(a.startedAt) - Date.parse(b.startedAt));
+          return first === undefined ? [] : [first.id];
+        }),
+        doseIds: [],
+      };
     case 'long_attack':
     case 'debrief_due':
       return { episodeIds: [signal.evidence.episodeId], doseIds: [] };
@@ -330,11 +347,14 @@ function secondsOf(clock: string): number | null {
   return Number(match[1]) * 3600 + Number(match[2]) * 60 + Number(match[3] ?? 0);
 }
 
+// Postgres's `time` accepts 24:00:00, the end of the day; only an end may be it.
+const END_OF_DAY = /^24:00(?::00)?$/;
+
 /** `[start, end)` on the local clock; a start after the end crosses midnight, and start equal to end is an empty window. */
 export function insideWindow(localClock: string, start: string, end: string): boolean {
   const time = secondsOf(localClock);
   const from = secondsOf(start);
-  const to = secondsOf(end);
+  const to = END_OF_DAY.test(end) ? 24 * 3600 : secondsOf(end);
   if (time === null || from === null || to === null || from === to) return false;
   return from < to ? time >= from && time < to : time >= from || time < to;
 }
@@ -460,8 +480,8 @@ export function freshPressureFromRow(row: unknown, now: Date, pack: ConditionPac
 
 /**
  * `computed` (pressure absent: only the monitor has the forecast) with the stored pressure signal for today, re-ordered
- * by priority. `user` and `now` are those `computed` came from: a stored row for another day, or one during an open
- * attack, is left out.
+ * by priority. `user` and `now` are those `computed` came from: a stored row for a day not in `days` (today in
+ * `user.timeZone` unless the caller knows better), or one during an open attack, is left out.
  */
 export function withStoredPressure(
   computed: readonly Signal[],
@@ -469,8 +489,8 @@ export function withStoredPressure(
   user: Pick<SignalUser, 'timeZone' | 'episodes'>,
   now: Date,
   pack: ConditionPack,
+  days: readonly string[] = [localDateIn(now, user.timeZone)],
 ): Signal[] {
-  const today = localDateIn(now, user.timeZone);
-  if (stored === null || stored.kind !== 'pressure' || stored.causeKey !== `pressure:${today}`) return byPriority(computed, pack);
+  if (stored === null || stored.kind !== 'pressure' || !days.some((day) => stored.causeKey === `pressure:${day}`)) return byPriority(computed, pack);
   return byPriority(suppressed([...computed.filter((signal) => signal.kind !== 'pressure'), stored], user.episodes, pack), pack);
 }

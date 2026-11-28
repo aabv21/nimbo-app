@@ -32,7 +32,7 @@ export function sessionStillFor(userId: string): boolean {
   }
 }
 
-async function signOutIfStill(userId: string): Promise<void> {
+export async function signOutIfStill(userId: string): Promise<void> {
   if (sessionStillFor(userId)) await signOutLocally();
 }
 

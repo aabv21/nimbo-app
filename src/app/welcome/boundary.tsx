@@ -52,7 +52,7 @@ export default function Boundary(): React.JSX.Element {
   return (
     <Screen>
       <Text accessibilityRole="header" style={[styles.title, { color: color.text }]}>{t('boundary.title')}</Text>
-      {updated ? <Notice tone="info" title={t('boundary.updated')} /> : null}
+      {updated ? <Notice tone="info" announce={false} title={t('boundary.updated')} /> : null}
       {/* Until the newer terms are accepted (online) no other screen opens, urgent care included, so the call stays here. */}
       {updated ? (
         <View style={styles.emergency}>

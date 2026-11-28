@@ -1,5 +1,6 @@
 import { AI_CONSENT_VERSION, TERMS_VERSION } from '../account/consent';
 import type { Client } from '../auth/emailAuth';
+import { isRecord } from '../lib/guards';
 import { kvGetJson, kvRemove, kvSet } from '../lib/kv';
 import { enqueue } from '../lib/outbox/outbox';
 import { toRequestErrorKind, toThrownErrorKind } from '../lib/requestResult';
@@ -161,10 +162,6 @@ function toProfile(row: Row): Profile | null {
     aiConsentVersion: row.ai_consent_version,
   };
   return isProfile(profile) ? profile : null;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 /**

@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { router } from 'expo-router';
+import { StyleSheet } from 'react-native';
 
 import { translate } from '../../i18n';
 import type { MessageKey, Params } from '../../i18n';
@@ -115,4 +116,11 @@ test('a day answered only on the sheet (no stress) still asks the two questions'
   await render(<CheckinCard userId="user-1" localDate={TODAY} />);
   expect(sleep(t('checkin.sleep.5_6'))).toBeChecked();
   expect(localDb().getAllSync('SELECT 1 FROM checkins;')).toHaveLength(1);
+});
+
+test('at large text sizes an answer chip stays inside the card and its label wraps', async () => {
+  await render(<CheckinCard userId="user-1" localDate={TODAY} />);
+  const chip = screen.getByRole('radio', { name: t('checkin.stress.low') });
+  expect(StyleSheet.flatten(chip.props.style as never).maxWidth).toBe('100%');
+  expect(StyleSheet.flatten(screen.getByText(t('checkin.stress.low')).props.style as never).flexShrink).toBe(1);
 });

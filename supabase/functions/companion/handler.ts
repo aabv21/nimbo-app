@@ -111,6 +111,7 @@ export async function handleCompanion(request: Request, deps: CompanionDeps): Pr
     return reply('unavailable', 503, { error: 'unavailable' }, { stage: 'profile' });
   }
   const screenWord = { screen_quota: screenAllowed ? 'ok' : 'out' };
+  // NOTE: consent versions are enforced on the phone only (v1.0.0); upgrade: an `ai_consent_version` >= current check here, before a second consent version ships.
   if (profile === null || !profile.aiEnabled) return reply('ai_off', 403, { error: 'ai_off' });
   // One zone for the whole request (prompt clock, tools, drafts): the phone's, so a stale profile zone cannot
   // move a "today" the phone already sees.

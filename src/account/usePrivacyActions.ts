@@ -11,7 +11,7 @@ import { readStoredSession } from '../lib/supabase';
 import type { MessageKey } from '../i18n';
 import { useSyncState } from '../lib/sync/SyncProvider';
 import { exportData, exportFileName } from './accountClient';
-import { deletionMessage, runDeletion, sessionStillFor } from './deletionFlow';
+import { deletionMessage, runDeletion, sessionStillFor, signOutIfStill } from './deletionFlow';
 import { removeExports } from './deviceFiles';
 
 type Action = { run: () => void; busy: boolean; error: MessageKey | undefined };
@@ -38,9 +38,9 @@ function useMounted(): { readonly current: boolean } {
 }
 
 /**
- * One flow at a time, from an export's start or a delete tap until it ends. Any export failure (function, file or
- * share sheet) shows one message; `reauth` is an Alert, since the local sign-out takes the screen away; other deletion
- * failures stay on the screen with their message. Neither the file's name nor its content is ever logged.
+ * One flow at a time, from an export's start or a delete tap until it ends. `reauth`, in either flow, is an Alert, since
+ * the local sign-out takes the screen away; any other export failure (function, file or share sheet) shows one message,
+ * and other deletion failures stay on the screen with their message. Neither the file's name nor its content is ever logged.
  */
 export function usePrivacyActions(userId: string): {
   exporting: Action & { fileUri: string | null; share: () => void };
@@ -70,6 +70,18 @@ export function usePrivacyActions(userId: string): {
       let uri: string | null = null;
       try {
         const outcome = await exportData();
+        if (!outcome.ok && outcome.error === 'reauth') {
+          // As for a deletion: an Alert, since the local sign-out takes the screen away. The flow stays taken until the
+          // sign-out ends, so a second tap starts nothing meanwhile.
+          if (sessionStillFor(userId)) {
+            Alert.alert(t('export.error.reauth'));
+            AccessibilityInfo.announceForAccessibility(t('export.error.reauth'));
+          }
+          await signOutIfStill(userId);
+          active.current = false;
+          if (mounted.current) setExportBusy(false);
+          return;
+        }
         // Signed out, deleted or left meanwhile: the health data is dropped, never written to a file.
         if (outcome.ok && mounted.current && stillSignedIn(userId)) {
           // Only the newest copy of the data stays in the cache directory.

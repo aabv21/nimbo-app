@@ -1,7 +1,7 @@
 import { BlurView } from 'expo-blur';
 import { GlassView, isGlassEffectAPIAvailable, isLiquidGlassAvailable } from 'expo-glass-effect';
 import type { ComponentRef, ComponentType, RefObject } from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { LayoutChangeEvent } from 'react-native';
 import Animated, { ReduceMotion, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
@@ -34,19 +34,47 @@ interface TabBarProps<K extends string> {
 type BlurTarget = ComponentRef<typeof View>;
 
 const PADDING = 6;
+/** Labels grow with the OS text size up to here; past it the large content viewer (iOS long press) shows them. */
+const LABEL_MAX_SCALE = 1.5;
+/**
+ * A label too wide for its quarter of the bar ("Histórico" at 1.5× on a narrow phone) shrinks rather than truncating
+ * or breaking mid-word; at the 1.5× cap it never goes below the default 13 pt (19.5 × 0.67).
+ */
+const LABEL_MIN_SCALE = 0.67;
 const GAP = 2;
 const TAB_HEIGHT = 52;
 const RADIUS = 32;
-/** The bar's own height: the tabs, its padding and its 1 pt edge. */
+/** The bar's own height at the default text size: the tabs, its padding and its 1 pt edge. */
 export const TAB_BAR_HEIGHT = TAB_HEIGHT + PADDING * 2 + 2;
 
 function barBottom(safeBottom: number): number {
   return Math.max(safeBottom - space[1], space[2]);
 }
 
+// The bar grows when a large text size wraps a label, so the screens read its measured height, not the constant.
+let barHeight = TAB_BAR_HEIGHT;
+const heightListeners = new Set<() => void>();
+
+function setBarHeight(height: number): void {
+  const next = Math.max(TAB_BAR_HEIGHT, Math.ceil(height));
+  if (next === barHeight) return;
+  barHeight = next;
+  for (const listener of heightListeners) listener();
+}
+
+function subscribeBarHeight(listener: () => void): () => void {
+  heightListeners.add(listener);
+  return () => {
+    heightListeners.delete(listener);
+  };
+}
+
+const readBarHeight = (): number => barHeight;
+
 /** How much a screen must leave free at its end so its last row scrolls clear of the floating bar. */
 export function useTabBarInset(): number {
-  return barBottom(useSafeAreaInsets().bottom) + TAB_BAR_HEIGHT + space[2];
+  const height = useSyncExternalStore(subscribeBarHeight, readBarHeight);
+  return barBottom(useSafeAreaInsets().bottom) + height + space[2];
 }
 
 type Material = 'opaque' | 'glass' | 'blur';
@@ -167,7 +195,7 @@ function Tab<K extends string>({ tab, selected, onSelect, motion, paint }: TabPr
         accessibilityRole="tab"
         accessibilityState={{ selected }}
         accessibilityLabel={tab.label}
-        // Labels keep a fixed size so the bar keeps one height; a long press shows them enlarged (iOS).
+        // Labels grow to 1.5× and shrink to fit their tab rather than truncate; a long press shows them larger (iOS).
         accessibilityShowsLargeContentViewer
         accessibilityLargeContentTitle={tab.label}
         onPress={() => {
@@ -182,7 +210,9 @@ function Tab<K extends string>({ tab, selected, onSelect, motion, paint }: TabPr
         <Icon size={24} color={ink} />
         <Text
           numberOfLines={1}
-          maxFontSizeMultiplier={1}
+          adjustsFontSizeToFit
+          minimumFontScale={LABEL_MIN_SCALE}
+          maxFontSizeMultiplier={LABEL_MAX_SCALE}
           style={[styles.label, { color: ink, fontFamily: selected ? fonts.bodyBold : fonts.bodySemiBold }]}
         >
           {tab.label}
@@ -211,7 +241,13 @@ export function TabBar<K extends string>({ tabs, current, onSelect, accessibilit
       pointerEvents="box-none"
       style={[styles.frame, { bottom: barBottom(insets.bottom) }, shadow === 'none' ? null : { boxShadow: shadow }]}
     >
-      <View style={[styles.capsule, { borderColor: opaque ? color.border : tone.glassEdge }]}>
+      <View
+        testID="tab-bar"
+        onLayout={(event: LayoutChangeEvent) => {
+          setBarHeight(event.nativeEvent.layout.height);
+        }}
+        style={[styles.capsule, { borderColor: opaque ? color.border : tone.glassEdge }]}
+      >
         <Backdrop {...paint} blurTarget={blurTarget} />
         <View
           accessibilityRole="tablist"

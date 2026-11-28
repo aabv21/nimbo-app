@@ -13,6 +13,7 @@ import {
   type Signal,
   type SignalUser,
   signalFromRow,
+  signalRecords,
   todayRows,
   withoutRepeatedQuiet,
   withStoredPressure,
@@ -59,6 +60,23 @@ const caseOf = (prefix: string): SignalCase => {
   return found;
 };
 
+test("short sleep's evidence lists one attack per attack night, so the chip's count and the sheet agree", () => {
+  const s05 = caseOf('S05');
+  const now = new Date(s05.input.now);
+  const first = s05.input.user.episodes[0];
+  if (first === undefined) throw new Error('S05 has attacks');
+  // A second attack the same day as S05's first: five attack nights, six attacks.
+  const second = { ...first, id: 's0b', startedAt: '2026-11-03T23:00:00Z', endedAt: '2026-11-04T01:00:00Z' };
+  const user: SignalUser = { ...s05.input.user, timeZone: 'America/Bogota', episodes: [...s05.input.user.episodes, second] };
+  const signal = computeSignals(user, now, pack).find((entry) => entry.kind === 'short_sleep');
+  if (signal?.kind !== 'short_sleep') throw new Error('S05 fires short sleep');
+  const { episodeIds } = signalRecords(signal, user, now, pack);
+  expect(signal.evidence.attackNights).toBe(5);
+  expect(episodeIds).toHaveLength(signal.evidence.attackNights);
+  expect(episodeIds).toContain(first.id);
+  expect(episodeIds).not.toContain('s0b');
+});
+
 describe('insideWindow', () => {
   test.each([
     ['07:59', '08:00', '21:00', false],
@@ -75,6 +93,19 @@ describe('insideWindow', () => {
     expect(insideWindow('08:00:00', '08:00:00', '21:00:00')).toBe(true);
     expect(insideWindow('20:59:59', '08:00', '21:00:00')).toBe(true);
     expect(insideWindow('10:00', '08:00', '08:00:00')).toBe(false);
+  });
+
+  test("an end of '24:00' or '24:00:00' (Postgres's end of day) is midnight, not a clock it cannot read", () => {
+    expect(insideWindow('23:59:59', '08:00', '24:00:00')).toBe(true);
+    expect(insideWindow('12:00', '08:00:00', '24:00')).toBe(true);
+    expect(insideWindow('07:59', '08:00', '24:00:00')).toBe(false);
+    expect(insideWindow('00:00', '00:00', '24:00:00')).toBe(true);
+    expect(insideWindow('10:00', '24:00', '08:00')).toBe(false);
+    const decide = (end: string) =>
+      decidePush([], { timeZone: 'America/Bogota', notifyStart: '08:00:00', notifyEnd: end, notifyDailyCap: 2, pushLog: [] }, new Date('2026-11-28T04:30:00Z'), pack);
+    // 23:30 in Bogotá: inside a window that ends at the end of the day, so the next reason is the empty list.
+    expect(decide('24:00:00').reason).toBe('no_signals');
+    expect(decide('23:00:00').reason).toBe('outside_window');
   });
 
   test('a clock it cannot read is outside', () => {
@@ -148,6 +179,9 @@ describe('withStoredPressure', () => {
   test("drops a stored row from another day, and today's while an attack is open", () => {
     expect(withStoredPressure(computed, stored('2026-11-26'), user, now, pack)).toEqual(computed);
     expect(withStoredPressure(computed, null, user, now, pack)).toEqual(computed);
+    // A caller that names the days takes a row from any of them (Today's device-zone date and the profile zone's).
+    expect(withStoredPressure(computed, stored('2026-11-26'), user, now, pack, ['2026-11-27', '2026-11-26']).map((signal) => signal.kind)).toContain('pressure');
+    expect(withStoredPressure(computed, stored('2026-11-27'), user, now, pack, ['2026-11-28'])).toEqual(computed);
     const open = { ...user, episodes: [{ ...user.episodes[0], id: 'o1', startedAt: '2026-11-27T12:00:00Z', endedAt: null } as SignalUser['episodes'][number]] };
     expect(withStoredPressure([], stored('2026-11-27'), open, now, pack)).toEqual([]);
   });

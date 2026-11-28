@@ -72,7 +72,7 @@ test.each([
 test.each([
   ['long_attack', 'Long attack', 'Your attack has been going for 15 h.'],
   ['debrief_due', 'Debrief for yesterday’s attack', 'Three short questions about yesterday.'],
-  ['short_sleep', 'Short night', 'You slept under 5 h, under your average before an attack.'],
+  ['short_sleep', 'Short night', 'You slept under 5 h, less than your average before an attack.'],
   ['quiet_tracker', 'No check-in lately', 'No check-in for 3 days.'],
 ] as const)('with the opt-in, %s reads its template in en', (kind, title, body) => {
   const signal = SIGNALS.find((entry) => entry.kind === kind) as Signal;

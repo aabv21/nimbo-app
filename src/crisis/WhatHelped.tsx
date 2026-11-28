@@ -138,6 +138,7 @@ const styles = StyleSheet.create({
   small: { fontFamily: fonts.body, fontSize: type.label, lineHeight: 21 },
   caption: { fontFamily: fonts.body, fontSize: type.caption, lineHeight: 18 },
   chip: {
+    maxWidth: '100%',
     minHeight: crisisControlHeight,
     flexDirection: 'row',
     alignItems: 'center',
@@ -146,5 +147,5 @@ const styles = StyleSheet.create({
     borderRadius: radius.control,
     borderWidth: 1,
   },
-  chipLabel: { fontFamily: fonts.body, fontSize: type.body, lineHeight: 22 },
+  chipLabel: { flexShrink: 1, fontFamily: fonts.body, fontSize: type.body, lineHeight: 22 },
 });

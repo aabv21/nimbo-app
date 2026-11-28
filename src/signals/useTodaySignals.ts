@@ -5,11 +5,11 @@ import { useCallback, useMemo, useState } from 'react';
 
 import { currentUserId } from '../auth/currentUser';
 import { localDateIn, packs } from '../condition';
-import { useRecords } from '../insights/useRecords';
+import { usableZone, useRecords } from '../insights/useRecords';
 import { useOnResume } from '../lib/useOnResume';
 import { computeSignals, todayRows, withStoredPressure } from './index';
 import type { Signal, SignalUser } from './index';
-import { fetchTodayPressure, readCachedPressure } from './signalRepository';
+import { fetchTodayPressure, freshPressure, readCachedPressure } from './signalRepository';
 
 const pack = packs.migraine;
 /** Below this many check-ins, with no attack yet, "nothing today" would mislead: the rules have nothing to read. */
@@ -25,18 +25,25 @@ export interface TodaySignals {
   timeZone: string;
 }
 
-export function useTodaySignals(userId: string, now: Date): TodaySignals {
+/**
+ * `now` is the screen's minute clock: each tick re-reads the stored row's age, so a screen left open drops a pressure
+ * row once its forecast is stale. `profileZone` is the zone the monitor dated the row in.
+ */
+export function useTodaySignals(userId: string, now: Date, profileZone: string | null = null): TodaySignals {
   const records = useRecords(userId);
   // `useRecords` hands over a zone the runtime can use, so the date maths never throws.
   const timeZone = records.timeZone ?? 'UTC';
   const today = localDateIn(now, timeZone);
-  const [stored, setStored] = useState<Signal | null>(() => readCachedPressure(userId, today));
+  // A profile zone this runtime can't place in a day adds nothing: the monitor skips such a user too.
+  const profileToday = profileZone === null || usableZone(profileZone) !== profileZone ? today : localDateIn(now, profileZone);
+  const days = useMemo((): [string, ...string[]] => (profileToday === today ? [today] : [today, profileToday]), [today, profileToday]);
+  const [storedRow, setStoredRow] = useState<unknown>(() => readCachedPressure(userId, today));
 
   const refresh = useCallback(() => {
-    void fetchTodayPressure(userId, today).then((signal) => {
-      if (currentUserId() === userId) setStored(signal);
+    void fetchTodayPressure(userId, days).then((row) => {
+      if (currentUserId() === userId) setStoredRow(row);
     });
-  }, [userId, today]);
+  }, [userId, days]);
   // Re-created when the date turns over, so a focused Today reads the new day's row.
   useFocusEffect(refresh);
   useOnResume(refresh);
@@ -45,10 +52,10 @@ export function useTodaySignals(userId: string, now: Date): TodaySignals {
   return useMemo(() => {
     // Not yet onboarded reads as onboarded now, so a quiet tracker cannot fire.
     const user: SignalUser = { ...records, timeZone, onboardedAt: onboardedAt ?? now.toISOString(), pressure: null };
-    // `withStoredPressure` drops a row from another day, so a stale cache never shows.
-    const all = withStoredPressure(computeSignals(user, now, pack), stored, user, now, pack);
+    // `withStoredPressure` drops a row from a day not in `days`, so a stale cache never shows.
+    const all = withStoredPressure(computeSignals(user, now, pack), freshPressure(storedRow, now), user, now, pack, days);
     const rows = todayRows(all, pack);
     const isNew = records.checkins.length < NEW_USER_CHECKINS && records.episodes.length === 0;
     return { rows, all, empty: rows.length > 0 ? null : isNew ? 'new' : 'none', timeZone };
-  }, [records, timeZone, onboardedAt, now, stored]);
+  }, [records, timeZone, onboardedAt, now, storedRow, days]);
 }

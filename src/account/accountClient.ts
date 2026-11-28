@@ -3,6 +3,7 @@
 import { FunctionsFetchError, FunctionsHttpError, isAuthApiError, isAuthRetryableFetchError } from '@supabase/supabase-js';
 
 import type { Client } from '../auth/emailAuth';
+import { isRecord } from '../lib/guards';
 import { localDate } from '../lib/localDate';
 import { supabase } from '../lib/supabase';
 
@@ -23,10 +24,6 @@ function errorFrom(error: unknown): AccountError {
 
 function statusOf(error: unknown): number | undefined {
   return error instanceof FunctionsHttpError && error.context instanceof Response ? error.context.status : undefined;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 type SessionToken = { access_token: string; user: { id: string } };
@@ -86,12 +83,13 @@ export async function verifyAccount(userId: string, client: Client = supabase): 
 
 /**
  * The signed-in account's server data as the file's text. Only a version 1 document is written: anything else (a newer
- * function's answer, an error body) is `unknown`, never a file.
+ * function's answer, an error body) is `unknown`, never a file; a 401 is `reauth`, as for a deletion.
  */
-export async function exportData(client: Client = supabase): Promise<{ ok: true; json: string } | { ok: false; error: AccountError }> {
+export async function exportData(client: Client = supabase): Promise<{ ok: true; json: string } | { ok: false; error: AccountError | 'reauth' }> {
   try {
     const response = await client.functions.invoke<unknown>('export-data', { body: {} });
-    if (response.error !== null) return { ok: false, error: errorFrom(response.error) };
+    // A 401 is a session Auth refused (signed out elsewhere, expired, revoked): only signing in again helps.
+    if (response.error !== null) return { ok: false, error: statusOf(response.error) === 401 ? 'reauth' : errorFrom(response.error) };
     const body = response.data;
     if (!isRecord(body) || body.schemaVersion !== 1) return { ok: false, error: 'unknown' };
     // NOTE: the parsed body and its text are both in memory, fine up to a few MB of records; upgrade: write the response's raw text to the file (or stream it) once an export nears that.

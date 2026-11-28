@@ -84,7 +84,7 @@ export function HoldToTalk({ label, hint, onHeard, size, disabled = false, onLis
 
   const crisis = size === 'crisis';
   const fill = disabled ? tones.disabledFill : listening || crisis ? color.accent : 'transparent';
-  const ink = disabled ? color.textMuted : listening || crisis ? color.onAccent : color.accentText;
+  const ink = disabled ? tones.disabledInk : listening || crisis ? color.onAccent : color.accentText;
 
   return (
     <View style={crisis ? styles.crisisWrap : null}>

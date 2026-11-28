@@ -181,7 +181,7 @@ export function HistoryCalendar({ userId, episodes, now, onOpen }: HistoryCalend
       </Text>
 
       {dayEpisodes.map((episode) => (
-        <EpisodeRow key={episode.id} episode={episode} now={now} onPress={onOpen} />
+        <EpisodeRow key={episode.id} episode={episode} now={episode.endedAt === null ? now : null} onPress={onOpen} />
       ))}
     </View>
   );

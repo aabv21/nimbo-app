@@ -29,6 +29,7 @@ export function CodeBoxes({ label, value, length, onChangeText, testID }: CodeBo
       <Text style={[styles.label, { color: color.text }]}>{label}</Text>
       <Pressable
         accessible={false}
+        accessibilityRole="none"
         onPress={() => {
           input.current?.focus();
         }}

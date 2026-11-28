@@ -748,6 +748,7 @@ export const es: Record<keyof typeof en, string> = {
   'export.ready': 'Listo. Contiene datos de salud: compártelo solo con quien quieras.',
   'export.share': 'Compartir el archivo',
   'export.error': 'No pudimos preparar tu archivo. Inténtalo de nuevo.',
+  'export.error.reauth': 'Vuelve a iniciar sesión y luego exporta tus datos.',
   'delete.title': 'Eliminar tu cuenta y tus datos',
   'delete.body': 'Se borran para siempre tus crisis, dosis, check-ins, medicamentos, las notas de Nimbo y tu cuenta. En este teléfono también se borra la conversación.',
   'delete.export_first': 'Si quieres una copia, exporta tus datos antes.',

@@ -27,7 +27,12 @@ jest.mock('../../lib/localDate', () => ({
   ...jest.requireActual<typeof import('../../lib/localDate')>('../../lib/localDate'),
   deviceTimeZone: () => 'America/Bogota',
 }));
-jest.mock('../signalRepository', () => ({ fetchTodayPressure: jest.fn(), readCachedPressure: () => null }));
+jest.mock('../../lib/supabase', () => ({ supabase: {} }));
+jest.mock('../signalRepository', () => ({
+  ...jest.requireActual<typeof import('../signalRepository')>('../signalRepository'),
+  fetchTodayPressure: jest.fn(),
+  readCachedPressure: () => null,
+}));
 
 interface SignalCase {
   id: string;
@@ -63,12 +68,15 @@ const TRIPTAN: MedicationInput = {
   archived: false,
 };
 
-const pressure = (localDate: string): Signal => ({
+/** The stored row as the server answers it; computed 5 minutes before `NOW` unless said otherwise. */
+const pressure = (localDate: string, computedAt = '2026-11-27T13:00:00Z') => ({
   kind: 'pressure',
   cause: 'pressure',
-  causeKey: `pressure:${localDate}`,
+  cause_key: `pressure:${localDate}`,
   evidence: { nowHpa: 1012, laterHpa: 1005, laterAt: '2026-11-28T13:00:00Z', dropHpa: 7 },
+  computed_at: computedAt,
 });
+const rowOf = (signal: Signal) => ({ kind: signal.kind, cause: signal.cause, cause_key: signal.causeKey, evidence: signal.evidence, computed_at: '2026-11-27T13:00:00Z' });
 
 /** An attack in the afternoon of `localDate` (Bogotá), so that day's check-in is its night before. */
 function attackOn(localDate: string): void {
@@ -113,7 +121,7 @@ test('a short night shows from the phone’s own records, before the server answ
   expect(result.current.rows.map((signal) => signal.kind)).toEqual(['short_sleep']);
   expect(result.current.rows[0]?.evidence).toMatchObject({ sleepBand: 'lt5', avgAttackNightHours: 5.1, attackNights: 5, avgOtherNightHours: 7.5 });
   expect(result.current.empty).toBeNull();
-  expect(mockedFetch).toHaveBeenCalledWith(USER, '2026-11-27');
+  expect(mockedFetch).toHaveBeenCalledWith(USER, ['2026-11-27']);
 });
 
 test('a stored pressure row joins the rows only for today', async () => {
@@ -135,6 +143,49 @@ test('a stored pressure row joins the rows only for today', async () => {
   expect(today.result.current.rows.map((signal) => signal.kind)).toEqual(['short_sleep', 'pressure']);
 });
 
+test('a pressure row whose forecast ages past 3 hours leaves on the minute tick, with no new read', async () => {
+  resetAuth({ profile: { ...READY_PROFILE, knownTriggers: ['weather'], onboardingCompletedAt: '2026-09-01T15:00:00Z' } });
+  seedShortNight();
+  mockedFetch.mockResolvedValue(pressure('2026-11-27', '2026-11-27T10:06:00Z'));
+  let now = NOW;
+  const { result, rerender } = await renderHook(() => useTodaySignals(USER, now));
+  await act(async () => {
+    await Promise.resolve();
+  });
+  expect(result.current.all.map((signal) => signal.kind)).toEqual(['short_sleep', 'pressure']);
+
+  // 13:06 UTC: computed 3 h ago, still fresh; 13:07: one minute too old.
+  now = new Date('2026-11-27T13:06:00Z');
+  await rerender({});
+  expect(result.current.all.map((signal) => signal.kind)).toEqual(['short_sleep', 'pressure']);
+  now = new Date('2026-11-27T13:07:00Z');
+  await rerender({});
+  expect(result.current.all.map((signal) => signal.kind)).toEqual(['short_sleep']);
+  expect(mockedFetch).toHaveBeenCalledTimes(1);
+});
+
+test('the row is looked up for the device zone’s date and the profile zone’s', async () => {
+  resetAuth({ profile: { ...READY_PROFILE, knownTriggers: ['weather'], onboardingCompletedAt: '2026-09-01T15:00:00Z' } });
+  seedShortNight();
+  // 13:05 UTC is the 27th in Bogotá (the device) and already the 28th in Kiritimati (the profile, not yet synced).
+  mockedFetch.mockResolvedValue(pressure('2026-11-28'));
+  const profileZone = await renderHook(() => useTodaySignals(USER, NOW, 'Pacific/Kiritimati'));
+  await act(async () => {
+    await Promise.resolve();
+  });
+  expect(mockedFetch).toHaveBeenLastCalledWith(USER, ['2026-11-27', '2026-11-28']);
+  expect(profileZone.result.current.all.map((signal) => signal.kind)).toEqual(['short_sleep', 'pressure']);
+  await profileZone.unmount();
+
+  // The same zone, or one this runtime can't read, asks for the device date only.
+  const unknown = await renderHook(() => useTodaySignals(USER, NOW, 'Mars/Base'));
+  await act(async () => {
+    await Promise.resolve();
+  });
+  expect(mockedFetch).toHaveBeenLastCalledWith(USER, ['2026-11-27']);
+  expect(unknown.result.current.all.map((signal) => signal.kind)).toEqual(['short_sleep']);
+});
+
 test('fixture S17’s records give three rows in priority order', async () => {
   const found = cases.find((item) => item.id.startsWith('S17'));
   if (found === undefined) throw new Error('no fixture S17');
@@ -144,8 +195,8 @@ test('fixture S17’s records give three rows in priority order', async () => {
   for (const episode of user.episodes) seedEpisode(USER, new Date(episode.startedAt), episode.endedAt === null ? null : new Date(episode.endedAt));
   for (const checkin of user.checkins) saveCheckin(USER, checkin.localDate, { sleepBand: checkin.sleepBand, stress: checkin.stress });
   for (const dose of user.doses) logDose(USER, { medicationId: dose.medicationId, takenAt: new Date(dose.takenAt), episodeId: null });
-  const stored = found.expected.signals.find((signal) => signal.kind === 'pressure') ?? null;
-  mockedFetch.mockResolvedValue(stored);
+  const stored = found.expected.signals.find((signal) => signal.kind === 'pressure');
+  mockedFetch.mockResolvedValue(stored === undefined ? null : rowOf(stored));
 
   const { result } = await renderHook(() => useTodaySignals(USER, new Date(found.input.now)));
   await act(async () => {

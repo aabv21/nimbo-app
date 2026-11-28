@@ -1,6 +1,6 @@
 // History's Patterns: one section per insight kind in pack order, each either its counts or what it still needs.
 import { useMemo } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import Animated, { LayoutAnimationConfig } from 'react-native-reanimated';
 
 import { localDateIn, packs } from '../condition';
@@ -18,6 +18,8 @@ const pack = packs.migraine;
 // Months, parts of the day and weekdays read best as columns; named entries as rows.
 const COLUMN_KINDS: ReadonlySet<InsightKind> = new Set(['monthly_frequency', 'time_of_day', 'weekday']);
 const COLUMN_HEIGHT = 96;
+/** From this text size up, twelve month labels no longer fit as columns: the same bars read as rows that wrap. */
+const ROWS_FROM_FONT_SCALE = 1.3;
 
 function Columns({ bars }: { bars: readonly Bar[] }): React.JSX.Element {
   const { color } = useTheme();
@@ -57,7 +59,9 @@ function Rows({ bars }: { bars: readonly Bar[] }): React.JSX.Element {
 
 function InsightCard({ kind, lines }: { kind: InsightKind; lines: InsightLines }): React.JSX.Element {
   const { color } = useTheme();
+  const { fontScale } = useWindowDimensions();
   const barCount = lines.bars.length;
+  const columns = COLUMN_KINDS.has(kind) && fontScale < ROWS_FROM_FONT_SCALE;
   return (
     <View testID={`insight-card-${kind}`} style={[styles.section, { borderTopColor: color.border }]}>
       <Text accessibilityRole="header" style={[styles.title, { color: color.text }]}>
@@ -72,7 +76,7 @@ function InsightCard({ kind, lines }: { kind: InsightKind; lines: InsightLines }
       {barCount === 0 ? null : (
         // The bars are read as their lines, so a screen reader hears label and count together.
         <View accessible accessibilityLabel={lines.rows.slice(0, barCount).join('. ')}>
-          {COLUMN_KINDS.has(kind) ? <Columns bars={lines.bars} /> : <Rows bars={lines.bars} />}
+          {columns ? <Columns bars={lines.bars} /> : <Rows bars={lines.bars} />}
         </View>
       )}
       {lines.rows.slice(barCount).map((row) => (

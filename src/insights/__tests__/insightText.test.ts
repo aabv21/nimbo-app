@@ -2,7 +2,7 @@ import { catalogs, translate } from '../../i18n';
 import type { Locale, MessageKey, Params, PluralKey } from '../../i18n';
 import { translatePlural } from '../../i18n/plural';
 import type { Insight, InsightNeed } from '../index';
-import { cardLines, insightLines, needLine } from '../insightText';
+import { cardLines, needLine } from '../insightText';
 import type { InsightTextContext } from '../insightText';
 
 const MED = '00000000-0000-4000-8000-000000000101';
@@ -32,9 +32,9 @@ const timeOfDay = (pattern: boolean, key: 'afternoon' | 'evening'): Insight => (
   pattern,
 });
 
-describe('insightLines', () => {
+describe('cardLines for one insight', () => {
   test('time_of_day with pattern false has no read sentence, but still its bars and basis', () => {
-    const lines = insightLines(timeOfDay(false, 'afternoon'), en);
+    const lines = cardLines([timeOfDay(false, 'afternoon')], en);
     expect(lines.read).toBeNull();
     expect(lines.bars.map((bar) => bar.label)).toEqual(['Night', 'Morning', 'Afternoon', 'Evening']);
     expect(lines.rows[2]).toBe('Afternoon, 7');
@@ -42,10 +42,10 @@ describe('insightLines', () => {
   });
 
   test('with pattern true and key evening the read is the evening sentence', () => {
-    expect(insightLines(timeOfDay(true, 'evening'), en).read).toBe('Most started in the evening, between 18:00 and 00:00.');
+    expect(cardLines([timeOfDay(true, 'evening')], en).read).toBe('Most started in the evening, between 18:00 and 00:00.');
     // The approved afternoon text, filled from the pack's hours.
-    expect(insightLines(timeOfDay(true, 'afternoon'), en).read).toBe('Most started in the afternoon, between 12:00 and 18:00.');
-    expect(insightLines(timeOfDay(true, 'afternoon'), ctxFor('es')).read).toBe('La mayoría empezó por la tarde, entre las 12:00 y las 18:00.');
+    expect(cardLines([timeOfDay(true, 'afternoon')], en).read).toBe('Most started in the afternoon, between 12:00 and 18:00.');
+    expect(cardLines([timeOfDay(true, 'afternoon')], ctxFor('es')).read).toBe('La mayoría empezó por la tarde, entre las 12:00 y las 18:00.');
   });
 
   test('a helped medication row uses the name, and the basis counts the debriefs behind it', () => {
@@ -55,7 +55,7 @@ describe('insightLines', () => {
     expect(lines.rows).toEqual(['Dark room, Helped 3 of 3 times', 'Sumatriptan, Helped 2 of 3 times']);
     expect(lines.rows.join(' ')).not.toContain(MED);
     expect(lines.basis).toBe('Based on 4 answered debriefs.');
-    expect(insightLines({ ...medication, key: 'gone' }, en).bars).toEqual([]);
+    expect(cardLines([{ ...medication, key: 'gone' }], en).bars).toEqual([]);
   });
 
   test("averages use the locale's decimal separator", () => {
@@ -70,10 +70,10 @@ describe('insightLines', () => {
       avgHours: { attackNights: 5.5, otherNights: 7.1 },
       checkins: 30,
     };
-    expect(insightLines(sleep, en).bars.map((bar) => bar.value)).toEqual(['5.5 h', '7.1 h']);
-    expect(insightLines(sleep, ctxFor('es')).bars.map((bar) => bar.value)).toEqual(['5,5 h', '7,1 h']);
-    expect(insightLines(sleep, en).read).toBe('Of 6 nights under 6 h, 4 were followed by an attack. Of 24 other nights, 2 were.');
-    expect(insightLines(sleep, en).note).toBe(translate('en', 'insight.triggers.note'));
+    expect(cardLines([sleep], en).bars.map((bar) => bar.value)).toEqual(['5.5 h', '7.1 h']);
+    expect(cardLines([sleep], ctxFor('es')).bars.map((bar) => bar.value)).toEqual(['5,5 h', '7,1 h']);
+    expect(cardLines([sleep], en).read).toBe('Of 6 nights under 6 h, 4 were followed by an attack. Of 24 other nights, 2 were.');
+    expect(cardLines([sleep], en).note).toBe(translate('en', 'insight.triggers.note'));
   });
 
   test('months come from Intl, with the intensity of the last two', () => {
@@ -108,20 +108,20 @@ describe('insightLines', () => {
       avgHours: { attackNights: 5.5, otherNights: 7 },
       checkins: 20,
     };
-    expect(insightLines(sleep, en).basis).toBe('Based on 1 attack and 20 check-ins.');
-    expect(insightLines(sleep, ctxFor('pt')).basis).toBe('Com base em 1 crise e 20 check-ins.');
+    expect(cardLines([sleep], en).basis).toBe('Based on 1 attack and 20 check-ins.');
+    expect(cardLines([sleep], ctxFor('pt')).basis).toBe('Com base em 1 crise e 20 check-ins.');
     const oneCheckin: Insight = { ...sleep, count: 2, checkins: 1 };
-    expect(insightLines(oneCheckin, en).basis).toBe('Based on 2 attacks and 1 check-in.');
-    expect(insightLines(oneCheckin, ctxFor('es')).basis).toBe('Basado en 2 crisis y 1 check-in.');
-    expect(insightLines(oneCheckin, ctxFor('pt')).basis).toBe('Com base em 2 crises e 1 check-in.');
+    expect(cardLines([oneCheckin], en).basis).toBe('Based on 2 attacks and 1 check-in.');
+    expect(cardLines([oneCheckin], ctxFor('es')).basis).toBe('Basado en 2 crisis y 1 check-in.');
+    expect(cardLines([oneCheckin], ctxFor('pt')).basis).toBe('Com base em 2 crises e 1 check-in.');
     const helped: Insight = { kind: 'helped', key: 'dark_room', source: 'relief', count: 1, of: 2, windowDays: 90, episodeIds: ['a'] };
-    expect(insightLines(helped, en).basis).toBe('Based on 1 answered debrief.');
-    expect(insightLines(helped, ctxFor('es')).basis).toBe('Basado en 1 repaso respondido.');
+    expect(cardLines([helped], en).basis).toBe('Based on 1 answered debrief.');
+    expect(cardLines([helped], ctxFor('es')).basis).toBe('Basado en 1 repaso respondido.');
   });
 
   test('the streak counts its days in the plural helper', () => {
     const streak: Insight = { kind: 'attack_free_streak', key: 'current', count: 1, of: 170, windowDays: 170, episodeIds: [], bestDays: 19 };
-    const lines = insightLines(streak, en);
+    const lines = cardLines([streak], en);
     expect(lines.figure).toBe('1');
     expect(lines.rows).toEqual(['1 day without an attack so far.', 'Your longest stretch in the last year: 19 days.']);
   });
@@ -144,6 +144,9 @@ describe('needLine', () => {
     expect(needLine(firstDay, en.tp)).toBe('Shows up once you have two months of records. You have 1 day so far.');
     expect(needLine(firstDay, ctxFor('es').tp)).toBe('Aparece cuando tengas dos meses de registros. Llevas 1 día.');
     expect(needLine({ ...firstDay, have: 30 }, ctxFor('pt').tp)).toBe('Aparece quando você tiver dois meses de registros. Até agora são 30 dias.');
+    // "Até agora são 1" would be wrong: the days and debriefs lines say what you have in a form that fits any count.
+    expect(needLine({ kind: 'time_of_day', unit: 'days', min: 14, have: 1 }, ctxFor('pt').tp)).toBe('Aparece quando você tiver 14 dias de registros. Até agora você tem 1.');
+    expect(needLine({ kind: 'helped', unit: 'debriefs', min: 3, have: 1 }, ctxFor('pt').tp)).toBe('Preciso de 3 revisões respondidas. Até agora você tem 1.');
     expect(needLine({ kind: 'attack_free_streak', unit: 'recent_record', min: 7, have: 1 }, ctxFor('pt').tp)).toBe(
       'Volta a aparecer quando você registrar algo. Seu último registro foi há 1 dia.',
     );

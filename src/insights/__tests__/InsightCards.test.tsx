@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen, within } from '@testing-library/react-native';
+import { Dimensions } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 
 import History from '../../app/(tabs)/history';
@@ -104,4 +105,33 @@ test('the stretch figure is hidden from screen readers, as the sentence under it
   await render(<InsightCards data={data} medicationName={() => null} />);
   const figure = screen.getByTestId('insight-figure-attack_free_streak', { includeHiddenElements: true });
   expect(figure.props).toMatchObject({ accessibilityElementsHidden: true, importantForAccessibility: 'no-hide-descendants' });
+});
+
+/** The time-of-day card's texts capped at a number of lines. */
+function clippedLabels(): unknown[] {
+  return within(screen.getByTestId('insight-card-time_of_day'))
+    .getAllByText(/./, { includeHiddenElements: true })
+    .filter((node) => node.props.numberOfLines !== undefined)
+    .map((node) => node.props.children as unknown);
+}
+
+function setFontScale(fontScale: number): void {
+  Dimensions.set({ window: { ...Dimensions.get('window'), fontScale }, screen: { ...Dimensions.get('screen'), fontScale } });
+}
+
+test('at large text sizes the column cards read as rows, so no part-of-day label is cut to two lines', async () => {
+  const { data } = dataOf('I05');
+  setFontScale(1);
+  const regular = await render(<InsightCards data={data} medicationName={() => null} />);
+  expect(clippedLabels()).not.toEqual([]);
+  await regular.unmount();
+
+  setFontScale(2);
+  try {
+    await render(<InsightCards data={data} medicationName={() => null} />);
+    expect(clippedLabels()).toEqual([]);
+    expect(screen.getByText('Most started in the afternoon, between 12:00 and 18:00.')).toBeTruthy();
+  } finally {
+    setFontScale(1);
+  }
 });

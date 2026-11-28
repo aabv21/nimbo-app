@@ -130,13 +130,6 @@ export interface CompanionResponse {
   replaced: ReplacedReason | null;
 }
 
-/** The body of every non-200 answer; `quota` and `limit` only on 429. */
-export interface CompanionErrorBody {
-  error: 'invalid_input' | 'unauthorized' | 'method_not_allowed' | 'ai_off' | 'over_quota' | 'unavailable' | 'internal';
-  quota?: ClientQuotaKind;
-  limit?: number;
-}
-
 const length = (text: string): number => Array.from(text).length;
 
 /** The trimmed turns, or null unless 1–12 of them, each 1–500 characters, 4,000 in all, first and last the user's. */

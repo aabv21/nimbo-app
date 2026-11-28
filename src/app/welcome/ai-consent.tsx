@@ -59,7 +59,7 @@ export default function AiConsent(): React.JSX.Element {
       <View style={styles.top}>{again ? null : <StepProgress done={1} total={SETUP_STEPS} />}</View>
       <Text accessibilityRole="header" style={[styles.title, { color: color.text }]}>{t('consent.title')}</Text>
       {/* A stored version means a newer text is being asked for, as on the boundary screen. */}
-      {profile !== null && profile.aiConsentVersion !== null ? <Notice tone="info" title={t('consent.updated')} /> : null}
+      {profile !== null && profile.aiConsentVersion !== null ? <Notice tone="info" announce={false} title={t('consent.updated')} /> : null}
       <Text style={[styles.body, { color: color.text }]}>{t('consent.what')}</Text>
       <View style={[styles.card, { backgroundColor: color.surface }]}>
         {SECTIONS.map(([title, body]) => (

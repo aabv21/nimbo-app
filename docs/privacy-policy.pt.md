@@ -87,7 +87,7 @@ O acompanhante de IA só funciona se você disser sim na tela “A IA do Nimbo e
 Quando você envia uma mensagem, seu celular envia ao servidor do Nimbo os turnos recentes da conversa (até 12 mensagens curtas), o idioma do app, sua data local e seu fuso horário, e se você digitou ou ditou. Para responder, o servidor pode ler dados dos seus registros (datas, intensidade, sintomas, gatilhos, remédios, seus padrões e sinais) e as notas do Nimbo sobre você. Ele envia esses dados a dois serviços, a partir do servidor, nunca direto do seu celular:
 
 - **Anthropic.** O Claude escreve as respostas. Quando a TypeSafe não está disponível, o Claude também faz a verificação de segurança.
-- **TypeSafe.** O Jev verifica sua mensagem e o rascunho da resposta em busca de sinais de alerta e conselhos inseguros.
+- **TypeSafe.** O Jev verifica suas mensagens recentes e o rascunho da resposta em busca de sinais de alerta e conselhos inseguros, junto com os dados dos seus registros em que a resposta se baseou.
 
 Esses serviços nunca recebem seu nome, seu e-mail, o id da sua conta, sua localização nem os ids dos seus registros.
 
@@ -117,7 +117,7 @@ Estes serviços tratam dados em nome do Nimbo, cada um só para a finalidade ind
 |---|---|---|---|---|
 | Supabase | Tudo o que fica guardado no servidor | Hospedagem: o banco de dados, o login e as funções do servidor | {{DB_REGION}} | Até você apagar os dados ou excluir sua conta |
 | Anthropic (Claude) | Com a IA ligada: os turnos da conversa, dados dos seus registros, as notas do Nimbo, o idioma, sua data local e seu fuso horário (como diferença em relação ao UTC); o texto da verificação de segurança quando a TypeSafe não está disponível | Escrever as respostas do acompanhante; a verificação de segurança de reserva | Estados Unidos | A Anthropic {{ANTHROPIC_RETENTION}}. Ela não treina seus modelos com esses dados |
-| TypeSafe (Jev) | Com a IA ligada: sua mensagem, o rascunho da resposta e o contexto de sinais de alerta | Verificar a segurança de mensagens e respostas | Estados Unidos | A TypeSafe {{TYPESAFE_RETENTION}}. Ela não treina seus modelos com esses dados |
+| TypeSafe (Jev) | Com a IA ligada: suas mensagens recentes, o rascunho da resposta, os dados dos seus registros em que ele se baseou (como datas, intensidades, nomes de medicamentos e o texto da dose) e o contexto de sinais de alerta | Verificar a segurança de mensagens e respostas | Estados Unidos | A TypeSafe {{TYPESAFE_RETENTION}}. Ela não treina seus modelos com esses dados |
 | Open-Meteo | Só a célula de uma casa decimal da sua região, a partir do servidor do Nimbo, nunca algo que identifique você | A previsão de pressão atmosférica | Suíça | Os registros do servidor web por 90 dias |
 | Expo (notificações) | Com os avisos ligados: o token do seu celular e o título de cada aviso, mais a tela que ele abre; o título é “Você tem uma nota do Nimbo”, a menos que você ative os detalhes na tela bloqueada, que acrescentam o texto do sinal; e, para confirmar que um celular recebe o token, um código de uso único em uma notificação silenciosa | Entregar os avisos e a verificação do token | Estados Unidos | Pelo tempo razoavelmente necessário; os recibos de entrega por 1 dia |
 | Google (Firebase Cloud Messaging) e Apple (serviço de notificações) | O mesmo aviso, a partir da Expo | Entregar o aviso a um celular Android ou a um iPhone | Estados Unidos | Conforme os próprios termos |

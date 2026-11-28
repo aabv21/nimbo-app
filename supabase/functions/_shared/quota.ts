@@ -7,6 +7,7 @@ import { POSTGREST_TIMEOUT_MS, restJson, serviceHeaders } from './rest.ts';
 /** `screen` is the companion's input screen (Jev, then Haiku), spent on every message before the others. */
 export type QuotaKind = 'companion' | 'dictation' | 'screen';
 
+// NOTE: one tier; `screen` must stay at or above every tier's companion limit, or the keyword screen alone guards the rest; upgrade: per-tier limits with a test of that order, when premium limits are named.
 export const DAILY_LIMITS: Readonly<Record<QuotaKind, number>> = { companion: 40, dictation: 20, screen: 200 };
 
 /**

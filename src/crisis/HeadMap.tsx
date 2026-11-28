@@ -241,6 +241,7 @@ const styles = StyleSheet.create({
   sectionTitle: { fontFamily: fonts.bodyBold, fontSize: type.label, lineHeight: 20 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space[1] },
   chip: {
+    maxWidth: '100%',
     minHeight: crisisControlHeight,
     flexDirection: 'row',
     alignItems: 'center',
@@ -249,5 +250,5 @@ const styles = StyleSheet.create({
     borderRadius: radius.control,
     borderWidth: 1,
   },
-  chipLabel: { fontFamily: fonts.body, fontSize: type.body, lineHeight: 22 },
+  chipLabel: { flexShrink: 1, fontFamily: fonts.body, fontSize: type.body, lineHeight: 22 },
 });

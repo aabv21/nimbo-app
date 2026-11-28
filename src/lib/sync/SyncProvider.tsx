@@ -208,10 +208,9 @@ export function SyncProvider({ children }: { children: ReactNode }): React.JSX.E
     [sync],
   );
 
-  const value = useMemo(
-    () => ({ pending: counts.pending, failed: counts.failed, syncing, retry, outboxFor }),
-    [counts, syncing, retry, outboxFor],
-  );
+  // Keyed on the two counts, not the snapshot: an outbox write that only moves a retry time re-renders no consumer.
+  const { pending, failed } = counts;
+  const value = useMemo(() => ({ pending, failed, syncing, retry, outboxFor }), [pending, failed, syncing, retry, outboxFor]);
 
   return <SyncContext.Provider value={value}>{children}</SyncContext.Provider>;
 }

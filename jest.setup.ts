@@ -1,5 +1,10 @@
 import { Dimensions } from 'react-native';
 
+// A suite's first test pays its module loading (the whole route tree under `renderRouter`): cold and under CPU load
+// that passed Jest's default 5 s, while no test needs more than about 1 s warm. Jest reads `testTimeout` only from the
+// global config, so the app project sets it here (docs/testing.md#test-timing).
+jest.setTimeout(20_000);
+
 // jest.mock()'s factory can only reference globals (incl. `require`), not a module-scoped import: https://jestjs.io/docs/jest-object#jestmockmodulename-factory-options
 jest.mock('react-native-safe-area-context', () => require('react-native-safe-area-context/jest/mock').default);
 jest.mock('expo-localization', () => ({

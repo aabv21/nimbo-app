@@ -71,6 +71,11 @@ function Patterns({ userId, now }: { userId: string; now: Date }): React.JSX.Ele
   return <InsightCards data={data} medicationName={(id) => names.get(id) ?? null} />;
 }
 
+// Module-level, so the memoized rows get the same handler on every render.
+function openEpisode(id: string): void {
+  router.push({ pathname: '/episode/[id]', params: { id } });
+}
+
 function HistoryBody({ userId }: { userId: string }): React.JSX.Element {
   const { t } = useI18n();
   const { color } = useTheme();
@@ -98,9 +103,6 @@ function HistoryBody({ userId }: { userId: string }): React.JSX.Element {
     () => filterEpisodes(episodes, doses, filter, now, (key) => t(key as MessageKey)),
     [episodes, doses, filter, now, t],
   );
-  const open = (id: string): void => {
-    router.push({ pathname: '/episode/[id]', params: { id } });
-  };
 
   const header = (
     <View style={styles.header}>
@@ -128,7 +130,7 @@ function HistoryBody({ userId }: { userId: string }): React.JSX.Element {
       {view === 'calendar' ? (
         <Screen bottomInset={bottomInset}>
           {header}
-          <HistoryCalendar userId={userId} episodes={episodes} now={now} onOpen={open} />
+          <HistoryCalendar userId={userId} episodes={episodes} now={now} onOpen={openEpisode} />
           {episodes.length === 0 ? emptyText : null}
         </Screen>
       ) : view === 'insights' ? (
@@ -152,7 +154,7 @@ function HistoryBody({ userId }: { userId: string }): React.JSX.Element {
             query={filter.query}
             onQuery={(query) => { setFilter((current) => ({ ...current, query })); }}
             onOpenFilters={() => { setSheetOpen(true); }}
-            onOpen={open}
+            onOpen={openEpisode}
             bottomPadding={bottomInset}
           />
         </Screen>

@@ -48,9 +48,8 @@ function thrownResult(error: unknown): SendResult {
   return error instanceof TypeError ? { ok: false, permanent: false, noResponse: true } : { ok: false, permanent: false };
 }
 
+// A call made mid-pass shares that pass; `SyncProvider` asks for another cycle when something is queued meanwhile.
 const inFlight = new Map<string, Promise<RunOutboxResult>>();
-/** A call made mid-pass sweeps again once the pass ends, so an operation queued meanwhile is not left behind. */
-const rerunRequested = new Set<string>();
 const paused = new Set<string>();
 
 /** Resolves once a running pass has stopped: a send in flight finishes, nothing after it starts. */
@@ -65,28 +64,12 @@ export function resumeOutbox(userId: string): void {
 
 export function runOutbox(userId: string, deps: OutboxDeps): Promise<RunOutboxResult> {
   const existing = inFlight.get(userId);
-  if (existing !== undefined) {
-    rerunRequested.add(userId);
-    return existing;
-  }
-  const pass = runPasses(userId, deps).finally(() => {
+  if (existing !== undefined) return existing;
+  const pass = runPass(userId, deps).finally(() => {
     inFlight.delete(userId);
   });
   inFlight.set(userId, pass);
   return pass;
-}
-
-async function runPasses(userId: string, deps: OutboxDeps): Promise<RunOutboxResult> {
-  let sent = 0;
-  let result: RunOutboxResult;
-  for (;;) {
-    rerunRequested.delete(userId);
-    result = await runPass(userId, deps);
-    sent += result.sent;
-    if (!rerunRequested.has(userId) || paused.has(userId)) break;
-  }
-  // `failed` and `waiting` describe the queue as the last sweep left it.
-  return { ...result, sent };
 }
 
 async function runPass(userId: string, deps: OutboxDeps): Promise<RunOutboxResult> {

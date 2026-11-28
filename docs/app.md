@@ -64,7 +64,8 @@ Expo Router routes: every file is a screen and `_layout.tsx` files define naviga
 - `accountClient.ts`: `exportData()` calls `export-data` and accepts only a `schemaVersion: 1` document, returned as
   indented JSON text; `deleteAccount()` calls `delete-account` with the session's token; `verifyAccount(userId)` asks
   Auth about that token only; `exportFileName()` is `nimbo-data-YYYY-MM-DD.json` (the phone's day). Failures are
-  `network` or `unknown`, plus `reauth` for a deletion; none throws ([API](api.md#export-data)).
+  `network` or `unknown`, plus `reauth` for a deletion and for an export's 401, which `usePrivacyActions` shows as an
+  alert and follows with a local sign-out (`signOutIfStill`); none throws ([API](api.md#export-data)).
 - `deletionMarker.ts`, `deletionFlow.ts`, `forgetAccount.ts`, `deviceFiles.ts` and `usePrivacyActions.ts`: the
   deletion on the phone, below.
 
@@ -188,7 +189,11 @@ Hermes has no `Intl.PluralRules`), falling back to `.other`, and fills `{n}` wit
 - `theme.ts`: the Day, Dark and Dim tokens (colours, type, space, radii) and the tones derived from
   them; `resolveTheme.ts`: preference, phone scheme and crisis mode to a theme; `ThemeProvider.tsx` and
   `themeContext.ts` provide it (`useTheme`, `useTones`); `color.ts` and `contrast.ts` are the colour
-  maths and WCAG contrast the theme tests use.
+  maths and WCAG contrast the theme and contrast tests use (every pair a component paints is pinned in
+  `__tests__/contrast.test.ts`; a disabled control's label is the `disabledInk` tone, a step lighter in Dim).
+- `useAnnouncement.ts`: speaks a message on iOS when it appears, since VoiceOver has no live regions (TalkBack reads
+  the live region); `Notice` (unless `announce={false}`, for a standing status already there when its screen opens) and `TextField`'s error use it, and `AlertText.tsx` is the inline error that does both
+  ([`audits/accessibility.md`](audits/accessibility.md)).
 - `motion.ts`: motion tokens per theme and reduce-motion setting, `useMotion()`, easings and springs,
   `entrance(motion, dy, delay)` (a rise, or the reduced fade) and `crossFade(motion)` (a value changing in place);
   `usePressFeedback.ts`: press feedback; `useAccessibilityFlag.ts`: reduce motion and reduce transparency.
@@ -196,7 +201,7 @@ Hermes has no `Intl.PluralRules`), falling back to `.other`, and fills `{n}` wit
   scroll, so they stay in the thumb zone at every text size; Today and the onboarding steps use it; `scrollRef` lets
   a screen scroll to one of its parts), `Button`,
   `TextField`, `TextLink` (`role="link"` when it opens a web page), `Notice` (`info`, `warning` or `danger`), `ChoiceGroup`, `SwitchRow`, `CheckRow`, `CodeBoxes`, `BackButton`, `TabBar`
-  (the floating Liquid Glass bar) and `TabScene` (a tab's entrance when it gains focus). Components read
+  (the floating Liquid Glass bar; its labels grow to 1.5× and shrink to fit one line, and `useTabBarInset()` reads its measured height) and `TabScene` (a tab's entrance when it gains focus). Components read
   colours only from `useTheme()` and durations only from `useMotion()`. `Button` and `SwitchRow` pass an optional
   `testID` through for the Maestro flows.
 - `useSheetMotion.ts`: the motion of a bottom sheet that draws its own scrim (the check-in and History's filters):
@@ -210,7 +215,8 @@ Hermes has no `Intl.PluralRules`), falling back to `.other`, and fills `{n}` wit
   foreground-only token refresh; `readStoredSession` and `clearPersistedAuth` read and clear it.
 - `kv.ts`: the only caller of the on-device key-value store, with `kvKeys()` and the post-deletion guard
   (`refuseUserKeys`, `allowUserKeys`, `kvUserRefused`); `storedSession.ts` parses the persisted
-  session; `fetchWithTimeout.ts`; `requestResult.ts` (the `network`, `invalid` and `unknown` kinds);
+  session; `guards.ts` re-exports the functions' `isRecord` and `UUID`; `fetchWithTimeout.ts`; `requestResult.ts` (the
+  `network`, `invalid` and `unknown` kinds);
   `useOnResume.ts` (a retry hook for foreground and network return, told which it is); `useOncePerFocus.ts` (a press
   that opens another screen runs once until this screen is focused again, so a double tap never pushes twice, used by
   Today's dock and the check-in card); `localDate.ts` (the phone's
@@ -259,8 +265,8 @@ transaction, shows the change at once, and the outbox sends it when it can.
   the attempt back and only lengthens the wait, so time offline never fails an operation. A retryable
   failure stops the pass, so nothing overtakes it. A permanent one, or the 8th answered attempt,
   marks the operation failed and the pass goes on. An operation is never sent
-  while the session belongs to another account (`deps.sessionUserId()`). Concurrent calls share one pass,
-  and `pauseOutbox` / `resumeOutbox` hold a user's queue. `outbox.ts`'s `wakeOffline(userId)` makes an
+  while the session belongs to another account (`deps.sessionUserId()`). Concurrent calls share one pass
+  (`SyncProvider` runs one more cycle for anything queued meanwhile), and `pauseOutbox` / `resumeOutbox` hold a user's queue. `outbox.ts`'s `wakeOffline(userId)` makes an
   operation that waits only because its sends got no answer (`no_responses > 0`) due now, keeping its
   answered attempts; `resetFailed` is the banner's "Try again". Each create RPC is idempotent on its id, so a
   call replayed after a lost response never duplicates a row. `rpcSender(client)` is the real `send`.
@@ -302,7 +308,7 @@ the attacks behind it (`episodeIds`) as evidence.
   the app share: `MODES`, `GUARD_KEYS`, `INTENTS`, the drafts (`EpisodeDraft`, `DoseDraft`, `CheckinDraft`), `Evidence`,
   `Guard` and `ReplacedReason`; the request the app sends (`CompanionRequest`, at most `MAX_TURNS` turns of
   `TURN_MAX_CHARS`, `TOTAL_MAX_CHARS` in all, checked by `parseCompanionRequest`), the 200 body (`CompanionResponse`,
-  checked by `isCompanionResponse`), the error body (`CompanionErrorBody`) and `QuotaKind`. `reply` is null when a red
+  checked by `isCompanionResponse`) and `QuotaKind`; the error bodies are listed in [`api.md`](api.md#companion). `reply` is null when a red
   flag stopped the request or the guard replaced the reply; `guard: 'degraded'` means no model screened the reply.
 - `chatStore.ts`: the chat on this phone only (`chat_messages`), never queued or synced, and removed by the sign-out purge.
   `appendMessage(userId, message)` stores a message in one statement, and the table's `chat_messages_keep` trigger keeps the user's last `CHAT_KEEP` (200); `updateMessage` changes a
@@ -602,16 +608,18 @@ Medications and doses live in the local mirrors and reach the server through the
 
 - `index.ts` re-exports `supabase/functions/_shared/signals.ts` (`computeSignals`, `todayRows`, `withStoredPressure`,
   `signalFromRow`, `freshPressureFromRow`, the `Signal` type), so Today, the companion and the monitor rank the same rows.
-- `signalRepository.ts`: `fetchTodayPressure(userId, localDate)` reads the day's newest stored `pressure` row (named
-  columns with `computed_at`, the user's token) and keeps it in kv `signals.<userId>` with its date; a row computed more
-  than `maxForecastAgeHours` ago reads as none, online or kept (`freshPressureFromRow`); a failed read answers the kept
-  row for that date, an answer that settles after the account changed is not kept, and of concurrent reads for the same
-  day only the newest reply is answered and kept. `readCachedPressure` gives the kept row at once;
-  `removeCachedSignals` is for the sign-out cleanup only.
-- `useTodaySignals.ts`: `useTodaySignals(userId, now)` runs `computeSignals` over `useRecords` (no forecast, the device
-  zone), merges the stored pressure row with `withStoredPressure` (another day's row, a stale one, or one during an
-  open attack, is left out) and cuts to `todayRows`. It reads the pressure row on focus and on resume. `empty` is `new` while the user
-  has fewer than 3 check-ins and no attack, `none` when nothing fires, null with rows.
+- `signalRepository.ts`: `fetchTodayPressure(userId, days)` reads the newest stored `pressure` row for any of `days`
+  (the device zone's date and the profile zone's, which the monitor dates rows in; named columns with
+  `computed_at`, the user's token) and keeps it in kv `signals.<userId>` under the device's date. Rows come back as
+  stored; `freshPressure(row, now)` reads one as a signal while it is under `maxForecastAgeHours` old
+  (`freshPressureFromRow`). A failed read answers the kept row for that date, an answer that settles after the account
+  changed is not kept, and of concurrent reads for the same days only the newest reply is answered and kept.
+  `readCachedPressure` gives the kept row at once; `removeCachedSignals` is for the sign-out cleanup only.
+- `useTodaySignals.ts`: `useTodaySignals(userId, now, profileZone)` runs `computeSignals` over `useRecords` (no forecast,
+  the device zone), merges the stored pressure row with `withStoredPressure` (a row from neither date, a stale one, or
+  one during an open attack, is left out) and cuts to `todayRows`. It reads the pressure row on focus and on resume, and
+  re-reads its age on every `now`, so Today's minute clock drops a row whose forecast went stale on a screen left open.
+  `empty` is `new` while the user has fewer than 3 check-ins and no attack, `none` when nothing fires, null with rows.
 - `signalText.ts`: every word of a row, pure: title, reason, detail, source, the action (`debrief`, `crisis`, `checkin`
   or `cabinet`) and whether it carries the weather credit (pressure only). A short night names the check-in's band
   ("You slept under 5 h") and the average of the nights before an attack in hours with the locale's separator ("5.1 h",
@@ -665,7 +673,7 @@ Medications and doses live in the local mirrors and reach the server through the
   insights' date maths throws on an unknown zone; it is read on every render, so Patterns follows a trip. `hasLocation` is false: the phone never reads its saved area back.
 - `insightText.ts` chooses every word of a card, pure, so it is tested without rendering: `cardLines(insights, ctx)` gives a
   kind's title, labelled bars, rows to read aloud, the pattern sentence (only when `pattern` is true), the caution under
-  triggers and sleep, and the basis line; `insightLines(insight, ctx)` is the same for one insight and `needLine(need, t)`
+  triggers and sleep, and the basis line (one insight is `cardLines([insight], ctx)`); `needLine(need, t)`
   says what a kind still needs (with the plural helper, the noun following its own count). Months come from `Intl`, hours from the pack's buckets, averages in the locale's decimal
   separator, counts through the plural helper; never a percentage.
 - `InsightCards.tsx` renders the kinds in `INSIGHT_KINDS` order, each as its counts (months, parts of the day and weekdays

@@ -1,5 +1,8 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { router } from 'expo-router';
+import { ScrollView } from 'react-native';
+import type { TestInstance } from 'test-renderer';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import Today from '../app/(tabs)/today';
 import { logDose } from '../cabinet/doseStore';
@@ -35,7 +38,7 @@ jest.mock('expo-router', () => ({
     }, []);
   },
 }));
-jest.mock('../signals/signalRepository', () => ({ fetchTodayPressure: jest.fn(() => Promise.resolve(null)), readCachedPressure: () => null }));
+jest.mock('../signals/signalRepository', () => ({ fetchTodayPressure: jest.fn(() => Promise.resolve(null)), readCachedPressure: () => null, freshPressure: () => null }));
 const mockSync = { pending: 0, failed: 0, syncing: false, retry: jest.fn() };
 jest.mock('../lib/sync/SyncProvider', () => ({ useSyncState: () => mockSync }));
 
@@ -332,4 +335,22 @@ test('with no check-in for days, the row’s action goes to the check-in card', 
   await fireEvent.press(screen.getByRole('button', { name: t('signal.quiet.action') }));
   expect(router.push).not.toHaveBeenCalled();
   expect(screen.getByRole('header', { name: t('today.checkin.title') })).toBeOnTheScreen();
+});
+
+test('the check-in action scrolls the card to just below the status bar and notch, not under them', async () => {
+  const insets = { top: 47, bottom: 34, left: 0, right: 0 };
+  await render(
+    <SafeAreaProvider initialMetrics={{ frame: { x: 0, y: 0, width: 390, height: 844 }, insets }}>
+      <Today />
+    </SafeAreaProvider>,
+  );
+  let section: TestInstance | null = screen.getByRole('header', { name: t('today.checkin.title') });
+  while (section !== null && section.props.onLayout === undefined) section = section.parent;
+  if (section === null) throw new Error('no measured check-in section');
+  await fireEvent(section, 'layout', { nativeEvent: { layout: { x: 0, y: 900, width: 358, height: 300 } } });
+
+  await fireEvent.press(screen.getByRole('button', { name: `${t('signal.quiet.title')}. ${t('signal.quiet.reason')}` }));
+  await fireEvent.press(screen.getByRole('button', { name: t('signal.quiet.action') }));
+  // The content starts at the top inset plus the screen's 12 pt: the card lands on that same line.
+  expect(jest.mocked(ScrollView.prototype.scrollTo)).toHaveBeenLastCalledWith({ y: 900 - 47 - 12, animated: true });
 });

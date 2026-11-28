@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { controlHeight, fonts, radius, space, type } from './theme';
 import { useTheme, useTones } from './themeContext';
+import { useAnnouncement } from './useAnnouncement';
 
 interface NoticeProps {
   /**
@@ -13,17 +14,24 @@ interface NoticeProps {
   title: string;
   body?: string;
   action?: { label: string; onPress: () => void };
+  /**
+   * Spoken on iOS when it appears (true, for a notice that answers a press: an error, "ready"). A standing status that
+   * is already there when its screen opens passes false: VoiceOver reads it in its turn, as part of the screen.
+   */
+  announce?: boolean;
   /** A stable English id for the Maestro flows; never copy. */
   testID?: string;
 }
 
-export function Notice({ tone, title, body, action, testID }: NoticeProps): React.JSX.Element {
+export function Notice({ tone, title, body, action, announce = true, testID }: NoticeProps): React.JSX.Element {
   const { color } = useTheme();
   const tones = useTones();
   const danger = tone === 'danger';
   const mark = danger ? color.danger : tone === 'warning' ? color.warning : color.accent;
   const Icon = danger ? OctagonAlert : tone === 'warning' ? TriangleAlert : Info;
   const fill = danger ? tones.noticeDanger : tone === 'warning' ? tones.noticeWarning : tones.opaquePill;
+  // The live region below is Android's; on iOS a notice that appears after a press (an error, "ready") is spoken here.
+  useAnnouncement(announce ? (body === undefined ? title : `${title}. ${body}`) : null);
 
   return (
     <View

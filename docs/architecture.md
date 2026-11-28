@@ -3,15 +3,15 @@
 This page covers where Nimbo runs, what each part does, how the app decides which screen to show,
 how consent is recorded, how it starts offline, how health data is kept and synced offline, crisis mode,
 the red-flag paths, the companion and its guards, the overuse guard, the insights, the signals and the hourly monitor,
-Today's companion note, the weather, push notifications, reminders, premium, the security model, the reasons behind the design choices, and how to regenerate the diagrams. Parts that later waves
-add are drawn as planned and marked that way.
+Today's companion note, the weather, push notifications, reminders, premium, privacy and data rights, the security model, the reasons behind the design choices, and how to regenerate the diagrams. Parts that wait on
+the owner's setup are drawn dashed.
 
-![System context: the Expo app keeps nimbo.db, the outbox and the chat on the phone, and talks to the Supabase project's Auth, its REST API and its Edge Functions (companion, push-claim, push-unregister) with the user's token, and to Apple and Google for native sign-in; companion reads the caller's rows with the caller's JWT and calls Anthropic for the tool loop and the fallback screen and TypeSafe's Jev for the screens; Postgres runs pg_cron, pg_net and the Vault, and its hourly job calls the monitor function with a Vault secret; monitor reads the pressure forecast for a coarse cell from Open-Meteo and sends neutral pushes through Expo push, which delivers them to the app over FCM and APNs; the email relay and a GitHub Actions keep-alive call are planned](diagrams/system-context.svg)
+![System context: the Expo app keeps nimbo.db, the outbox and the chat on the phone, talks to the Supabase project's Auth, its REST API and its Edge Functions (companion, push-claim, push-unregister, export-data, delete-account) with the user's token, to Apple and Google for native sign-in, and opens the privacy policy on GitHub Pages in the browser; the functions read the caller's rows with the caller's JWT, and companion calls Anthropic for the tool loop and the fallback screen and TypeSafe's Jev for the screens; Auth sends its email codes through Brevo's SMTP on the hosted project; Postgres runs pg_cron, pg_net and the Vault, and its hourly job calls the monitor function with a Vault secret; monitor reads the pressure forecast for a coarse cell from Open-Meteo and sends neutral pushes through Expo push, which delivers them to the app over FCM and APNs; and a daily GitHub Actions workflow calls keep_alive() with the anon key so a free project is not paused](diagrams/system-context.svg)
 
 System context: [interactive page](diagrams/system-context.html) · [source](diagrams/system-context.json)
 
-The diagram tool [archify](https://github.com/tt-a1i/archify) generates the six diagrams on this
-page from their JSON sources; [Regenerating the diagrams](#regenerating-the-diagrams) shows how.
+The diagram tool [archify](https://github.com/tt-a1i/archify) generates the six diagrams in this
+document from their JSON sources (the crisis-logging, companion-message and monitor-run sequences sit in their sections); [Regenerating the diagrams](#regenerating-the-diagrams) shows how.
 Each interactive page adds search, focus and both color themes; open it in a browser.
 
 ## What the system does and where it runs
@@ -34,8 +34,13 @@ or Portuguese. It is not a medical device and never diagnoses or prescribes.
   mock on the host.
 - **The push service.** Expo's push service sends the monitor's pushes on to FCM (Android) and APNs (iOS)
   ([Push notifications](#push-notifications)). Locally it is a mock on the host.
-- **Planned services.** An email relay for the hosted project and a daily GitHub Actions call to
-  `keep_alive()` so a free project is not paused.
+- **The email provider.** Brevo's SMTP sends Auth's confirmation and reset codes on the hosted project (the owner sets it
+  up, [`owner-session.md`](owner-session.md#3-after-the-merges-the-supabase-project)); locally Mailpit catches them.
+- **The policy site.** The privacy policy in English, Spanish and Portuguese is published on GitHub Pages from a public
+  repository of its own (`POLICY_BASE_URL` in `src/account/consent.ts`); the app opens it in the browser.
+- **The keep-alive.** `.github/workflows/keepalive.yml` calls `keep_alive()` once a day with the anon key, so a free
+  project is not paused after a week without activity; it only logs a notice until the owner sets the repository
+  variables `SUPABASE_URL` and `SUPABASE_ANON_KEY`.
 
 ## What each component does
 
@@ -60,11 +65,12 @@ or Portuguese. It is not a medical device and never diagnoses or prescribes.
 | Insights and signal rules | Shared code | `_shared/insights.ts` and `_shared/signals.ts`, pure, run on the phone over the mirror and on the server over `record_inputs` ([Insights](#insights)). |
 | Open-Meteo, Expo push | External | The pressure forecast and the push relay to FCM and APNs, called only by `monitor` (and `push-claim` for its code push). |
 | Anthropic, TypeSafe | External | Claude Sonnet 5.5 and Haiku 5.5, and Jev, called only by `companion` with the function's secrets ([`ai.md`](ai.md)). |
-| Email relay, keep-alive workflow | Planned | Not built yet. |
+| Brevo SMTP, GitHub Pages | External | Auth's email codes on the hosted project; the published privacy policy. Both are owner setup ([`owner-session.md`](owner-session.md)). |
+| Keep-alive workflow | GitHub Actions | `keepalive.yml`: a daily `POST /rest/v1/rpc/keep_alive` with the anon key, from the repository variables. |
 
 ## Data model
 
-![Data model: the signup trigger inserts a profiles row for each auth.users row, whose zone a trigger checks; the app updates thirteen settings columns of profiles directly and records consent and the end of onboarding only through the profile RPCs, which stamp the server time; it writes episodes, doses, medications and checkins only through the nine tracking RPCs that the outbox calls, set_dose_helped included, where a dose references its medication and loses its episode when the episode is deleted; has_premium reads the caller's own entitlements row; the note RPCs write agent_notes; the companion function spends AI units through consume_quota, the only writer of usage_counters; the push token RPCs write push_tokens and its claims (push_claims, push_claim_starts); pg_cron calls monitor with the Vault secret, and monitor reads weather_cache by cell and the records through record_inputs, and through the monitor RPCs upserts and claims signals and queues push_tickets; prune_expired_caches deletes old tickets, signals and cached forecasts daily](diagrams/data-model.svg)
+![Data model: the signup trigger inserts a profiles row for each auth.users row, whose zone a trigger checks; the app updates thirteen settings columns of profiles directly and records consent and the end of onboarding only through the consent RPCs, which take the text's version and the locale, stamp the server time and append each answer to consent_events, whose version must be a row of consent_texts; it writes episodes, doses, medications and checkins only through the nine tracking RPCs that the outbox calls, set_dose_helped included, where a dose references its medication and loses its episode when the episode is deleted; has_premium reads the caller's own entitlements row; the note RPCs write agent_notes; the companion function spends AI units through consume_quota, the only writer of usage_counters; the push token RPCs write push_tokens and its claims (push_claims, push_claim_starts); pg_cron calls monitor with the Vault secret, and monitor reads weather_cache by cell and the records through record_inputs, and through the monitor RPCs upserts and claims signals and queues push_tickets; prune_expired_caches runs hourly at minute 17 and deletes old tickets and usage counters (and old signals, claims and cached forecasts); export-data reads usage_counters with the service role and every other table with the caller's token, and delete-account deletes the auth.users row, whose cascade removes every user table](diagrams/data-model.svg)
 
 Data model: [interactive page](diagrams/data-model.html) · [source](diagrams/data-model.json)
 
@@ -84,11 +90,14 @@ it. This wave adds `signals` (one row per user and cause key, read by its owner,
 `push_tokens` (written only through `register_push_token` with the device secret, with `push_claims` and
 `push_claim_starts` behind `push-claim`), and the server-only `weather_cache` and `push_tickets`. `record_inputs`
 reads a user's records for the rules, and `profiles_check_timezone` refuses a zone `private.is_time_zone` does not
-know. The columns, policies, grants and RPC contracts are in [`database.md`](database.md).
+know. `consent_texts` lists the published consent versions and `consent_events` keeps every answer
+([The consent model](#the-consent-model)). Every table with a `user_id` cascades from `auth.users`, which is how
+`delete-account` removes an account ([Privacy and data rights](#privacy-and-data-rights)). `prune_expired_caches()` runs
+hourly at minute 17. The columns, policies, grants and RPC contracts are in [`database.md`](database.md).
 
 ## Sign-in and the gate
 
-![Gate flow: on launch the stored session and cached profile feed nextRoute, which sends the app to the loading view (retry or sign out) when the profile is unknown, to the intro on a phone that never showed it and then to the sign-in group, to the boundary and AI consent screens while either is unanswered, then through the setup steps, whose last step queues complete_onboarding in the outbox and stamps the profile on the phone, and to Today once everything is answered](diagrams/gate-flow.svg)
+![Gate flow: on launch the stored session and cached profile feed nextRoute, which sends the app to the loading view (retry or sign out) when the profile is unknown, to the intro on a phone that never showed it and then to the sign-in group, to the boundary screen while the terms are unanswered or answered to an older text (three boxes, the health-data consent included; a returning user also sees an emergency call row), to the AI consent screen while it is unanswered, then through the setup steps, whose last step queues complete_onboarding in the outbox and stamps the profile on the phone, and to Today once everything is answered; on Today a newer AI text turns the AI off on the phone and registers /ai-consent until the user answers](diagrams/gate-flow.svg)
 
 Gate flow: [interactive page](diagrams/gate-flow.html) · [source](diagrams/gate-flow.json)
 
@@ -165,6 +174,7 @@ strings live in `src/account/consent.ts`; the tables and contracts are in [`data
 The policy itself is [`privacy-policy.md`](privacy-policy.md) (with [`.es.md`](privacy-policy.es.md) and
 [`.pt.md`](privacy-policy.pt.md)); its "Version" date is `TERMS_VERSION`, and its section anchors include every
 `PolicySection` the app links to, which `scripts/__tests__/policy-check.test.ts` and `pnpm policy:check` check.
+Server-side, consent versions are not enforced in v1.0.0: the phone's gate is the only check, and before a second consent version ships `monitor_targets` gains a `terms_version` filter and the companion an `ai_consent_version` >= current check.
 A boundary screen opened for a newer text says so above the boxes (`boundary.updated`). Declining AI leaves the app complete: `visibleTabs` in `src/profile/tabs.ts` drops the
 Companion tab, and the Profile switch can turn it on later.
 
@@ -519,8 +529,10 @@ reason is stored and pushed once.
   `AT TIME ZONE`.
 - **Today on the phone.** Today runs `computeSignals` over the local mirror itself, without the forecast, so its rows
   work offline and follow a check-in at once. It reads only today's stored pressure row from `signals` (with the user's
-  token, kept in kv `signals.<userId>` for an offline view) and merges it by rank; a row from another day, one computed
-  more than `maxForecastAgeHours` (3 h) ago, online or kept, or one while an attack is open, is left out. A row whose
+  token, kept in kv `signals.<userId>` for an offline view; the newest for the device zone's date or the profile zone's, which
+  the monitor dates rows in) and merges it by rank; a row from another day, one computed more than
+  `maxForecastAgeHours` (3 h) ago, online or kept and re-checked on every minute tick, or one while an attack is open,
+  is left out. A row whose
   drop still holds is re-saved every hour, so only a forecast nobody re-checked ages out. Of two reads in flight for
   the same day, only the newest reply is shown and kept. Only the server pushes.
 
@@ -590,6 +602,50 @@ premium with `pnpm premium` (the service role, from `scripts/` only) or in the d
 offline launch shows it, and `PremiumGate` shows a quiet invitation without a price to everyone else.
 No feature is gated yet; the server check is the authority.
 
+## Privacy and data rights
+
+The privacy policy ([`privacy-policy.md`](privacy-policy.md), [`.es.md`](privacy-policy.es.md),
+[`.pt.md`](privacy-policy.pt.md)) is the user-facing text of this section; the owner fills its placeholders and
+publishes it ([`owner-session.md`](owner-session.md#2-the-privacy-policy)).
+
+- **Two consents, versioned.** `terms` covers 18 or older, not a medical device, storing health data and the policy;
+  `ai` covers sharing with Anthropic and TypeSafe and the transfer to the United States. Both versions are dates
+  (`2026-12-01`, the policy's "Version" line), published as `consent_texts` rows and named by `TERMS_VERSION` and
+  `AI_CONSENT_VERSION` in `src/account/consent.ts`. Each answer carries the version and the app's language, and
+  `consent_events` keeps every one ([The consent model](#the-consent-model)).
+- **Re-consent.** A newer terms text is a gate again, with the emergency call row on the boundary screen; a newer AI text
+  turns the AI off on the phone until the user answers at `/ai-consent` ([Sign-in and the gate](#sign-in-and-the-gate)).
+- **Export.** Profile → "Your data" → Export calls `export-data`, which reads every user table with the caller's token
+  (RLS applies) except `usage_counters`, read with the service role for the verified uid only, and answers one JSON
+  document: the account, the profile, the records, the notes, the signals, the consent history, premium, usage counts
+  and the registered phones without their tokens ([`api.md`](api.md#export-data)). The phone writes it to a file in the
+  cache directory and opens the share sheet; the file is replaced by the next export and removed at sign-out and
+  deletion. The chat is not in it: it lives only on the phone.
+- **Deletion, on the server.** `delete-account` checks the session with Auth, then deletes the `auth.users` row; every
+  `public` table with a `user_id` cascades from it, a list pgTAP pins and the export's test mirrors
+  ([`database.md`](database.md#account-deletion-and-export), [`api.md`](api.md#delete-account)).
+- **Deletion, on the phone.** `runDeletion` writes a marker first, pauses the outbox, calls the function and, once the
+  server answers `deleted`, purges the mirror, the chat, the outbox, the kv keys, the reminders and the export file. A
+  lost answer leaves the marker, and the next launch confirms with Auth before purging
+  ([`app.md`](app.md#account-deletion-on-the-phone)).
+- **The kv guard.** Every kv key an account owns carries its user id as a dot segment, so after a deletion `kvSet`
+  refuses any key of that id for the rest of the process (a late profile read, signals cache or quota write cannot bring
+  data back), and the launch sweep removes the keys of every account that is not signed in and has nothing queued.
+
+Retention, as the policy states it and `prune_expired_caches()` (hourly at minute 17) enforces it:
+
+| Data | Kept |
+|---|---|
+| Records, notes, settings, premium, consent history | Until the user deletes them or the account |
+| Push token | Until sign-out on that phone, a new token, Expo reporting it dead, or deletion |
+| Signals | 30 days (each user's newest pushed quiet stretch longer) |
+| Usage counters | 30 days |
+| Pressure forecasts (per cell, not linked to a user) | 2 days |
+| Push receipts | 2 days |
+| Push claims and claim starts | Up to 2 hours |
+| The phone's copies | Until sign-out (queued changes until they are sent), deletion or uninstall |
+| Auth's sign-in logs | The provider's period, read from the hosted project |
+
 ## Security
 
 - **Row-level security on every table**, with `select` limited to the caller's rows. On `profiles`,
@@ -647,6 +703,8 @@ No feature is gated yet; the server check is the authority.
   list every finding with its fix or the reason it is accepted. Their pins run in the gate and CI: `src/__tests__/securityScan.test.ts`,
   `supabase/functions/_shared/__tests__/logScan.test.ts`, `scripts/__tests__/schema-parity.test.ts`, `supabase/tests/api_audit.test.sql`,
   `supabase/tests/database_audit.test.sql`, `pnpm db:lint` and `integration/apiAudit.int.test.ts` ([`testing.md`](testing.md)).
+  The other five audits (agent guardrails, accessibility, motion, React Native performance and over-engineering) are
+  indexed with these in [`audits/README.md`](audits/README.md).
 
 ## Design decisions
 
@@ -726,6 +784,26 @@ No feature is gated yet; the server check is the authority.
 - **Equal notification hours are an empty window.** No push goes out, and no constraint refuses the save; Profile says so
   under equal hours.
 - **The neutral push says "You have a note from Nimbo".** The approved copy, the same line the reminders use.
+- **Consent versions are dates, and only the app asks again.** The server refuses a version it never published; the
+  app compares the stored version with its own and re-asks, so an old build keeps an older answer until it updates, and
+  a version from a newer build is never downgraded.
+- **The AI re-consent never locks anyone out.** Terms gate everything, so their re-consent screen carries an emergency
+  call; the AI only pauses, so Today and crisis mode keep working offline.
+- **Health-data consent is its own box.** LGPD art. 11 asks for specific, highlighted consent for sensitive data, so it
+  sits apart from the other two and an account needs all three.
+- **Export and deletion are Edge Functions.** The export reads with the caller's token so RLS still applies, and only
+  `usage_counters` (no client grant) needs the service role; deletion is Auth's admin delete plus the cascade, so no
+  table can be forgotten without pgTAP failing.
+- **The share sheet, not a download.** React Native's `Share` cannot attach a file on Android, so the export goes through
+  `expo-file-system` (a cache file) and `expo-sharing`.
+- **The post-deletion guard lives in memory.** A deleted account cannot sign in again, so a guard for the process is
+  enough; a sign-in of the same id lifts it.
+- **No Apple revoke and no auth-log purge in `delete-account`.** iOS is parked, and Auth's audit log is disclosed in the
+  policy instead; both are one step to add later.
+- **The session stays in expo-sqlite's `localStorage`.** It exceeds SecureStore's per-item size, Android backup is off and
+  the sandbox protects it; an encrypted adapter is the recorded upgrade ([`audits/security.md`](audits/security.md)).
+- **The policy is published apart, with placeholders.** `pnpm policy:check` fails while any owner placeholder is left,
+  so nothing is published half-filled.
 - **Commits by milestone.** Each wave's branch history has one commit per milestone, each reviewed
   before it is kept, so the history reads as the build order.
 
@@ -759,5 +837,5 @@ For one diagram, with its type and name:
 4. `node "$ARCHIFY" visual-check <copy>.html --json` checks a copy of the page in a real browser; it
    writes PNG screenshots next to the page, so run it on a copy outside the repo.
 
-Update the diagrams when the schema, the gate rules, the sync path, the companion's request, the monitor's run or a planned service changes, and
+Update the diagrams when the schema, the gate rules, the sync path, the companion's request, the monitor's run or an outside service changes, and
 keep the alt text above in step with them.

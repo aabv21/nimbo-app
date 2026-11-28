@@ -5,6 +5,7 @@ import type { TextInputProps } from 'react-native';
 
 import { controlHeight, fonts, radius, space, type } from './theme';
 import { useTheme } from './themeContext';
+import { useAnnouncement } from './useAnnouncement';
 
 type PassThrough = Omit<
   TextInputProps,
@@ -27,6 +28,7 @@ export function TextField({ label, value, onChangeText, help, error, onFocus, on
   const labelId = useId();
   const invalid = error !== undefined;
   const note = error ?? help;
+  useAnnouncement(error ?? null);
 
   return (
     <View style={styles.field}>
@@ -63,6 +65,7 @@ export function TextField({ label, value, onChangeText, help, error, onFocus, on
       />
       {invalid ? (
         <View style={styles.error} accessibilityRole="alert" accessibilityLiveRegion="polite">
+          {/* The live region is Android's; iOS hears the error through the announcement above. */}
           <TriangleAlert size={20} color={color.danger} />
           <Text style={[styles.caption, styles.errorText, { color: color.danger }]}>{error}</Text>
         </View>

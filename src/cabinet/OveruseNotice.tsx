@@ -39,6 +39,7 @@ export function OveruseNotice({ status, daysLeft }: { status: OveruseStatus; day
     return (
       <Notice
         tone="danger"
+        announce={false}
         title={t('overuse.limit.title', params)}
         body={t('overuse.limit.body', { limit: params.limit })}
         action={{
@@ -51,5 +52,5 @@ export function OveruseNotice({ status, daysLeft }: { status: OveruseStatus; day
     );
   }
   const label = t(scope === 'combined' ? 'overuse.class.combined' : classLabelKey(scope));
-  return <Notice tone="warning" title={t('overuse.warn.title', { ...params, class: label })} body={tp('overuse.warn.body', daysLeft, { left: daysLeft })} />;
+  return <Notice tone="warning" announce={false} title={t('overuse.warn.title', { ...params, class: label })} body={tp('overuse.warn.body', daysLeft, { left: daysLeft })} />;
 }

@@ -190,11 +190,6 @@ export function cardLines(insights: readonly Insight[], ctx: InsightTextContext)
   }
 }
 
-/** One insight's lines; a kind with several insights (months, triggers, what helped) renders them with `cardLines`. */
-export function insightLines(insight: Insight, ctx: InsightTextContext): InsightLines {
-  return cardLines([insight], ctx);
-}
-
 /** What a kind still needs, never a number of its own; the noun follows the count it belongs to. */
 export function needLine(need: InsightNeed, tp: TranslatePlural): string {
   const { min, have } = need;

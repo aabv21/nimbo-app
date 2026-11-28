@@ -14,11 +14,11 @@ guardrails, the conventions, the documentation map and the Definition of done.
 - **Quality**: `pnpm check:supply-chain`, `pnpm run typecheck`, `pnpm run lint`, `pnpm test` and `expo-doctor` (without its SDK-version check, which `pnpm check:expo` covers).
 - **Security**: gitleaks over the full history and `pnpm audit --audit-level=high`.
 - **Actions**: actionlint and zizmor over the workflows.
-- **Database**: starts the lean local stack, rebuilds the database from the migrations, runs the pgTAP tests, writes `.env.local` (`pnpm env:local`) and runs the integration suite (`pnpm test:int`), and fails when `src/lib/database.types.ts` differs from the migrations.
+- **Database**: starts the lean local stack, rebuilds the database from the migrations, runs the pgTAP tests and `pnpm db:lint`, writes `.env.local` (`pnpm env:local`) and runs the integration suite (`pnpm test:int`), and fails when `src/lib/database.types.ts` differs from the migrations.
 
-`codeql.yml` analyzes the code. Every job runs with read-only `contents` permission unless it needs more, and every action is pinned to a commit SHA. `release.yml` tags and publishes a merged `release: vX.Y.Z` pull request into `main`.
+`codeql.yml` analyzes the code. Every job runs with read-only `contents` permission unless it needs more, and every action is pinned to a commit SHA. `release.yml` tags and publishes a merged `release: vX.Y.Z` pull request into `main`. `keepalive.yml` calls `public.keep_alive()` on the hosted project once a day (and on demand), so the free plan does not pause it; it reads the repository variables `SUPABASE_URL` and `SUPABASE_ANON_KEY` and only logs a notice until they exist.
 
-Releases are pull requests from `develop` into `main` titled `release: vX.Y.Z` and merged with a merge commit. Report security issues privately, as [`SECURITY.md`](SECURITY.md) describes. Rulesets on `main`, `develop` and `v*` tags enforce the flow above and require the Quality, Security, Actions, Database and Analyze checks.
+Releases are pull requests into `main` from a `release/vX.Y.Z` branch cut from an up-to-date `develop`, titled `release: vX.Y.Z` and merged with a merge commit; `release.yml` then tags the merge commit and publishes the release ([`docs/owner-session.md`](docs/owner-session.md#11-the-release) has the v1.0.0 steps). Report security issues privately, as [`SECURITY.md`](SECURITY.md) describes. Rulesets on `main`, `develop` and `v*` tags enforce the flow above and require the Quality, Security, Actions, Database and Analyze checks.
 
 ## Supply-chain hardening
 

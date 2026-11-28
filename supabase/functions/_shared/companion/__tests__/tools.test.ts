@@ -407,6 +407,28 @@ describe('get_signals', () => {
     expect(await malformed.run('get_signals', {})).toEqual({ isError: true, content: { error: 'unavailable' } });
   });
 
+  test("today is the request's local date, not the server's clock in the zone", async () => {
+    // 04:00 UTC on the 28th is still 23:00 on the 27th in Bogotá; the phone says it is the 28th (its zone is ahead).
+    const world = signalsSetup({}, [pressureRow('2026-11-28', '2026-11-28T03:30:00.000Z')]);
+    world.env.localDate = '2026-11-28';
+    world.env.now = () => Date.parse('2026-11-28T04:00:00.000Z');
+    const outcome = await world.run('get_signals', {});
+    expect((outcome.content as { signals: Row[] }).signals).toEqual([expect.objectContaining({ kind: 'pressure', local_date: '2026-11-28' })]);
+    const read = world.calls.find((call) => call.url.pathname === '/rest/v1/signals');
+    expect(read?.url.searchParams.get('local_date')).toBe('eq.2026-11-28');
+  });
+
+  test("the rules read the request's day too: yesterday's attack is due for its debrief on the phone's new day", async () => {
+    // Ended 10:00 on the 27th in Bogotá; at 23:00 there the phone already says the 28th.
+    const ended = { ...yesterday, startedAt: '2026-11-27T13:00:00.000Z', endedAt: '2026-11-27T15:00:00.000Z' };
+    const world = signalsSetup({ episodes: [ended], checkins: [{ ...TODAY_CHECKIN, localDate: '2026-11-28' }] });
+    world.env.localDate = '2026-11-28';
+    world.env.now = () => Date.parse('2026-11-28T04:00:00.000Z');
+    expect(((await world.run('get_signals', {})).content as { signals: Row[] }).signals).toEqual([
+      expect.objectContaining({ kind: 'debrief_due', local_date: '2026-11-28' }),
+    ]);
+  });
+
   test('an unknown zone reads as UTC instead of throwing', async () => {
     const world = signalsSetup({ checkins: [] });
     world.env.timeZone = 'Mars/Base';

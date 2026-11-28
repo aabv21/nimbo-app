@@ -97,6 +97,7 @@ function redFlagsOnly(body: unknown): CompanionOutcome | null {
 /** Never throws: every failure is an outcome, and a body this app version cannot check is `unknown` unless it names red flags. */
 export async function askCompanion(input: CompanionRequest, client: Client = supabase): Promise<CompanionOutcome> {
   try {
+    // NOTE: no idempotency key, so a reply lost on the way back costs the retry one more quota unit; upgrade: a request id the function remembers for a minute, if quota complaints show it.
     // The phone's zone rides along, so the server's "today" and the drafts follow the phone, not a stale profile.
     const response = await client.functions.invoke<unknown>('companion', { body: { ...input, timeZone: input.timeZone ?? deviceTimeZone() } });
     if (response.error !== null) return await failure(response.error);

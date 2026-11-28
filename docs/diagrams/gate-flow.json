@@ -103,7 +103,7 @@
       "col": 2,
       "type": "backend",
       "label": "Boundary",
-      "sublabel": "accept_terms",
+      "sublabel": "3 boxes, accept_terms",
       "width": 140
     },
     {
@@ -140,6 +140,15 @@
       "type": "frontend",
       "label": "Today",
       "sublabel": "Companion if AI on",
+      "width": 140
+    },
+    {
+      "id": "aiPaused",
+      "lane": "app",
+      "col": 4,
+      "type": "security",
+      "label": "AI paused",
+      "sublabel": "/ai-consent registered",
       "width": 140
     }
   ],
@@ -179,14 +188,14 @@
       "id": "e6",
       "from": "gate",
       "to": "boundary",
-      "label": "terms missing",
+      "label": "terms due",
       "variant": "emphasis"
     },
     {
       "id": "e7",
       "from": "boundary",
       "to": "ai",
-      "label": "both accepted",
+      "label": "all ticked",
       "variant": "emphasis"
     },
     {
@@ -216,6 +225,13 @@
       "to": "today",
       "label": "all answered",
       "variant": "dashed"
+    },
+    {
+      "id": "e12",
+      "from": "today",
+      "to": "aiPaused",
+      "label": "newer AI text",
+      "variant": "dashed"
     }
   ],
   "cards": [
@@ -224,23 +240,23 @@
       "title": "Registration",
       "items": [
         "Stack.Protected registers only the due group",
-        "A deep link to another screen never mounts it"
-      ]
-    },
-    {
-      "dot": "amber",
-      "title": "Unknown",
-      "items": [
-        "No profile read yet stays on loading, with retry or sign out",
-        "An unread profile is not an unanswered consent"
+        "An unread profile stays on loading, never on consent"
       ]
     },
     {
       "dot": "rose",
       "title": "Answers",
       "items": [
-        "Both gates write through RPCs only; declining AI hides Companion",
-        "Setup finishes offline: the stamp shows at once and syncs later"
+        "Each answer carries its text version and locale",
+        "Setup finishes offline: the stamp syncs later"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Re-consent",
+      "items": [
+        "Newer terms: the boundary again, with an emergency call",
+        "Newer AI text: the AI is off on the phone until answered"
       ]
     }
   ]

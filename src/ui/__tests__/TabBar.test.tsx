@@ -1,9 +1,10 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { isLiquidGlassAvailable } from 'expo-glass-effect';
 import { Calendar, House, User } from 'lucide-react-native';
-import { AccessibilityInfo } from 'react-native';
+import { AccessibilityInfo, StyleSheet, Text } from 'react-native';
+import type { StyleProp, TextStyle } from 'react-native';
 
-import { TabBar } from '../TabBar';
+import { TAB_BAR_HEIGHT, TabBar, useTabBarInset } from '../TabBar';
 
 const TABS = [
   { key: 'today', label: 'Today', icon: House },
@@ -84,4 +85,53 @@ test('pressing the current tab selects nothing', async () => {
 
   await fireEvent.press(screen.getByRole('tab', { name: 'Today' }));
   expect(onSelect).not.toHaveBeenCalled();
+});
+
+test('each tab is read as a tab with its visible label and its selected state; none is icon-only', async () => {
+  await render(<TabBar tabs={TABS} current="history" onSelect={jest.fn()} accessibilityLabel="Sections" />);
+
+  for (const { label } of TABS) {
+    const tab = screen.getByRole('tab', { name: label });
+    expect(tab).toHaveAccessibleName(label);
+    // The words are on screen too, under the icon.
+    expect(screen.getByText(label)).toBeOnTheScreen();
+  }
+  expect(screen.getByRole('tab', { name: 'History' })).toBeSelected();
+  expect(screen.getByRole('tab', { name: 'Today' })).not.toBeSelected();
+});
+
+test('at large text sizes the labels grow to 1.5× and shrink to fit their tab, never below the default size, instead of truncating', async () => {
+  await render(<TabBar tabs={TABS} current="today" onSelect={jest.fn()} accessibilityLabel="Sections" />);
+
+  for (const { label } of TABS) {
+    const text = screen.getByText(label);
+    expect(text.props.maxFontSizeMultiplier).toBeGreaterThanOrEqual(1.5);
+    // One line that shrinks: a long word ("Histórico") never breaks mid-word or ends in an ellipsis.
+    expect(text.props.numberOfLines).toBe(1);
+    expect(text.props.adjustsFontSizeToFit).toBe(true);
+    expect(text.props.maxFontSizeMultiplier * text.props.minimumFontScale).toBeGreaterThanOrEqual(1);
+    expect(StyleSheet.flatten(text.props.style as StyleProp<TextStyle>)?.height).toBeUndefined();
+  }
+});
+
+function InsetProbe(): React.JSX.Element {
+  return <Text testID="inset">{String(useTabBarInset())}</Text>;
+}
+
+test('the screens leave room for the bar at its measured height, so a taller bar never covers the last row', async () => {
+  await render(
+    <>
+      <InsetProbe />
+      <TabBar tabs={TABS} current="today" onSelect={jest.fn()} accessibilityLabel="Sections" />
+    </>,
+  );
+  const before = Number(screen.getByTestId('inset').props.children);
+  expect(before).toBeGreaterThanOrEqual(TAB_BAR_HEIGHT);
+
+  await fireEvent(screen.getByTestId('tab-bar'), 'layout', { nativeEvent: { layout: { x: 0, y: 0, width: 360, height: TAB_BAR_HEIGHT + 24 } } });
+  expect(Number(screen.getByTestId('inset').props.children)).toBe(before + 24);
+
+  // A bar measured shorter than its default (a first layout pass) never shrinks the room below the default.
+  await fireEvent(screen.getByTestId('tab-bar'), 'layout', { nativeEvent: { layout: { x: 0, y: 0, width: 360, height: 10 } } });
+  expect(Number(screen.getByTestId('inset').props.children)).toBe(before);
 });

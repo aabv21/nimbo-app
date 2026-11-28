@@ -568,18 +568,20 @@ async function getSignals(env: ToolEnv): Promise<ToolOutcome> {
   const now = new Date(env.now());
   // Signal dates are local dates, and an unknown zone would throw: the handler's zone, checked again.
   const timeZone = zoneOrUtc(env.timeZone);
-  const today = localDateIn(now, timeZone);
+  // The request's day, as for check-ins and drafts: the phone's calendar wins over this clock in a stale zone, for the
+  // rules and the stored row alike.
+  const today = env.localDate;
   const [records, stored] = await Promise.all([readRecords(env, now, env.pack.insights.windowDays), storedPressure(env, today, now)]);
   // Not yet onboarded reads as onboarded now, so a quiet tracker cannot fire.
   const user: SignalUser = { ...records, timeZone, onboardedAt: records.onboardedAt ?? now.toISOString(), pressure: null };
-  const signals = withStoredPressure(computeSignals(user, now, env.pack), stored, user, now, env.pack);
+  const signals = withStoredPressure(computeSignals(user, now, env.pack, today), stored, user, now, env.pack, [today]);
   const evidence: Evidence[] = [];
   const listed = signals.map((signal) => {
     const ref = env.refs.add('s', signal.causeKey);
     if (signal.kind === 'overuse_warn' || signal.kind === 'overuse_limit') {
-      evidence.push({ ref, source: 'signal', count: signal.evidence.days, of: signal.evidence.limit, ...signalRecords(signal, user, now, env.pack) });
+      evidence.push({ ref, source: 'signal', count: signal.evidence.days, of: signal.evidence.limit, ...signalRecords(signal, user, now, env.pack, today) });
     } else if (signal.kind === 'short_sleep') {
-      evidence.push({ ref, source: 'signal', count: signal.evidence.attackNights, of: null, ...signalRecords(signal, user, now, env.pack) });
+      evidence.push({ ref, source: 'signal', count: signal.evidence.attackNights, of: null, ...signalRecords(signal, user, now, env.pack, today) });
     }
     return { ref, kind: signal.kind, local_date: today, evidence: signalFields(signal, env, timeZone) };
   });

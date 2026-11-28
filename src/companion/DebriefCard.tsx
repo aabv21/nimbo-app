@@ -18,6 +18,7 @@ import { useI18n } from '../i18n';
 import type { I18n, MessageKey } from '../i18n';
 import { formatDuration } from '../i18n/format';
 import { deviceTimeZone } from '../lib/localDate';
+import { AlertText } from '../ui/AlertText';
 import { Button } from '../ui/Button';
 import { entrance, useMotion } from '../ui/motion';
 import { fonts, radius, space, type } from '../ui/theme';
@@ -221,9 +222,7 @@ export function DebriefCard({ userId, episode, now, onSaved, onClosed }: Debrief
                     ) : null}
                   </View>
                   {failed ? (
-                    <Text accessibilityRole="alert" style={[styles.caption, { color: color.danger }]}>
-                      {t('boundary.error')}
-                    </Text>
+                    <AlertText text={t('boundary.error')} style={[styles.caption, { color: color.danger }]} />
                   ) : null}
                 </>
               ) : null}

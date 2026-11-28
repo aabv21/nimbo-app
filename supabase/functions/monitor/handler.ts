@@ -131,6 +131,7 @@ async function rpc(deps: MonitorDeps, name: string, args: Record<string, unknown
 async function readTargets(deps: MonitorDeps): Promise<Target[]> {
   const targets: Target[] = [];
   for (let offset = 0; ; ) {
+    // NOTE: targets ignore `terms_version` (v1.0.0, phone-side gate only); upgrade: filter on it in `monitor_targets` in a new migration, before a second consent version ships.
     const page = await rpc(deps, 'monitor_targets', {}, `?order=user_id&limit=${String(PAGE)}&offset=${String(offset)}`);
     if (!Array.isArray(page) || !page.every(isTarget)) throw new UpstreamError('monitor_targets: unexpected rows');
     if (page.length === 0) return targets;
@@ -141,6 +142,7 @@ async function readTargets(deps: MonitorDeps): Promise<Target[]> {
 
 /** Receipts of tickets 15 minutes to 24 hours old; deletes the tokens Expo says are gone and forgets the checked tickets. */
 async function checkReceipts(deps: MonitorDeps): Promise<{ checked: number; removed: number }> {
+  // NOTE: oldest first, 1000 a run, so a backlog over 1000 receipts an hour leaves the newest past Expo's 24 h (only their dead-token cleanup is lost); upgrade: page while the budget allows, once `receipts_checked` hits 1000.
   const due = await rpc(deps, 'push_receipts_due', { p_limit: 1000 });
   if (!Array.isArray(due)) throw new UpstreamError('push_receipts_due: unexpected rows');
   const tokenOf = new Map<string, string>();
@@ -344,10 +346,12 @@ export async function handleMonitor(request: Request, deps: MonitorDeps): Promis
 
   // `monitor_targets` is in user id order: starting one place further each hour keeps a budget cut from always
   // falling on the same users.
+  // NOTE: one place an hour, so with n targets and a cut after k a user can wait n − k hours; upgrade: start after the last run's last evaluated user, once `skipped` is non-zero.
   const offset = targets.length === 0 ? 0 : Math.floor(start / HOUR_MS) % targets.length;
   const visits = [...targets.slice(offset), ...targets.slice(0, offset)];
 
   // The users who chose weather need their cell whatever their records say, so those lookups start now, in visit order.
+  // NOTE: users a budget cut later skips are prefetched too (their forecasts are cached for the next run, at most one fetch a cell); upgrade: prefetch only the visits that fit, once `skipped` shows up.
   for (const target of visits) {
     const cell = cellOf(target);
     if (cell !== null && target.known_triggers.includes('weather')) void forecasts.get(cell);

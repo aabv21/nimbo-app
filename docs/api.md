@@ -18,7 +18,7 @@ and the anon key (`apikey`). `verify_jwt` is on, so the gateway refuses a missin
 with its own 401 before the function runs. The app waits at most 45 s; the function answers within 40 s.
 
 The types are in `supabase/functions/_shared/companion/contract.ts` (`CompanionRequest`,
-`CompanionResponse`, `CompanionErrorBody`), which the app re-exports from `src/companion/contract.ts`.
+`CompanionResponse`), which the app re-exports from `src/companion/contract.ts`; the error bodies are in the table below.
 
 ### Request
 
@@ -222,7 +222,8 @@ Errors: `405 { "error": "method_not_allowed" }` for a method other than `POST`, 
 a user token (the gateway answers a malformed or expired one first) or when Auth refuses the token's session (signed out,
 `session_not_found`; `session_expired`; `bad_jwt`), logged `refused`, `413 { "error": "payload_too_large" }` for a body over
 256 bytes (declared or counted while streaming), `400 { "error": "invalid_body" }` for one that broke off while streaming,
-and `500 { "error": "internal" }`, with no detail, when Auth or any read fails: a partial file is never sent. The log line
+and `500 { "error": "internal" }`, with no detail, when Auth or any read fails: a partial file is never sent. The phone
+reads a `401` as "sign in again", as for a deletion, and signs out locally. The log line
 is `{"outcome":"exported"}`, `{"outcome":"refused"}` or `{"outcome":"error"}`.
 
 ## `delete-account`

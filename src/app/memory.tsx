@@ -70,7 +70,7 @@ function MemoryList({ userId }: { userId: string }): React.JSX.Element {
       </View>
 
       {readError === undefined ? null : (
-        <Notice tone="warning" title={t(readError === 'network' ? 'error.network' : 'error.generic')} />
+        <Notice tone="warning" announce={false} title={t(readError === 'network' ? 'error.network' : 'error.generic')} />
       )}
       {deleteFailed ? <Notice tone="danger" title={t('memory.delete.error')} /> : null}
 

@@ -1,5 +1,6 @@
 // Drops an account's data from the phone: after a deletion (every row and kv key, writes refused after), and at launch
 // for kv keys left by accounts that are gone from the phone. The flows: docs/app.md#account-deletion-on-the-phone.
+import { UUID } from '../lib/guards';
 import { forgetUserRows } from '../lib/local/db';
 import { kvKeys, kvRemove, refuseUserKeys } from '../lib/kv';
 import { readPendingClaim, writePendingClaim } from '../push/pushStore';
@@ -21,8 +22,6 @@ export function forgetAccountOnDevice(userId: string): void {
 
 /** The deletion marker's key prefix (`deletionMarker.ts`), here so that module can depend on this one. */
 export const DELETION_PREFIX = 'account.deleting.';
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // Keys from before kv keys carried the user id: their only id is an attack's, so they name no account and just go.
 const LEGACY_EPISODE_KEY = /^(redflag\.long|today\.over)\.[^.]+$/;

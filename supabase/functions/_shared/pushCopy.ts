@@ -71,7 +71,7 @@ const BODIES: Readonly<Record<Locale, Bodies>> = Object.freeze({
     longAttack: (hours) => `Your attack has been going for ${hours} h.`,
     overuse: (days, limit) => `${days} of ${limit} days this month.`,
     debrief: 'Three short questions about yesterday.',
-    shortSleep: (slept) => `${slept}, under your average before an attack.`,
+    shortSleep: (slept) => `${slept}, less than your average before an attack.`,
     pressure: (hpa) => `Pressure drops ${hpa} hPa over the next 24 h.`,
     quiet: (days, one, over) => `No check-in for ${over ? 'over ' : ''}${days} ${one ? 'day' : 'days'}.`,
   },

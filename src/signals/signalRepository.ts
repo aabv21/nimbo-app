@@ -25,10 +25,18 @@ function isCached(value: unknown): value is Cached {
   return typeof value === 'object' && value !== null && typeof (value as Record<string, unknown>)['localDate'] === 'string' && 'row' in value;
 }
 
-/** The last online answer for `localDate`; null for another day, none, a stale forecast or a row that no longer reads as a signal. */
-export function readCachedPressure(userId: string, localDate: string, now: Date = new Date()): Signal | null {
+/**
+ * The last online answer for `localDate`, as stored: null for another day or none. Today reads it with `freshPressure`
+ * on every minute tick, so a row whose forecast ages past the limit leaves the screen without a refetch.
+ */
+export function readCachedPressure(userId: string, localDate: string): unknown {
   const cached = kvGetJson(cacheKey(userId), isCached);
-  return cached === null || cached.localDate !== localDate ? null : freshPressureFromRow(cached.row, now, pack);
+  return cached === null || cached.localDate !== localDate ? null : cached.row;
+}
+
+/** The stored row as a pressure signal while its forecast is fresh at `now`; null otherwise. */
+export function freshPressure(row: unknown, now: Date): Signal | null {
+  return freshPressureFromRow(row, now, pack);
 }
 
 /** Only the sign-out cleanup in `SyncProvider` calls this. */
@@ -39,41 +47,43 @@ export function removeCachedSignals(userId: string): void {
 let requests = 0;
 // The newest fetch per user and day: an older reply that settles later never overwrites its answer or its cache.
 // NOTE: one small entry per user and day for the app's lifetime; drop past days' keys if sessions ever last weeks.
-const latest = new Map<string, { id: number; answer: Promise<Signal | null> }>();
+const latest = new Map<string, { id: number; answer: Promise<unknown> }>();
 
-async function readPressure(userId: string, localDate: string, client: Client, now: Date, isLatest: () => boolean): Promise<Signal | null> {
+async function readPressure(userId: string, days: readonly [string, ...string[]], client: Client, isLatest: () => boolean): Promise<unknown> {
+  const [localDate] = days;
   try {
     const { data, error } = await client
       .from('signals')
       .select(COLUMNS)
       .eq('kind', 'pressure')
-      .eq('local_date', localDate)
-      .order('computed_at', { ascending: false })
-      .limit(1);
-    if (error !== null) return readCachedPressure(userId, localDate, now);
+      .in('local_date', [...days])
+      .order('computed_at', { ascending: false });
+    if (error !== null) return readCachedPressure(userId, localDate);
+    // Newest first: the latest forecast of either date, so a stale row for one never hides a fresh one for the other.
     const row: unknown = data[0] ?? null;
     if (isLatest() && currentUserId() === userId) kvSet(cacheKey(userId), JSON.stringify({ localDate, row } satisfies Cached));
-    return freshPressureFromRow(row, now, pack);
+    return row;
   } catch {
-    return readCachedPressure(userId, localDate, now);
+    return readCachedPressure(userId, localDate);
   }
 }
 
 /**
- * The stored pressure signal for the local date while its forecast is fresh, or null. A failed read falls back to the
- * cached answer; an answer that settles after the account changed is never cached, and concurrent fetches for the same
- * day all answer with the newest one's reply.
+ * Today's stored pressure row: the newest for the device zone's date or the profile zone's (the monitor dates rows in
+ * the profile's zone, which lags when the zone sync fails), or null. A failed read falls back to the cached answer; an
+ * answer that settles after the account changed is never cached, and concurrent fetches for the same days all answer
+ * with the newest one's reply. Read it with `freshPressure`.
  */
-export async function fetchTodayPressure(userId: string, localDate: string, client: Client = supabase, now: Date = new Date()): Promise<Signal | null> {
-  const key = `${userId}/${localDate}`;
+export async function fetchTodayPressure(userId: string, days: readonly [string, ...string[]], client: Client = supabase): Promise<unknown> {
+  const key = `${userId}/${days.join('/')}`;
   requests += 1;
   const id = requests;
-  const answer = readPressure(userId, localDate, client, now, () => latest.get(key)?.id === id);
+  const answer = readPressure(userId, days, client, () => latest.get(key)?.id === id);
   latest.set(key, { id, answer });
-  let signal = await answer;
+  let row = await answer;
   for (let mine = id, newest = latest.get(key); newest !== undefined && newest.id !== mine; newest = latest.get(key)) {
     mine = newest.id;
-    signal = await newest.answer;
+    row = await newest.answer;
   }
-  return signal;
+  return row;
 }

@@ -71,9 +71,14 @@ export default defineConfig(
     rules: { 'security/detect-non-literal-regexp': 'off' },
   },
   {
-    // The security scan reads the repo's own files, from paths it lists under src/ itself.
-    files: ['src/__tests__/securityScan.test.ts'],
+    // The security, accessibility and motion scans read the repo's own files, from paths they list under src/ itself.
+    files: ['src/__tests__/{securityScan,a11yScan,motionScan}.test.ts'],
     rules: { 'security/detect-non-literal-fs-filename': 'off' },
+  },
+  {
+    // The accessibility scan looks up a named text-scale constant in the file it came from.
+    files: ['src/__tests__/a11yScan.test.ts'],
+    rules: { 'security/detect-non-literal-regexp': 'off' },
   },
   {
     // The red-flag tests read the calibration fixtures from a path built from a fixed locale tuple.
@@ -100,7 +105,7 @@ export default defineConfig(
       'jest.setup.ts',
       'src/ui/__tests__/ThemeProvider.test.tsx',
       'src/__tests__/{boundary,ai-consent,consent-gate,smoke,profile}.test.tsx',
-      'src/__tests__/{cabinet,crisis,checkin,history,episode,onboarding,today,sign-out,companion,memory}.test.tsx',
+      'src/__tests__/{cabinet,crisis,checkin,history,episode,onboarding,today,today-stagger,sign-out,companion,memory}.test.tsx',
       'src/__tests__/{export,delete-account}.test.tsx',
       'src/account/__tests__/*.test.{ts,tsx}',
       'src/cabinet/__tests__/*.test.{ts,tsx}',

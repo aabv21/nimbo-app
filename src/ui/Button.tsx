@@ -84,7 +84,7 @@ export function Button({
   const danger = variant === 'danger';
   const filled = variant === 'primary' || danger;
   const fill = inactive ? tone.disabledFill : danger ? color.danger : filled ? color.accent : 'transparent';
-  const ink = inactive ? color.textMuted : filled ? color.onAccent : color.accentText;
+  const ink = inactive ? tone.disabledInk : filled ? color.onAccent : color.accentText;
   const edge = inactive || filled ? 'transparent' : color.textMuted;
   // The danger fill darkens (or, in the dark themes, lightens) towards the text when pressed, like the accent's.
   const pressedFill = danger ? mix(color.danger, color.text, 0.86) : filled ? tone.pressAccent : tone.pressSecondary;

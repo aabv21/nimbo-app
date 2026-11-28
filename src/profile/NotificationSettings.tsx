@@ -183,7 +183,7 @@ function PermissionRow({ userId }: { userId: string }): React.JSX.Element | null
   }
   return (
     <View style={styles.permission}>
-      {permission === 'ask' ? null : <Notice tone="warning" title={t('notif.denied')} />}
+      {permission === 'ask' ? null : <Notice tone="warning" announce={false} title={t('notif.denied')} />}
       <Button
         testID="notifications-allow"
         label={t('onb.notif.allow')}

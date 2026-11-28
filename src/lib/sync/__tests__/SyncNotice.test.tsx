@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { AccessibilityInfo } from 'react-native';
 
 import { SyncNotice } from '../SyncNotice';
 import { useSyncState } from '../SyncProvider';
@@ -62,4 +63,15 @@ test('a failure shows at once and "Try again" calls retry', async () => {
   expect(screen.getByText(/Your record is still saved on this phone/)).toBeTruthy();
   await fireEvent.press(screen.getByRole('button', { name: 'Try again' }));
   expect(retry).toHaveBeenCalledTimes(1);
+});
+
+test('the failed notice is a standing status: on iOS it is not announced when it shows or when the count changes', async () => {
+  const announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility').mockImplementation(() => undefined);
+  syncState(0, 2);
+  const view = await render(<SyncNotice />);
+  syncState(0, 3);
+  await view.rerender(<SyncNotice />);
+  expect(screen.getByText('Try again')).toBeTruthy();
+  expect(announce).not.toHaveBeenCalled();
+  announce.mockRestore();
 });

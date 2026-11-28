@@ -115,6 +115,7 @@ export function writePendingClaim(claim: PendingClaim | null): void {
 /**
  * `unavailable`: no token on this phone (no EAS project id, or FCM/APNs not set up for the build);
  * `verifying`: another account holds the token, so a claim is proving this phone receives it.
+ * NOTE: a claim whose code never arrives stays `verifying` until the next launch's resume; upgrade: re-check on resume to foreground, if users report a stuck status.
  */
 export type PushOutcome = 'saved' | 'denied' | 'unavailable' | 'verifying' | 'failed';
 

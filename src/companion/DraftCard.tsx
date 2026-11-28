@@ -15,6 +15,7 @@ import { useI18n } from '../i18n';
 import type { I18n, MessageKey } from '../i18n';
 import { formatClock } from '../i18n/format';
 import { localDate } from '../lib/localDate';
+import { AlertText } from '../ui/AlertText';
 import { Button } from '../ui/Button';
 import { entrance, useMotion } from '../ui/motion';
 import { fonts, radius, space, type } from '../ui/theme';
@@ -194,9 +195,7 @@ export const DraftCard = memo(function DraftCard({
       </View>
       {medication?.doseText != null ? <Text style={[styles.small, { color: color.textMuted }]}>{t('draft.dose.from_cabinet')}</Text> : null}
       {invalid && !confirmed ? (
-        <Text accessibilityRole="alert" style={[styles.small, { color: color.danger }]}>
-          {t('draft.error')}
-        </Text>
+        <AlertText text={t('draft.error')} style={[styles.small, { color: color.danger }]} />
       ) : null}
       {docked ? null : confirmed ? (
         <Button testID="draft-confirmed" swap label={t('common.done')} icon={Check} onPress={() => undefined} />

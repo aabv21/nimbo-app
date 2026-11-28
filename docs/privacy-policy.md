@@ -87,7 +87,7 @@ The AI companion runs only if you say yes on the “Nimbo’s AI and your health
 When you send a message, your phone sends Nimbo’s server the recent turns of the conversation (up to 12 short messages), the app’s language, your local date and time zone, and whether you typed or dictated. To answer, the server may read facts from your records (dates, intensity, symptoms, triggers, medications, your patterns and signals) and Nimbo’s notes about you. It sends these to two services, from the server, never directly from your phone:
 
 - **Anthropic.** Claude writes the replies. When TypeSafe is unavailable, Claude also does the safety check.
-- **TypeSafe.** Jev checks your message and the draft reply for warning signs and unsafe advice.
+- **TypeSafe.** Jev checks your recent messages and the draft reply for warning signs and unsafe advice, with the facts from your records the reply was based on.
 
 These services never receive your name, your email, your account id, your location or the ids of your records.
 
@@ -117,7 +117,7 @@ These services process data for Nimbo, each only for the purpose below and under
 |---|---|---|---|---|
 | Supabase | Everything stored on the server | Hosting: the database, sign-in and the server functions | {{DB_REGION}} | Until you delete it or your account |
 | Anthropic (Claude) | With the AI on: the conversation turns, facts from your records, Nimbo’s notes, the language, your local date and time zone (as an offset from UTC); the safety check’s text when TypeSafe is unavailable | Writing the companion’s replies; the backup safety check | United States | Anthropic {{ANTHROPIC_RETENTION}}. It does not train its models on this data |
-| TypeSafe (Jev) | With the AI on: your message, the draft reply and the warning-sign context | Checking messages and replies for safety | United States | TypeSafe {{TYPESAFE_RETENTION}}. It does not train its models on this data |
+| TypeSafe (Jev) | With the AI on: your recent messages, the draft reply, the facts from your records it was based on (such as dates, intensities, medication names and dose text) and the warning-sign context | Checking messages and replies for safety | United States | TypeSafe {{TYPESAFE_RETENTION}}. It does not train its models on this data |
 | Open-Meteo | Only the one-decimal cell of your area, from Nimbo’s server, never anything that identifies you | The air pressure forecast | Switzerland | Its web server logs for 90 days |
 | Expo (push notifications) | With notifications on: your push token and each notification’s title, plus the screen to open; the title is “You have a note from Nimbo” unless you turn on lock-screen details, which add the signal’s text; and, to prove a phone receives its token, a one-time code in a silent notification | Delivering notifications and the token check | United States | As long as reasonably necessary; delivery receipts for 1 day |
 | Google (Firebase Cloud Messaging) and Apple (push service) | The same notification, from Expo | Delivering it to an Android phone or an iPhone | United States | Under their own terms |

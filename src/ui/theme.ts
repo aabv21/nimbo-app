@@ -21,6 +21,8 @@ export interface ThemeTones {
   pressAccent: string;
   pressSecondary: string;
   disabledFill: string;
+  /** A disabled control's label: `textMuted`, a step lighter in Dim so it keeps 4.5:1 on `disabledFill`. */
+  disabledInk: string;
   noticeWarning: string;
   noticeDanger: string;
   glassTop: string;
@@ -80,10 +82,11 @@ const color: Record<ThemeName, ThemeColors> = {
   },
 };
 
-function shared(c: ThemeColors): Pick<ThemeTones, 'pressSecondary' | 'disabledFill' | 'noticeWarning' | 'noticeDanger' | 'opaquePill' | 'opaquePillEdge'> {
+function shared(c: ThemeColors): Pick<ThemeTones, 'pressSecondary' | 'disabledFill' | 'disabledInk' | 'noticeWarning' | 'noticeDanger' | 'opaquePill' | 'opaquePillEdge'> {
   return {
     pressSecondary: mix(c.accent, c.bg, 0.1),
     disabledFill: mix(c.textMuted, c.bg, 0.2),
+    disabledInk: c.textMuted,
     noticeWarning: mix(c.warning, c.surface, 0.1),
     noticeDanger: mix(c.danger, c.surface, 0.1),
     opaquePill: mix(c.accent, c.surface, 0.12),
@@ -132,6 +135,8 @@ function darkTones(c: ThemeColors): ThemeTones {
 function dimTones(c: ThemeColors): ThemeTones {
   return {
     ...shared(c),
+    // Dim's textMuted reads 3.97:1 on the disabled fill; the placeholder of a disabled composer says why it is off.
+    disabledInk: mix(c.text, c.textMuted, 0.6),
     pressAccent: mix(c.accent, c.bg, 0.9),
     glassTop: alpha(c.surface, 0.88),
     glassBottom: alpha(c.bg, 0.86),

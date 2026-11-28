@@ -46,6 +46,7 @@ export function SyncNotice(): React.JSX.Element | null {
       {state === 'failed' ? (
         <Notice
           tone="warning"
+          announce={false}
           title={t('sync.failed.title')}
           body={tp('sync.failed.body', failed)}
           action={{ label: t('common.retry'), onPress: retry }}

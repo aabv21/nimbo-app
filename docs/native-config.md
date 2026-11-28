@@ -82,6 +82,12 @@ permission must list it here with the reason and the plugin that adds it.
   `.gitignore` ignores `*-firebase-adminsdk-*.json` and `service-account*.json`.
 - **iOS remote push is off:** `enableRemoteNotifications` stays `false` until the Apple account exists, so the iOS build
   has no APNs entitlement and gets no token; its reminders still work.
+- **Files and sharing (`expo-file-system`, `expo-sharing`):** "Export my data" writes the JSON to the app's cache
+  directory (`Paths.cache`) and opens the system share sheet with `Sharing.shareAsync` (`mimeType: 'application/json'`,
+  and `UTI: 'public.json'` on iOS), because React Native's `Share` cannot attach a file on Android. Neither needs a
+  permission: the app writes only inside its own sandbox, and the user picks the target. `expo-sharing`'s config plugin
+  is left out of `app.json` on purpose: it only enables receiving shares (an iOS Share Extension, Android intent
+  filters), and Nimbo only sends a file. Both are native modules, so a dev build made before them must be rebuilt.
 - **Content:** a reminder's title is "Nimbo" and its body the neutral line, unless the user turned on the lock-screen
   detail in Profile; its `data` carries nothing. A signal push's title is "You have a note from Nimbo" with no body,
   unless the same opt-in is on; its `data` is only `{ url: '/today' }`, and a tap opens Today.
@@ -141,6 +147,22 @@ excludes them, so the exclusion is a **blocker before the first iOS submission**
   [`owner-runbook.md`](owner-runbook.md).
 
 The export file is written to the cache directory, which iOS never backs up.
+
+## EAS build profiles (`eas.json`)
+
+`eas.json` holds no secret and no version number: `appVersionSource: "remote"` lets EAS keep the build numbers, so
+`app.json` never gains `ios.buildNumber` or `android.versionCode`. Every profile extends `base`, which pins Node
+24.22.1 and pnpm 11.1.0 (the `packageManager` version) on the build servers.
+
+| Profile | Builds | For |
+|---|---|---|
+| `development` | An Android debug APK and an iOS simulator debug build, internal distribution, EAS environment `development` | Running Metro against the local stack, and the Maestro flows on the iOS simulator before the Apple account exists (a simulator build needs no signing) |
+| `preview` | An Android release APK, internal distribution, EAS environment `preview` | Closed testing and the mid-range Android check, installed from the EAS link |
+| `production` | Store builds (an Android App Bundle), `autoIncrement` on, EAS environment `production` | The Play Console; `eas submit` sends it to the closed-testing track (`alpha`) |
+
+The `EXPO_PUBLIC_*` values (the Supabase URL, the anon key, the Google OAuth client ids) live in each EAS environment,
+not in the file. Builds are made only from merged code, in the owner session
+([`owner-session.md`](owner-session.md#4-eas-and-the-preview-apk)).
 
 ## Changing native config
 

@@ -146,6 +146,7 @@ export function resumePushClaim(userId: string, client: PushClient = supabase): 
       writePendingClaim(null);
       return;
     }
+    // NOTE: the phone's clock against the server's 10 minutes: a phone behind can be refused once and restart a launch later; upgrade: read the server's next allowed start from the answer, if claims stall.
     if (Date.now() - claim.startedAt < CLAIM_RESTART_MS) return;
     await startClaim(client, claim, claim.nonce);
   });

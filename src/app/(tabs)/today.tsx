@@ -5,6 +5,7 @@ import { useMemo, useRef } from 'react';
 import type { ComponentRef } from 'react';
 import { AccessibilityInfo, StyleSheet, Text, View } from 'react-native';
 import type { ScrollView } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { aiActive, needsAiReconsent } from '../../account/consent';
 import { useAuth } from '../../auth/AuthProvider';
@@ -54,6 +55,7 @@ function TodayScreen({ userId }: { userId: string }): React.JSX.Element {
   const { color } = useTheme();
   const { profile } = useAuth();
   const tabInset = useTabBarInset();
+  const insets = useSafeAreaInsets();
   const motion = useMotion();
   // A second tap before crisis mode covers Today would open it twice (and fade twice).
   const once = useOncePerFocus();
@@ -71,7 +73,7 @@ function TodayScreen({ userId }: { userId: string }): React.JSX.Element {
   const checkin = useCheckin(userId, day);
   const anyCheckin = useCheckinDates(userId, EVER[0], EVER[1]).size > 0;
   const month = useMedicationMonth(userId, now, deviceTimeZone());
-  const signals = useTodaySignals(userId, now);
+  const signals = useTodaySignals(userId, now, profile?.timezone ?? null);
   const aiOn = aiActive(profile);
   const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
   const checkinRef = useRef<ComponentRef<typeof Text>>(null);
@@ -88,8 +90,8 @@ function TodayScreen({ userId }: { userId: string }): React.JSX.Element {
 
   const onSignalAction = (signal: Signal, kind: SignalActionKind): void => {
     if (kind === 'checkin') {
-      // Reduced motion jumps rather than scrolls.
-      scrollRef.current?.scrollTo({ y: checkinY.current, animated: motion.level !== 'fade' });
+      // Lands where the screen's first line sits, below the status bar and notch; reduced motion jumps rather than scrolls.
+      scrollRef.current?.scrollTo({ y: Math.max(0, checkinY.current - insets.top - space[2]), animated: motion.level !== 'fade' });
       if (checkinRef.current !== null) AccessibilityInfo.sendAccessibilityEvent(checkinRef.current, 'focus');
       return;
     }
