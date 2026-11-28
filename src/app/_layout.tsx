@@ -22,6 +22,9 @@ import { I18nProvider } from '../i18n/I18nProvider';
 import { SyncProvider } from '../lib/sync/SyncProvider';
 import { readIntroSeen } from '../onboarding/introSeen';
 import { useLanguageSync } from '../profile/useLanguageSync';
+import { PushClaimSync } from '../push/PushClaimSync';
+import { PushSync } from '../push/PushSync';
+import { PushTapSync } from '../push/PushTapSync';
 import { Button } from '../ui/Button';
 import { Notice } from '../ui/Notice';
 import { Screen } from '../ui/Screen';
@@ -121,6 +124,14 @@ function GatedStack(): React.JSX.Element {
       {/* Gone with the signed-in tree, so a sign-out cancels the account's reminders. */}
       {target === '/today' && auth.userId !== null ? <ReminderSync userId={auth.userId} /> : null}
       {target === '/today' && auth.userId !== null ? <LanguageSync key={auth.userId} /> : null}
+      {/* Only where Today is registered, so a tap on a push always lands on a screen that exists. */}
+      {target === '/today' && auth.userId !== null ? (
+        <>
+          <PushSync key={`push-${auth.userId}`} userId={auth.userId} />
+          <PushClaimSync key={`claim-${auth.userId}`} userId={auth.userId} />
+          <PushTapSync />
+        </>
+      ) : null}
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: color.bg } }}>
         <Stack.Screen name="index" />
         {/* Signed out: the intro stays registered after it is marked seen, so leaving it never unmounts it mid-step. */}

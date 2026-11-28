@@ -103,3 +103,24 @@ test('a failed save is tried again on the next resume', async () => {
   expect(mockedUpdate).toHaveBeenCalledTimes(2);
   expect(currentAuth().profile?.timezone).toBe('Europe/Madrid');
 });
+
+test('a zone the server refused is not sent again on resume, and the next device zone is', async () => {
+  resetAuth({ profile: { ...READY_PROFILE, timezone: 'UTC' } });
+  deviceZone('EST');
+  mockedUpdate.mockResolvedValueOnce({ ok: false, kind: 'invalid' });
+  mockedUpdate.mockResolvedValueOnce({ ok: true, value: { ...READY_PROFILE, timezone: 'America/New_York' } });
+
+  await renderHook(() => {
+    useTimezoneSync();
+  });
+  await resume();
+  await resume();
+  expect(mockedUpdate).toHaveBeenCalledTimes(1);
+  expect(mockedUpdate).toHaveBeenCalledWith({ timezone: 'EST' });
+
+  deviceZone('America/New_York');
+  await resume();
+  expect(mockedUpdate).toHaveBeenCalledTimes(2);
+  expect(mockedUpdate).toHaveBeenLastCalledWith({ timezone: 'America/New_York' });
+  expect(currentAuth().profile?.timezone).toBe('America/New_York');
+});

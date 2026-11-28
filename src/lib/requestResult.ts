@@ -10,9 +10,9 @@ type ErrorWithCode = { code?: string; message?: string };
 /**
  * Postgres error classes that mean "the values were rejected" rather than "the request failed":
  * 23514 check_violation, 23502 not_null_violation, 22P02 invalid enum/number text, 22003 numeric
- * out of range, 22001 string too long.
+ * out of range, 22001 string too long, 22023 invalid_parameter_value (a zone that is not an IANA name).
  */
-const INVALID_VALUE_CODES: ReadonlySet<string> = new Set(['23514', '23502', '22P02', '22003', '22001']);
+const INVALID_VALUE_CODES: ReadonlySet<string> = new Set(['23514', '23502', '22P02', '22003', '22001', '22023']);
 
 export function toRequestErrorKind(error: ErrorWithCode, status: number): RequestErrorKind {
   // postgrest-js reports a rejected `fetch` (offline, DNS, timeout) as status 0 with an empty code.

@@ -231,6 +231,34 @@ function quietTracker({ user, pack, today }: Day): Signal | null {
   return { kind: 'quiet_tracker', cause: 'quiet_tracker', causeKey: `quiet:${last ?? 'never'}`, evidence: { lastCheckinDate: last } };
 }
 
+/** A quiet stretch's length for its copy; `over` when it only is known to pass `days`. */
+export type QuietStretch = { days: number; over: boolean };
+
+/**
+ * Whole days of a quiet stretch on `now`'s local date: since the last check-in, or since onboarding when there is none
+ * in the records. Past the records' window "none" may mean "older than the window", so it reads as over that window.
+ * Null for any other signal.
+ */
+export function quietDaysOf(signal: Signal, user: Pick<SignalUser, 'timeZone' | 'onboardedAt'>, now: Date, pack: ConditionPack): QuietStretch | null {
+  if (signal.kind !== 'quiet_tracker') return null;
+  const today = localDateIn(now, user.timeZone);
+  const last = signal.evidence.lastCheckinDate;
+  if (last !== null) return { days: daysBetween(last, today), over: false };
+  if (!isTime(user.onboardedAt)) return null;
+  const sinceOnboarding = daysBetween(localDateIn(new Date(user.onboardedAt), user.timeZone), today);
+  const window = pack.insights.windowDays;
+  return sinceOnboarding > window ? { days: window, over: true } : { days: sinceOnboarding, over: false };
+}
+
+/**
+ * `quiet:never` also stands for a stretch whose last check-in has left the records' window. Once a quiet stretch was
+ * pushed and no check-in is in sight, that key is the same stretch again, so it reads as already pushed.
+ */
+export function withoutRepeatedQuiet(signals: readonly Signal[], pushLog: readonly PushLogEntry[]): Signal[] {
+  const quietPushed = pushLog.some((entry) => entry.causeKey.startsWith('quiet:') && entry.causeKey !== 'quiet:never');
+  return quietPushed ? signals.filter((signal) => signal.causeKey !== 'quiet:never') : [...signals];
+}
+
 const present = <T>(value: T | null): T[] => (value === null ? [] : [value]);
 
 function byPriority(signals: readonly Signal[], pack: ConditionPack): Signal[] {

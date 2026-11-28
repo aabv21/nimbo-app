@@ -408,19 +408,33 @@ inspector_port = 8283
 # The Deno major version to use.
 deno_version = 2
 
-# Local only: the models and the forecast go to the mocks in integration/ (docs/local-stack.md#mocks), so
-# no request ever reaches TypeSafe, Anthropic or Open-Meteo and the keys are dummies. The hosted project
-# sets real secrets.
+# Local only: the models, the forecast and Expo's push service go to the mocks in integration/
+# (docs/local-stack.md#mocks), so no request ever reaches TypeSafe, Anthropic, Open-Meteo or Expo and the keys
+# are dummies. The hosted project sets real secrets.
 [edge_runtime.secrets]
 TYPESAFE_API_KEY = "local-only-not-a-key"
 TYPESAFE_BASE_URL = "http://host.docker.internal:54518"
 ANTHROPIC_API_KEY = "local-only-not-a-key"
 ANTHROPIC_BASE_URL = "http://host.docker.internal:54519"
 OPEN_METEO_URL = "http://host.docker.internal:54518"
+EXPO_PUSH_URL = "http://host.docker.internal:54518/--/api/v2/push"
+# Must match the Vault secret `monitor_secret` that supabase/seed.sql creates.
+MONITOR_SECRET = "local-only-not-a-secret"
 
 # The gateway verifies the caller's JWT before the function runs; the function reads `sub` from it.
 [functions.companion]
 verify_jwt = true
+
+[functions.push-claim]
+verify_jwt = true
+
+# No session: a phone that signed out proves itself with its device secret instead (docs/api.md#push-unregister).
+[functions.push-unregister]
+verify_jwt = false
+
+# Called only by the pg_cron job through pg_net, with the Vault's shared secret instead of a JWT (docs/api.md#monitor).
+[functions.monitor]
+verify_jwt = false
 
 [analytics]
 enabled = true

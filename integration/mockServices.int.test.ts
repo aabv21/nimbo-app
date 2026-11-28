@@ -166,4 +166,35 @@ describe('startMockServices', () => {
       expect(await response.json()).toEqual({ error: true, reason: expect.any(String) as string });
     });
   });
+
+  describe('the Expo push routes', () => {
+    type Tickets = { data: { status: string; id: string }[] };
+
+    test('send answers an ok ticket with a fresh id per message by default, and records the messages', async () => {
+      const messages = [{ to: 'ExponentPushToken[a]', title: 't' }, { to: 'ExponentPushToken[b]', title: 't' }];
+      const response = await post('/--/api/v2/push/send', messages);
+      expect(response.status).toBe(200);
+      const { data } = (await response.json()) as Tickets;
+      expect(data.map((ticket) => ticket.status)).toEqual(['ok', 'ok']);
+      expect(new Set(data.map((ticket) => ticket.id)).size).toBe(2);
+      expect(mock.pushRequests().at(-1)).toEqual(messages);
+    });
+
+    test('respondPush sets a fixed reply or one computed from the messages', async () => {
+      mock.respondPush({ status: 500, body: {} });
+      expect((await post('/--/api/v2/push/send', [{ to: 'x' }])).status).toBe(500);
+      mock.respondPush((messages) => ({ status: 200, body: { data: messages.map(() => ({ status: 'error', details: { error: 'DeviceNotRegistered' } })) } }));
+      const body = (await (await post('/--/api/v2/push/send', [{ to: 'x' }])).json()) as { data: { details: { error: string } }[] };
+      expect(body.data[0]?.details.error).toBe('DeviceNotRegistered');
+    });
+
+    test('getReceipts answers ok for every id by default, records the ids, and respondReceipts overrides it', async () => {
+      const response = await post('/--/api/v2/push/getReceipts', { ids: ['r1', 'r2'] });
+      expect(await response.json()).toEqual({ data: { r1: { status: 'ok' }, r2: { status: 'ok' } } });
+      expect(mock.receiptRequests().at(-1)).toEqual(['r1', 'r2']);
+      mock.respondReceipts((ids) => ({ status: 200, body: { data: Object.fromEntries(ids.map((id) => [id, { status: 'error', details: { error: 'DeviceNotRegistered' } }])) } }));
+      const dead = (await (await post('/--/api/v2/push/getReceipts', { ids: ['r3'] })).json()) as { data: Record<string, unknown> };
+      expect(dead.data).toEqual({ r3: { status: 'error', details: { error: 'DeviceNotRegistered' } } });
+    });
+  });
 });

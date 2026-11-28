@@ -3,7 +3,7 @@
 // loop, the quota, the deadlines, the reply guard and what never reaches a provider.
 import { GUARD_KEYS } from '../../_shared/companion/contract.ts';
 import { packs } from '../../_shared/condition/index.ts';
-import { json } from '../../_shared/__tests__/fakeFetch.ts';
+import { chunkedRequest, json } from '../../_shared/__tests__/fakeFetch.ts';
 import { fakePostgrest, type Row, SUPABASE_URL } from '../../_shared/companion/__tests__/fakePostgrest.ts';
 import { CLASSIFIER_MODEL, COMPANION_MODEL, FALLBACK_BETA } from '../../_shared/models.ts';
 import { DAILY_LIMITS } from '../../_shared/quota.ts';
@@ -15,6 +15,7 @@ import {
   type CompanionDeps,
   DB_TIMEOUT_MS,
   handleCompanion,
+  MAX_BODY_BYTES,
   MAX_TOOL_ROUNDS,
   requestZone,
   MIN_CALL_MS,
@@ -267,6 +268,21 @@ describe('refusals before any model', () => {
     expect(await call(w, chat('hi'), 'Bearer anon-key')).toEqual({ status: 401, body: { error: 'unauthorized' } });
     expect(await call(w, { ...chat('hi'), locale: 'fr' })).toEqual({ status: 400, body: { error: 'invalid_input' } });
     expect(w.jevBodies).toHaveLength(0);
+    expect(w.claudeBodies).toHaveLength(0);
+  });
+
+  test(`413 for a body past ${String(MAX_BODY_BYTES)} bytes, chunked with no content-length too; the largest valid body is read`, async () => {
+    const w = world();
+    const { request, pulled } = chunkedRequest(1000, 1024, 'http://functions.test/companion', { authorization: bearer(USER_ID) });
+    const response = await handleCompanion(request, w.deps);
+    expect([response.status, await response.json()]).toEqual([413, { error: 'payload_too_large' }]);
+    expect(pulled()).toBeLessThan(100);
+    // Eight 500-character turns of characters JSON escapes as `\uXXXX`: the contract's 4,000 at 6 bytes each.
+    const escaped = '\u0001'.repeat(499);
+    const turns = Array.from({ length: 8 }, (_, i) => ({ role: i % 2 === 0 ? 'user' : 'assistant', text: escaped }));
+    turns.push({ role: 'user', text: 'x' });
+    const largest = JSON.stringify({ ...chat('x'), messages: turns }).length;
+    expect(largest).toBeLessThan(MAX_BODY_BYTES / 2);
     expect(w.claudeBodies).toHaveLength(0);
   });
 

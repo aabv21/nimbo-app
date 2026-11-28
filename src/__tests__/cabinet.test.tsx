@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen, within } from '@testing-library/react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 
 import Cabinet from '../app/cabinet';
@@ -259,7 +259,8 @@ describe('the profile row', () => {
   test('opens the cabinet and shows how many medications it holds', async () => {
     saveMedication('user-1', TRIPTAN_ID, TRIPTAN);
     await render(<Profile />);
-    expect(screen.getByText('1')).toBeTruthy();
+    // Scoped to the row: the notifications cap below offers a "1" too.
+    expect(within(screen.getByTestId('profile-cabinet')).getByText('1')).toBeTruthy();
     await fireEvent.press(screen.getByText(t('cabinet.title')));
     expect(router.push).toHaveBeenCalledWith('/cabinet');
   });

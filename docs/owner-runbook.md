@@ -1,7 +1,7 @@
 # Owner runbook
 
 The steps that need the owner's accounts or hardware, each with its status. Everything else in this
-repo runs offline ([`testing.md`](testing.md)). Statuses are as of 2026-11-27; update a step's status
+repo runs offline ([`testing.md`](testing.md)). Statuses are as of 2026-11-28; update a step's status
 and date when it changes.
 
 **Status words:** Done, Pending (not started or not finished), Blocked (waiting on someone else).
@@ -27,7 +27,7 @@ and date when it changes.
 | Add the Google Sign-In config plugin | Pending | After the OAuth clients exist: add `["@react-native-google-signin/google-signin", { "iosUrlScheme": "com.googleusercontent.apps.<ios-client-id>" }]` to `app.json`'s `plugins`, with Nimbo's iOS client id reversed as the URL scheme, then `pnpm expo prebuild --clean` and a rebuild ([`native-config.md`](native-config.md)). |
 | Create the EAS project | Pending | Sets `owner` and `extra.eas.projectId` in `app.json`; builds are made only from merged code. |
 | Enroll in the Apple Developer Program | Pending | Needed for Sign in with Apple on a device and for TestFlight. |
-| Review the notification texts | Pending | Before the first build that ships reminders: the notifications setup step (`onb.notif.*`), the lock-screen choice (`notif.lock.*`), the reminder's neutral line (`push.neutral`) and detail line (`reminder.detail`) and the Android channel name (`reminder.channel`) in `src/i18n/en.ts`, `es.ts` and `pt.ts`, and the iOS location prompt in `app.json` (English only for now, [`native-config.md`](native-config.md#permissions)). |
+| Review the notification texts | Pending | Before the first build that ships reminders: the notifications setup step (`onb.notif.*`), the lock-screen choice (`notif.lock.*`), the reminder's neutral line (`push.neutral`) and detail line (`reminder.detail`) and the Android channel names (`reminder.channel`, `push.channel.name`), the notification settings (`notif.denied`, `notif.unavailable`, `notif.verifying`, `notif.hours.*`, `notif.cap.value.zero`), the signal titles (`signal.*.title`) in `src/i18n/en.ts`, `es.ts` and `pt.ts`, the push detail bodies in `supabase/functions/_shared/pushCopy.ts`, and the iOS location prompt in `app.json` (English only for now, [`native-config.md`](native-config.md#permissions)). |
 | Spot-check the emergency number for each launch country | Pending | Before launching in a country, call up its source in the emergency table ([`architecture.md`](architecture.md#red-flags-and-urgent-care)) and confirm the number still stands; a country missing from the table gets "Call your local emergency number". Bolivia, Paraguay and Nicaragua are left out on purpose. |
 | Create the Anthropic API key and set a spend limit | Pending | In the Anthropic Console, a key for Nimbo only, and a monthly spend limit on its workspace: the daily quotas bound each user, but only the spend limit bounds the total ([`ai.md`](ai.md#quotas-and-cost)). Keep the key out of the repo and out of `.env.local`. |
 | Create the TypeSafe API key | Pending | A key for Jev (`jev-latest`), which screens every companion message and reply. |
@@ -35,6 +35,8 @@ and date when it changes.
 | Calibrate the guards | Pending | In the live session, with both keys exported in the shell (never in `.env.local`): `pnpm calibrate eval`, then `--layer claude`. Raise a threshold only where every positive is still caught; the script changes nothing itself ([`ai.md`](ai.md#calibration)). |
 | Name the processors of dictated audio in the privacy policy | Pending (Wave 5) | When the privacy policy is written: on Android without the offline language pack, dictation sends the audio to Google's speech recognizer, so Google is a processor of dictated audio; on iOS recognition stays on the device. Nimbo never stores or uploads audio itself, only the transcript as text ([`native-config.md`](native-config.md#permissions)). |
 | Buy Open-Meteo's commercial API or switch the forecast provider | Pending (Wave 5, before the public store release) | The free API is non-commercial. With the API Standard plan: `supabase secrets set OPEN_METEO_URL=https://customer-api.open-meteo.com OPEN_METEO_API_KEY=<key>` on the hosted project, then redeploy the functions that read the forecast; `pressureUrl` adds the key to each request. Another provider means changing `supabase/functions/_shared/weather.ts` and its mock route only. Until then leave both unset (the free `https://api.open-meteo.com`, no key). |
+| Set up Firebase and FCM for Android push | Pending (Wave 5) | After the EAS project exists: create the Firebase project for `com.aabv21.nimbo`, add `google-services.json` at the repo root and `"googleServicesFile": "./google-services.json"` under `android` in `app.json` in the same change (the file holds public identifiers and may be committed), then `pnpm expo prebuild --clean`. Upload the FCM V1 service-account key with `eas credentials` (Android → Google Service Account → FCM V1); never commit it (`.gitignore` ignores `*-firebase-adminsdk-*.json` and `service-account*.json`). Check a real token on a development build, the Android 13 prompt, and the lock screen with and without the detail opt-in ([`native-config.md`](native-config.md#permissions)). Deploy `push-claim` and `push-unregister` only after the merge. |
+| Set the monitor's secrets and deploy `monitor` | Pending | Only after the merge: pick one random value, then `supabase secrets set MONITOR_SECRET=<value>` and, in the hosted project's SQL editor, `select vault.create_secret('<value>', 'monitor_secret')` and `select vault.create_secret('https://<project-ref>.supabase.co/functions/v1/monitor', 'monitor_url')`; then `supabase functions deploy monitor`. Without the Vault secrets the hourly job does nothing ([`local-stack.md`](local-stack.md#the-hourly-monitor)). |
 | Print `{{ .Token }}` in the hosted confirmation and recovery email templates | Pending | The app asks for a 6-digit code; the hosted project's templates must contain it, as `supabase/templates/confirmation.html` and `recovery.html` do locally ([`local-stack.md`](local-stack.md)). |
 
 ## Granting premium
@@ -65,6 +67,9 @@ secrets (the prompt cache with the fallback header, the 3 s database cap on a co
 a device (Android's Google recognizer, iOS on-device recognition), and the Maestro companion flow. For the forecast:
 one real Open-Meteo call for a Bogotá and a São Paulo cell (the shape, 28 hours, GMT), the hosted `pg_cron` job
 `prune-expired-caches` after the merge, the free tier's rate limits from Supabase's egress addresses, and the
-commercial plan before the public listing. The Maestro flows (`pnpm e2e`) run on the Android emulator against the local stack, and
+commercial plan before the public listing. For the monitor: the hosted Vault secrets and `MONITOR_SECRET`, one
+hosted run of the job in `cron.job_run_details` and its 200 in `net._http_response`, the run time on a real project, a real
+push delivered inside the window and none outside it, receipts arriving after 15 minutes, and the hosted profiles' zones after
+the migration's cleanup. The Maestro flows (`pnpm e2e`) run on the Android emulator against the local stack, and
 on the iOS simulator once the iOS dev build exists; a preview build is made only after a merge. The
 offline suites cover the logic around each ([`testing.md`](testing.md)).

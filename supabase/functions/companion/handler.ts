@@ -9,7 +9,7 @@ import { runTool, type ToolEnv } from '../_shared/companion/tools.ts';
 import { completeSentences, extractCitations, firstSentences, parseStep, sanitizeReply } from '../_shared/companion/turns.ts';
 import { packs } from '../_shared/condition/index.ts';
 import type { ClaudeEnv, JevEnv, SupabaseEnv } from '../_shared/env.ts';
-import { callerOf, readJson, reply } from '../_shared/http.ts';
+import { bodyProblemReply, callerOf, readJsonCapped, reply } from '../_shared/http.ts';
 import { FALLBACK_BETA, runClaude } from '../_shared/models.ts';
 import { hasPremium } from '../_shared/premium.ts';
 import { consumeQuota, DAILY_LIMITS } from '../_shared/quota.ts';
@@ -40,6 +40,11 @@ export const MIN_CALL_MS = 3_000;
 /** With less than this left, the reply screen runs its local checks only (the reply is then at best `degraded`). */
 export const REPLY_SCREEN_MIN_MS = 2_000;
 export const MAX_TOOL_ROUNDS = 3;
+/**
+ * The largest body read. The contract allows 4,000 characters of turns; even every one escaped as `\uXXXX` (6 bytes)
+ * with the other fields is about 26 KB, so 64 KiB leaves more than twice that.
+ */
+export const MAX_BODY_BYTES = 64 * 1024;
 
 type Limits = Readonly<Record<ClientQuotaKind, number>>;
 
@@ -82,7 +87,9 @@ export async function handleCompanion(request: Request, deps: CompanionDeps): Pr
   if (request.method !== 'POST') return reply('invalid', 405, { error: 'method_not_allowed' });
   const caller = callerOf(request);
   if (caller === null) return reply('invalid', 401, { error: 'unauthorized' });
-  const input = parseCompanionRequest(await readJson(request));
+  const body = await readJsonCapped(request, MAX_BODY_BYTES);
+  if (!body.ok) return bodyProblemReply(body.reason, 'invalid_input');
+  const input = parseCompanionRequest(body.value);
   if (input === null) return reply('invalid', 400, { error: 'invalid_input' });
 
   const { env, fetch: fetchFn } = deps;

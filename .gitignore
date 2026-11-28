@@ -30,6 +30,10 @@ yarn-error.*
 .DS_Store
 *.pem
 
+# Firebase / FCM credentials (never committed)
+*-firebase-adminsdk-*.json
+service-account*.json
+
 # local env files
 .env*.local
 

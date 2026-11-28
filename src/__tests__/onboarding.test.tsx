@@ -8,6 +8,7 @@ import { kvRemove } from '../lib/kv';
 import { readIntroSeen } from '../onboarding/introSeen';
 import * as outbox from '../lib/outbox/outbox';
 import { setAiConsent, updateProfile } from '../profile/profileRepository';
+import { registerPush } from '../push/pushRegistration';
 import { READY_PROFILE, currentAuth, resetAuth } from '../test/authMock';
 import { clearLocalDb } from '../test/localDbTest';
 
@@ -36,6 +37,7 @@ jest.mock('../app/(tabs)/today', () => {
 });
 // Every write but the finish goes to the network, faked here; the finish is the real one, queued in the local store.
 jest.mock('../lib/supabase', () => ({ supabase: {} }));
+jest.mock('../push/pushRegistration', () => require('../test/pushClientsMock'));
 jest.mock('../profile/profileRepository', () => ({
   ...jest.requireActual<typeof import('../profile/profileRepository')>('../profile/profileRepository'),
   acceptTerms: jest.fn(),
@@ -173,6 +175,17 @@ test('a denied notification permission still moves on', async () => {
 
   await header('onb.loc.title');
   expect(Notifications.requestPermissionsAsync).toHaveBeenCalledTimes(1);
+  expect(registerPush).not.toHaveBeenCalled();
+});
+
+test('a granted notification permission registers this phone’s push token, then moves on', async () => {
+  await renderRouter('./src/app', { initialUrl: '/welcome/notifications' });
+  await header('onb.notif.title');
+
+  await press(t('onb.notif.allow'));
+
+  await header('onb.loc.title');
+  expect(registerPush).toHaveBeenCalledWith('user-1', 'en');
 });
 
 test('the lock-screen choice is saved, and the hours and cap rows are not buttons', async () => {

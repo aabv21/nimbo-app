@@ -1,6 +1,7 @@
 /** @jest-environment node */
 // supabase/functions/_shared/__tests__/http.test.ts
-import { callerOf, fetchWithDeadline, readJson, reply, secretMatches } from '../http.ts';
+import { bodyProblemReply, callerOf, fetchWithDeadline, readBodyCapped, readJsonCapped, reply, secretMatches } from '../http.ts';
+import { chunkedRequest } from './fakeFetch.ts';
 
 const { jest } = import.meta;
 
@@ -100,10 +101,64 @@ describe('callerOf', () => {
   });
 });
 
-describe('readJson', () => {
-  test('the parsed body, or null when it is not JSON', async () => {
-    expect(await readJson(new Request('http://f.test/', { method: 'POST', body: '{"a":1}' }))).toEqual({ a: 1 });
-    expect(await readJson(new Request('http://f.test/', { method: 'POST', body: '{"a":' }))).toBeNull();
+describe('readJsonCapped and readBodyCapped', () => {
+  test('the parsed body, or a null value when it is not JSON', async () => {
+    expect(await readJsonCapped(new Request('http://f.test/', { method: 'POST', body: '{"a":1}' }), 100)).toEqual({ ok: true, value: { a: 1 } });
+    expect(await readJsonCapped(new Request('http://f.test/', { method: 'POST', body: '{"a":' }), 100)).toEqual({ ok: true, value: null });
+  });
+
+  test('a body of exactly the cap is read; one byte more is too large', async () => {
+    expect(await readBodyCapped(new Request('http://f.test/', { method: 'POST', body: 'x'.repeat(10) }), 10)).toEqual({ ok: true, text: 'x'.repeat(10) });
+    expect(await readBodyCapped(new Request('http://f.test/', { method: 'POST', body: 'x'.repeat(11) }), 10)).toEqual({ ok: false, reason: 'too_large' });
+  });
+
+  test('a declared content-length over the cap is refused unread', async () => {
+    const request = new Request('http://f.test/', { method: 'POST', body: '{}', headers: { 'content-length': '5000' } });
+    expect(await readBodyCapped(request, 1000)).toEqual({ ok: false, reason: 'too_large' });
+  });
+
+  test('a chunked body with no content-length stops being read once it passes the cap', async () => {
+    const { request, pulled } = chunkedRequest(1000, 1024);
+    expect(request.headers.has('content-length')).toBe(false);
+    expect(await readJsonCapped(request, 4096)).toEqual({ ok: false, reason: 'too_large' });
+    expect(pulled()).toBeLessThan(10);
+  });
+
+  test('a chunked body under the cap is read whole, multi-byte text included', async () => {
+    const encoded = new TextEncoder().encode(JSON.stringify({ text: 'ñandú 🐦' }));
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(encoded.slice(0, 5));
+        controller.enqueue(encoded.slice(5));
+        controller.close();
+      },
+    });
+    const request = new Request('http://f.test/', { method: 'POST', body, duplex: 'half' } as RequestInit);
+    expect(await readJsonCapped(request, 1000)).toEqual({ ok: true, value: { text: 'ñandú 🐦' } });
+  });
+
+  test('a stream that errors mid-body (the client went away) is unreadable, not a throw, and answers 400', async () => {
+    let sent = false;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (sent) {
+          controller.error(new TypeError('connection reset'));
+          return;
+        }
+        sent = true;
+        controller.enqueue(new TextEncoder().encode('{"a":'));
+      },
+    });
+    const request = new Request('http://f.test/', { method: 'POST', body, duplex: 'half' } as RequestInit);
+    const read = await readJsonCapped(request, 1000);
+    expect(read).toEqual({ ok: false, reason: 'unreadable' });
+    const info = jest.spyOn(console, 'info').mockImplementation(() => undefined);
+    const response = bodyProblemReply('unreadable');
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: 'invalid_body' });
+    expect(bodyProblemReply('too_large').status).toBe(413);
+    expect(await bodyProblemReply('unreadable', 'invalid_input').json()).toEqual({ error: 'invalid_input' });
+    info.mockRestore();
   });
 });
 

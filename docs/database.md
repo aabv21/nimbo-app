@@ -2,7 +2,7 @@
 
 The backend is Supabase (Postgres 17), run locally through the `db:*` scripts ([`local-stack.md`](local-stack.md)).
 This document covers what the migrations create: `public.profiles`, its policies and grants, the
-signup trigger, the consent RPCs, the tracking tables with their RPCs, entitlements, the AI quotas, the companion's data (the debrief columns, `set_dose_helped` and `agent_notes`) `record_inputs`, the read the insights and signals run on, the pressure forecast cache and the stored signals. Schema changes are new migration files in
+signup trigger, the consent RPCs, the tracking tables with their RPCs, entitlements, the AI quotas, the companion's data (the debrief columns, `set_dose_helped` and `agent_notes`) `record_inputs`, the read the insights and signals run on, the pressure forecast cache, the stored signals, the push tokens, and the hourly monitor's RPCs, receipts queue and job. Schema changes are new migration files in
 `supabase/migrations/`; a merged migration is never edited. The diagram [`diagrams/data-model.svg`](diagrams/data-model.svg) shows how the pieces relate, and [`architecture.md`](architecture.md#the-consent-model) explains why consent is RPC-only.
 
 ## `public.profiles`
@@ -15,7 +15,7 @@ the signup trigger. A client never inserts a row, so every client write is an up
 | `user_id` | `uuid` | primary key, references `auth.users (id)` |
 | `condition` | `text` | `not null default 'migraine'`; check allows only `migraine`; not client-writable |
 | `language` | `app_language` | nullable (`en`, `es`, `pt`); null follows the device |
-| `timezone` | `text` | nullable; 1 to 64 characters |
+| `timezone` | `text` | nullable; 1 to 64 characters; an IANA zone name, else `22023` from the `profiles_check_timezone` trigger ([the hourly monitor](#the-hourly-monitor)) |
 | `theme` | `app_theme` | `not null default 'system'` (`system`, `day`, `dark`, `dim`); `system` follows the phone between `day` and `dark` |
 | `reduce_motion` | `boolean` | `not null default false` |
 | `notify_start`, `notify_end` | `time` | `not null`, default `08:00` and `21:00` |
@@ -249,11 +249,64 @@ Indexes: the unique `(user_id, cause_key)`, a partial `(user_id, pushed_at) wher
 the 24-hour cause rule read a user's pushed rows) and `(user_id, local_date)` (Today and `get_signals` read one day). RLS
 read-own `select` (`signals_select_own`, `user_id = (select auth.uid())`); every privilege is revoked from `anon` and
 `authenticated`, then `select` granted back to `authenticated`, so a client insert, update or delete is `42501`. Only the
-service role writes it: the monitor's RPCs come with the monitor.
+service role writes it, through the monitor's RPCs ([the hourly monitor](#the-hourly-monitor)).
+
+## Push tokens
+
+`20261129120300_push_tokens.sql` adds the phone's Expo push token, written only through `register_push_token` with the
+phone's device secret, and the server-only reclaim tables `push-claim` uses (pattern: Dressing Room's push migration, without
+its per-notice preferences: a row means "this phone gets the signal pushes", and the daily cap is the opt-out).
+
+| Object | Contract |
+| --- | --- |
+| `public.push_tokens` | `user_id uuid` (default `auth.uid()`, cascade from `auth.users`), `token text` (`^(ExponentPushToken\|ExpoPushToken)\[.+\]$`, at most 255 characters), `platform text` (`ios` or `android`), `updated_at timestamptz` (stamped with `clock_timestamp()` by the `push_tokens_stamp` trigger on insert and on a change of token, platform or secret), `device_secret_hash text` (SHA-256 hex of the phone's own random secret, `^[0-9a-f]{64}$`). Primary key `(user_id, token)`, plus an index on `token` (the server deletes a dead token, takes a token over and claims it by the token alone). RLS: read-own `select` and delete-own `delete`, both on `(select auth.uid())`. `anon` has nothing; `authenticated` has `select` on every column but `device_secret_hash`, and `delete`; a direct insert or update is `42501`. |
+| `register_push_token(p_token text, p_platform text, p_device_secret text) returns void` | `security definer`, `search_path = ''`, granted to `authenticated` only. `42501` without a session; `22023` for a bad token, platform, or a secret that is not 32 to 128 hex characters. Under a per-token advisory lock: another account's row for the token under a different secret is `42501` (someone who only knows the token); the same secret (that phone, a new account) deletes the other accounts' rows and takes the token over; the caller's own row may change secret. |
+| `public.push_claims` | One reclaim per `(token, user_id)`: `code_hash` and `nonce_hash` (SHA-256 hex), `expires_at` (10 minutes), `attempts` 0–5. RLS on, every privilege revoked from `anon` and `authenticated`. |
+| `public.push_claim_starts` | Every claim start that sent a code (`token`, `user_id`, `started_at`), for the limits; indexes on `(user_id, started_at)` and `(token, started_at)`. RLS on, no client privilege. |
+| `start_push_claim(p_user_id, p_token, p_code_hash, p_nonce_hash) returns boolean` | Service role only. False for a token nobody holds or the caller's own (not counted), and past the limits: one start per token and account per 10 minutes, 5 per account per hour, 6 distinct accounts per token per hour. Else stores the hashes and answers true. |
+| `push_claim_attempt(p_user_id, p_token, p_nonce_hash) returns text` | Service role only. Spends one attempt on the caller's unexpired claim with that nonce and answers the code's hash for a constant-time compare in the function; null when there is nothing to attempt. |
+| `finish_push_claim(p_user_id, p_token, p_platform, p_device_secret) returns boolean` | Service role only. `22023` for a bad platform or secret. Under the token's lock: false when the caller's claim is gone or expired; else deletes every claim on the token and every other account's row for it, and stores the claimant's row with the new secret's hash. |
+| `prune_expired_caches()` | Redefined with the weather and run-history deletes unchanged, plus expired `push_claims` and `push_claim_starts` older than 1 hour. |
+
+The device secret, the pending unregister list and a pending claim live on the phone in kv (`docs/app.md#push-srcpush`).
+`push-unregister` deletes the named account's row by token and the secret's hash with the service role: knowing a
+token alone deletes nothing, and the device-wide secret can't reach the next account's row on the same phone. Expo's tickets and receipts, and the hourly sends, are the monitor's ([the hourly monitor](#the-hourly-monitor)).
+
+## The hourly monitor
+
+`20261129120400_monitor.sql` adds what the `monitor` Edge Function needs (the function itself: [`api.md`](api.md#monitor)):
+the zone check it relies on before any `AT TIME ZONE`, the receipts queue, its service-role RPCs, the `pg_net`
+extension (in `extensions`; its objects live in the `net` schema) and the hourly job.
+
+| Object | Contract |
+| --- | --- |
+| `private.is_time_zone(p text) returns boolean` | `stable`, `search_path = ''`, no client execute. True for `UTC`, `GMT` and an `Area/Location` name that `pg_timezone_names` lists, except its `posix/` and `right/` copies. Abbreviations and POSIX rules (`EST`, `EST5EDT`, `UTC+3`) are listed or parse in `AT TIME ZONE` but name no place, so they are false. Not a `CHECK`: the list changes with tzdata. |
+| Trigger `profiles_check_timezone` | `before insert or update of timezone` on `profiles`, through `profiles_check_timezone()` (`security definer`, since clients have no usage on `private`): a zone that is not null and fails `is_time_zone` raises `22023` `timezone: not an IANA zone name`. The migration first sets every stored zone that fails the check to null, so the phone sends its zone again. The app reads `22023` as `invalid` and does not resend a refused zone until the device zone changes ([`app.md`](app.md#profile-srcprofile)). |
+| `public.push_tickets` | `ticket_id text` primary key (1 to 100 characters), `token text`, `user_id uuid` (cascade from `auth.users`), `created_at timestamptz default now()`; indexes on `created_at` (the receipts read) and `user_id` (the cascade). RLS on with no policy and every privilege revoked from `anon` and `authenticated`: only the service role touches it. |
+| `monitor_targets()` | Every profile with a zone and `onboarding_completed_at`, ordered by `user_id` (the function pages it with `limit`/`offset`), whatever the time: the window only decides whether to push. Columns `user_id, timezone, notify_start, notify_end, notify_daily_cap, lock_screen_detail, language, coarse_lat, coarse_lon, known_triggers`; `known_triggers` lets a run start the forecasts its users need before it reaches them. |
+| `save_signals(p_user_id, p_local_date, p_signals jsonb)` | `p_signals` is `computeSignals`' list (`[{ kind, cause, causeKey, evidence }]`; not an array is `22023`). Under the user's advisory lock: upserts on `(user_id, cause_key)` setting `kind`, `cause`, `local_date`, `evidence` and `computed_at = now()` and keeping `pushed_at`, deletes the user's unpushed rows whose key is not in the set, and answers the push log `(cause_key, cause, pushed_at)`: pushed rows from the last 48 hours (the cap and the 24-hour rule), pushed rows whose key is in the set (a key is pushed once ever), and pushed quiet stretches. |
+| `claim_signal_push(p_user_id, p_cause_key, p_time_zone, p_cap, p_same_cause_hours)` | Under `pg_advisory_xact_lock(hashtextextended('signals:' \|\| user_id, 0))`, so overlapping or retried runs wait for each other, one update stamps `pushed_at = now()` only when: the zone passes `is_time_zone`, the user holds a token (as its newest holder), the key's row exists unpushed, fewer than `p_cap` rows were pushed since local midnight in `p_time_zone`, no row with the same `cause` was pushed within `p_same_cause_hours`, and, for `quiet:never`, no dated quiet stretch was pushed. Answers `(signal_id, token, language)` per token, the profile's language; no row means send nothing and nothing was stamped. |
+| `save_push_tickets(p_user_id, p_tickets jsonb)` | `[{ id, token }]` from Expo's tickets; a ticket already stored is ignored; not an array is `22023`. |
+| `push_receipts_due(p_limit default 1000)` | Tickets 15 minutes to 24 hours old (Expo may not have a receipt sooner and keeps none longer), oldest first, at most 1000. |
+| `forget_push_tickets(p_ids text[])` | Deletes the tickets whose receipts were read. |
+| `request_monitor()` | Shaped like Dressing Room's weekly-summary job: reads `monitor_url` and `monitor_secret` from `vault.decrypted_secrets` and, with both, `net.http_post`s `{}` with the header `x-webhook-secret` and a 30 s timeout; without them it does nothing. A failure is a warning carrying only the SQLSTATE. `security definer`, owned by `postgres`, no client execute. |
+| Job `monitor` | `cron.schedule('monitor', '5 * * * *', 'select public.request_monitor()')`: at :05 every hour (GMT), run as `postgres`. |
+| `prune_expired_caches()` | Redefined with the earlier deletes unchanged, plus `signals` whose `computed_at` is over 30 days old, except each user's newest pushed quiet stretch, and `push_tickets` over 2 days old. |
+
+Each RPC above is `security definer` with `search_path = ''`, revoked from `public`, `anon` and `authenticated` and
+granted to `service_role` only.
+
+**Why the prune keeps one pushed quiet stretch.** A signal that still holds is recomputed every hour, so a row 30 days
+stale is a key that cannot come back: its date, month, attack or stage has passed. The quiet tracker is the exception. Its
+key is `quiet:<last check-in>`, and once that check-in leaves the 90-day records window the same stretch reads as
+`quiet:never`. The monitor drops `quiet:never` when the push log holds a pushed dated quiet stretch (`withoutRepeatedQuiet`),
+and `claim_signal_push` checks the same, so the newest such row must outlive the prune. Keeping only the newest bounds it to
+one row per user. The cost: a stretch whose dated key was never pushed (a cap of 0 for months) and that follows an older
+pushed one is not pushed as `quiet:never` either, which errs on the side of fewer pushes.
 
 ## Tests
 
-pgTAP files in `supabase/tests/`, run by `pnpm db:test`. `profiles.test.sql` (37 assertions), `tracking.test.sql` (106), `onboarding_profile.test.sql` (13), `entitlements.test.sql` (29), `quota.test.sql` (20), `companion_data.test.sql` (55), `record_inputs.test.sql` (22), `weather_cache.test.sql` (25) and `signals.test.sql` (20). `profiles.test.sql` covers
+pgTAP files in `supabase/tests/`, run by `pnpm db:test`. `profiles.test.sql` (37 assertions), `tracking.test.sql` (106), `onboarding_profile.test.sql` (13), `entitlements.test.sql` (29), `quota.test.sql` (20), `companion_data.test.sql` (55), `record_inputs.test.sql` (22), `weather_cache.test.sql` (25), `signals.test.sql` (20), `push_tokens.test.sql` (53) and `monitor.test.sql` (53). `profiles.test.sql` covers
 the signup row and its defaults, own-row visibility, the update grants and each refused column,
 both RPCs including the repeat and withdrawal cases, the value checks, function privileges for
 `anon` and `authenticated`, and the refused insert and delete. `tracking.test.sql` covers RLS and the refused direct writes on the four tables, each RPC's idempotency, patch semantics (including a moved start, a start after the end as `23514`, times ten minutes ahead stored as now, a clamped start stopping at the stored end, and times two days ahead as `22023`), ownership (`P0002`), catalog and range errors, and `anon` privileges. `onboarding_profile.test.sql` covers `complete_onboarding`, the trigger catalog check, the priorities and `track_period`. `entitlements.test.sql` covers own-row reads, the `updated_at` trigger, each refused write, the boundary at exactly now, `service_role`, the grant and purchase time cases (an expired purchase beside a grant and the reverse), the `42501` for another user, and `anon`. `quota.test.sql` covers the 41st `companion` call refused, `dictation` counted apart, another user's own budget, the day rule (a day three days off and a null day count on the UTC day, one day ahead gets its own counter), a zero or null limit, RLS with no policy, and no execute or select for `anon` or `authenticated`. `companion_data.test.sql` covers the relief checks on `helped` and `did_not_help`, `debriefed` stamping once (a repeat keeps an earlier stamp) and `false` clearing it, a non-boolean `debriefed` as `22023`, a replayed debrief, `set_dose_helped` set, repeated, cleared by omitting `p_helped` and refused on another user's dose, `agent_notes` read-own and its refused direct writes, the 200-character, blank and control-character notes, the 21st note, `delete_agent_note` leaving another user's note, the signed-out `42501`s and `anon`. `record_inputs.test.sql` covers the caller's own episodes, check-ins, doses and medications
@@ -268,7 +321,27 @@ widest cells fit), the prune (a forecast 3 days old goes, one 1 day old stays; r
 read-own policy, both indexes, user A reading only A's rows (B's not even by its id), refused inserts, updates and deletes
 for `authenticated` and refused selects and inserts for `anon`, the service role inserting and stamping a push, a second
 `(user_id, cause_key)` as `23505` (the same key for another user is fine), `kind = 'storm'`, an array evidence, an empty
-cause and a 161-character key as `23514`, and the cascade from `auth.users`.
+cause and a 161-character key as `23514`, and the cascade from `auth.users`. `push_tokens.test.sql` covers RLS with only the read-own and
+delete-own policies, the token index, no preference columns, no client insert or update and no read of `device_secret_hash`,
+`anon` refused, `register_push_token` (definer, empty `search_path`, granted to `authenticated` only; both token forms; a bad
+token, platform or short secret as `22023`), another account's token under a different secret as `42501` with the holder's row
+untouched, the same secret taking the token over, the stored hash, the claim RPCs refused to `anon` and `authenticated` and
+granted to the service role, each claim rule (nobody's token, the holder's own, the 10-minute and hourly limits, another claim's
+nonce, the 6th attempt, an expired claim, a bad platform, a finish that removes every other claim and row), `prune_expired_caches()`
+removing an expired claim and old starts, and the cascade from `auth.users`. `monitor.test.sql` covers the zone trigger as
+the signed-in owner writes it (`EST`, `UTC+3`, `Mars/Base` and a `posix/` name are `22023`; `America/Santiago`, `UTC` and null
+are saved), `monitor_targets` leaving out a user with no zone and one not onboarded while keeping one outside an empty window,
+`save_signals` keeping `pushed_at` on an upsert, deleting an unpushed row missing from the new set, keeping a pushed one and
+answering the push log (the push an hour ago, and one 3 days ago only while its key is in the set), `claim_signal_push`
+answering the token and the language once and nothing the second time, nothing for a key already pushed or with no row,
+the cap (a push at 08:00 local today blocks a cap of 1, one at 23:30 local yesterday does not), the same cause pushed 22 hours
+ago blocking 24 hours but not 20, `quiet:never` after a pushed dated stretch, a user with no token (no row, `pushed_at` still
+null) and a zone that is not an IANA name, the tickets (stored once, `22023` for a non-array, receipts due for a ticket 20
+minutes old but not 5 minutes or 25 hours, forgotten once checked), `push_tickets`' RLS with no policy and its index, every
+monitor function refused to `anon` and `authenticated`, granted to the service role and a definer with an empty
+`search_path`, `request_monitor()` owned by `postgres`, without the Vault secrets doing nothing and with them posting once with the header and the
+30 s timeout, the job at `5 * * * *`, and the prune (signals 30 days stale go, pushed or not, but the newest pushed quiet
+stretch stays; tickets over 2 days old go).
 
 ## New table checklist
 

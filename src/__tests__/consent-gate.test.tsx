@@ -10,6 +10,7 @@ jest.mock('../auth/AuthProvider', () => require('../test/authMock'));
 // The root layout's long-attack watch reads the local store.
 jest.mock('expo-sqlite', () => require('../test/sqliteNode'));
 jest.mock('../lib/sync/SyncProvider', () => require('../test/syncMock'));
+jest.mock('../push/pushRegistration', () => require('../test/pushClientsMock'));
 jest.mock('expo-font', () => ({ useFonts: () => [true, null] }));
 jest.mock('expo-splash-screen', () => ({
   preventAutoHideAsync: jest.fn(() => Promise.resolve()),

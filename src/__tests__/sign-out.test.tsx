@@ -50,7 +50,10 @@ jest.mock('../profile/profileRepository', () => {
   return { ...actual, fetchProfile: jest.fn(() => new Promise(() => undefined)), updateProfile: jest.fn(() => new Promise(() => undefined)) };
 });
 jest.mock('expo-sqlite', () => require('../test/sqliteNode'));
-jest.mock('expo-crypto', () => ({ randomUUID: () => (require('node:crypto') as typeof import('node:crypto')).randomUUID() }));
+jest.mock('expo-crypto', () => ({
+  randomUUID: () => (require('node:crypto') as typeof import('node:crypto')).randomUUID(),
+  getRandomBytes: (size: number) => new Uint8Array((require('node:crypto') as typeof import('node:crypto')).randomBytes(size)),
+}));
 jest.mock('expo-font', () => ({ useFonts: () => [true, null] }));
 jest.mock('expo-splash-screen', () => ({
   preventAutoHideAsync: jest.fn(() => Promise.resolve()),
@@ -114,6 +117,8 @@ test('signing out with a record not uploaded asks first, then clears the session
   kvSet('memory.user-1', JSON.stringify([{ id: 'n1', text: 'Works night shifts on Thursdays', createdAt: '2026-11-20T10:00:00Z' }]));
   // Debriefs finished on this phone.
   kvSet('debrief.done.user-1', JSON.stringify(['clean-episode']));
+  // This phone's push token, registered for the account.
+  kvSet('push.user-1', JSON.stringify({ token: 'ExponentPushToken[device-1]' }));
 
   await renderRouter('./src/app', { initialUrl: '/profile' });
   expect(await screen.findByRole('header', { name: translate('en', 'profile.title') })).toBeOnTheScreen();
@@ -129,7 +134,10 @@ test('signing out with a record not uploaded asks first, then clears the session
   expect(screen.getByText(translatePlural('en', 'profile.signOut.pending', 1))).toBeOnTheScreen();
   expect(signOut).not.toHaveBeenCalled();
   await fireEvent.press(screen.getByRole('button', { name: translate('en', 'profile.signOut') }));
-  expect(signOut).toHaveBeenCalledTimes(1);
+  // Sign-out first tries to delete the push row with the session, then signs out.
+  await waitFor(() => {
+    expect(signOut).toHaveBeenCalledTimes(1);
+  });
 
   // What supabase-js does once the sign-out request returns.
   await act(async () => {
@@ -146,6 +154,9 @@ test('signing out with a record not uploaded asks first, then clears the session
   // The cached notes and the debriefs marked done leave whatever the outbox holds.
   expect(kvGet('memory.user-1')).toBeNull();
   expect(kvGet('debrief.done.user-1')).toBeNull();
+  // Sign-out tried to delete the row with the session first; offline, the token waits for push-unregister with its account.
+  expect(kvGet('push.user-1')).toBe(JSON.stringify({ token: null }));
+  expect(kvGet('push.pendingUnregister')).toBe(JSON.stringify([{ token: 'ExponentPushToken[device-1]', userId: 'user-1' }]));
   expect(localDb().getAllSync("SELECT id FROM medications WHERE user_id = 'user-1';")).toEqual([]);
   expect(scheduled.has(REMINDER)).toBe(false);
   expect(presented).toEqual(['another-app-alert']);

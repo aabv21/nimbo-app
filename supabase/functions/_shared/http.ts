@@ -13,13 +13,61 @@ export function reply(outcome: string, status: number, body: unknown, words: Rec
   return json(status, body);
 }
 
-/** The request's JSON body, or null when it isn't JSON. */
-export async function readJson(request: Request): Promise<unknown> {
+/** Why a capped read gave no body: past `maxBytes`, or the stream broke off (the client went away mid-body). */
+export type BodyProblem = 'too_large' | 'unreadable';
+
+/** A body read up to a cap: its text, or the problem. */
+export type CappedBody = { ok: true; text: string } | { ok: false; reason: BodyProblem };
+
+/**
+ * The request's body as text, never more than `maxBytes` in memory: a declared `content-length` over the cap is refused
+ * unread, a chunked body is counted as it streams and cancelled once it passes the cap, and a stream that errors reads
+ * as `unreadable` rather than throwing.
+ */
+export async function readBodyCapped(request: Request, maxBytes: number): Promise<CappedBody> {
+  const tooLarge: CappedBody = { ok: false, reason: 'too_large' };
+  if (Number(request.headers.get('content-length') ?? 0) > maxBytes) return tooLarge;
+  if (request.body === null) return { ok: true, text: '' };
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
   try {
-    return (await request.json()) as unknown;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > maxBytes) {
+        await reader.cancel().catch(() => undefined);
+        return tooLarge;
+      }
+      chunks.push(value);
+    }
   } catch {
-    return null;
+    return { ok: false, reason: 'unreadable' };
   }
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return { ok: true, text: new TextDecoder().decode(bytes) };
+}
+
+/** The request's JSON body read under `maxBytes`: `value` is null when it isn't JSON. */
+export async function readJsonCapped(request: Request, maxBytes: number): Promise<{ ok: true; value: unknown } | { ok: false; reason: BodyProblem }> {
+  const body = await readBodyCapped(request, maxBytes);
+  if (!body.ok) return body;
+  try {
+    return { ok: true, value: JSON.parse(body.text) as unknown };
+  } catch {
+    return { ok: true, value: null };
+  }
+}
+
+/** The reply to a body `readBodyCapped` could not give: 413 past the cap, 400 with the function's own word for a stream that broke off. */
+export function bodyProblemReply(reason: BodyProblem, invalidWord = 'invalid_body'): Response {
+  return reason === 'too_large' ? reply('invalid', 413, { error: 'payload_too_large' }) : reply('invalid', 400, { error: invalidWord });
 }
 
 /**

@@ -39,8 +39,9 @@ export default defineConfig(
     rules: { 'security/detect-object-injection': 'off' },
   },
   {
-    // The signal rules index a record by a medication class or a sleep band from a fixed tuple, and the forecast by position.
-    files: ['supabase/functions/_shared/signals.ts'],
+    // The signal rules index a record by a medication class or a sleep band from a fixed tuple, and the forecast by position;
+    // the push copy indexes its tables by a locale and a sleep band, both fixed unions.
+    files: ['supabase/functions/_shared/{signals,pushCopy}.ts'],
     rules: { 'security/detect-object-injection': 'off' },
   },
   {
@@ -103,6 +104,7 @@ export default defineConfig(
       'src/redflags/__tests__/*.test.tsx',
       'src/premium/__tests__/*.test.tsx',
       'src/profile/__tests__/{useTimezoneSync,useLanguageSync,useProfileChange,profileRepository}.test.ts',
+      'src/profile/__tests__/NotificationSettings.test.tsx',
       'src/auth/__tests__/AuthProvider.test.tsx',
       'src/lib/{local,outbox,sync}/__tests__/*.test.{ts,tsx}',
       'src/insights/__tests__/*.test.{ts,tsx}',

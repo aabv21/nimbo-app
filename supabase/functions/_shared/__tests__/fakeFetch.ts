@@ -30,3 +30,20 @@ export const hanging = (_call: Call, init: RequestInit): Promise<Response> =>
       reject(new DOMException('The operation was aborted.', 'AbortError'));
     });
   });
+
+/** A chunked body with no content-length: `chunks` pieces of `size` bytes each, counting how many were pulled. */
+export function chunkedRequest(chunks: number, size: number, url = 'http://f.test/', headers: Record<string, string> = {}): { request: Request; pulled: () => number } {
+  let sent = 0;
+  const body = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      if (sent === chunks) {
+        controller.close();
+        return;
+      }
+      sent += 1;
+      controller.enqueue(new Uint8Array(size).fill(0x61));
+    },
+  });
+  const request = new Request(url, { method: 'POST', body, headers, duplex: 'half' } as RequestInit);
+  return { request, pulled: () => sent };
+}

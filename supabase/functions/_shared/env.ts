@@ -6,12 +6,18 @@ export type JevEnv = { typesafeApiKey: string; typesafeBaseUrl: string };
 export type ClaudeEnv = { anthropicApiKey: string; anthropicBaseUrl: string };
 /** The key is empty on the free API and set on the commercial one (docs/architecture.md#signals-and-the-pressure-forecast). */
 export type WeatherEnv = { openMeteoUrl: string; openMeteoApiKey: string };
+/** Expo's push API base (`/send` and `/getReceipts` are appended); the access token is empty unless push security is on. */
+export type PushEnv = { expoPushUrl: string; expoAccessToken: string };
+/** The shared secret the monitor job sends from the Vault (`x-webhook-secret`). */
+export type MonitorSecretEnv = { monitorSecret: string };
 
 type Capabilities = {
   supabase: SupabaseEnv;
   jev: JevEnv;
   claude: ClaudeEnv;
   weather: WeatherEnv;
+  push: PushEnv;
+  monitor: MonitorSecretEnv;
 };
 export type Capability = keyof Capabilities;
 
@@ -38,6 +44,13 @@ const VARIABLES: { [C in Capability]: Record<keyof Capabilities[C], Variable> } 
   weather: {
     openMeteoUrl: { name: 'OPEN_METEO_URL', fallback: 'https://api.open-meteo.com', url: true },
     openMeteoApiKey: { name: 'OPEN_METEO_API_KEY', fallback: '' },
+  },
+  push: {
+    expoPushUrl: { name: 'EXPO_PUSH_URL', fallback: 'https://exp.host/--/api/v2/push', url: true },
+    expoAccessToken: { name: 'EXPO_ACCESS_TOKEN', fallback: '' },
+  },
+  monitor: {
+    monitorSecret: { name: 'MONITOR_SECRET' },
   },
 };
 

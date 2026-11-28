@@ -24,11 +24,13 @@ permission must list it here with the reason and the plugin that adds it.
   - The iOS prompt string is English only: `app.json` has no `locales` yet, so Spanish and Portuguese users see the
     English text. Translating it through `locales` (`InfoPlist.strings` per language) is a later step.
 
-- **Notifications (`expo-notifications`):** the reminders are local, scheduled on the phone with no server. On
-  Android 13 and later the `expo-notifications` plugin adds `POST_NOTIFICATIONS`, and the library's own manifest adds
-  `RECEIVE_BOOT_COMPLETED`, so reminders are set up again after a restart. The app asks only when a preventive
-  schedule is saved (never at launch), through `askNotificationPermission`, and only while the system still allows the
-  question. Android 12 and later need `SCHEDULE_EXACT_ALARM` for exact times and Android 14 denies it by default; Nimbo
+- **Notifications (`expo-notifications`):** the preventive reminders are local, scheduled on the phone with no server;
+  the signal pushes come from the server through Expo's push service. On Android 13 and later the `expo-notifications`
+  plugin adds `POST_NOTIFICATIONS`, and the library's own manifest adds `RECEIVE_BOOT_COMPLETED`, so reminders are set up
+  again after a restart. The app asks only when a preventive schedule is saved, when the user taps "Allow notifications"
+  (the onboarding step, or Profile → Notifications while the permission isn't granted), never at launch, through
+  `askNotificationPermission`, and only while the system still allows the question; once only Settings can change it,
+  Profile's button opens Settings. Android 12 and later need `SCHEDULE_EXACT_ALARM` for exact times and Android 14 denies it by default; Nimbo
   does not request it, so a reminder may arrive a few minutes late (a reminder is not an alarm). iOS asks for alert and
   sound, never a badge.
 - **Microphone and speech recognition (`expo-speech-recognition`):** dictation to Nimbo, in the Companion tab's mic
@@ -59,12 +61,30 @@ permission must list it here with the reason and the plugin that adds it.
 - **Date-time picker (`@react-native-community/datetimepicker`):** the attack editor's time fields. It needs no permission; its
   config plugin carries the library's native setup. iOS shows its picker inline; Android has no date-time mode, so the editor asks
   for the date and then the time.
-- **Channel:** `preventive-reminders`, importance default, lock-screen visibility private, named "Reminders" in the
-  user's language. The plugin's `defaultChannel` is the same id.
-- **No push:** `enableRemoteNotifications` is `false`, so the iOS build has no APNs entitlement and Nimbo registers no
-  push token; every notification is local.
-- **Content:** the title is "Nimbo" and the body the neutral line, unless the user turned on the lock-screen detail in
-  Profile; `data` carries nothing.
+- **Channels:**
+  - `preventive-reminders`: importance default, lock-screen visibility private, named "Reminders" in the user's language.
+    The plugin's `defaultChannel` is the same id.
+  - `signals`: the signal pushes (the server's `PUSH_CHANNEL_ID`), importance default, lock-screen visibility left at the
+    system default, named "Notes from Nimbo" in the user's language (`src/push/signalChannel.ts`). A channel's importance
+    and visibility can't change once it exists on a phone, so these are fixed before the first APK that carries it. The
+    copy carries the privacy: without the opt-in a push says only "You have a note from Nimbo", and a private channel
+    would hide even the details a user opted in to on a secure lock screen. Android 13 shows the permission prompt only
+    once a channel exists, so `registerPush` creates it before asking and before the token request.
+- **Push token:** `registerPush` asks for an Expo push token with the EAS project id from `expo.extra.eas.projectId`
+  (none yet, so the build reads "unavailable") and stores it with `register_push_token`. It runs at launch when the
+  permission is already granted, and after "Allow notifications". Push does not work in Expo Go on Android: a
+  development build is needed.
+- **FCM (Android):** `getExpoPushTokenAsync` needs Firebase on Android. `google-services.json` (public identifiers, which
+  Expo's FCM guide allows committing) and `app.json`'s `android.googleServicesFile` arrive together in the owner session
+  once the Firebase project exists ([`owner-runbook.md`](owner-runbook.md)): a `googleServicesFile` without its file
+  breaks prebuild, and the file alone does nothing. Until then the token request fails and Profile says notifications
+  aren't available on this build. The FCM V1 service-account key goes to EAS credentials, never to the repo:
+  `.gitignore` ignores `*-firebase-adminsdk-*.json` and `service-account*.json`.
+- **iOS remote push is off:** `enableRemoteNotifications` stays `false` until the Apple account exists, so the iOS build
+  has no APNs entitlement and gets no token; its reminders still work.
+- **Content:** a reminder's title is "Nimbo" and its body the neutral line, unless the user turned on the lock-screen
+  detail in Profile; its `data` carries nothing. A signal push's title is "You have a note from Nimbo" with no body,
+  unless the same opt-in is on; its `data` is only `{ url: '/today', signalId }`, and a tap opens Today.
 
 ## What `app.json` sets
 
@@ -81,7 +101,7 @@ permission must list it here with the reason and the plugin that adds it.
     `nimbo.db`, the local store of health records and the outbox ([`app.md`](app.md)).
   - `expo-apple-authentication`, with `ios.usesAppleSignIn` true, for Sign in with Apple.
   - `expo-notifications`, with `defaultChannel` `preventive-reminders` and `enableRemoteNotifications` false, for the
-    local preventive reminders.
+    local preventive reminders and, on Android, the signal pushes.
   - `@react-native-community/datetimepicker`, for the attack editor's start and end times.
   - `expo-location`, with the coarse-only options above, for the onboarding location step.
   - `expo-speech-recognition`, with the microphone and speech-recognition usage strings above, for dictation.

@@ -5,6 +5,7 @@ test.each([
   [{}, 0, 'network'],
   [{ code: '23514' }, 400, 'invalid'],
   [{ code: '22001' }, 400, 'invalid'],
+  [{ code: '22023' }, 400, 'invalid'],
   [{ code: '42501' }, 403, 'unknown'],
   [{}, 500, 'unknown'],
 ] as const)('error %p with status %p is %s', (error, status, kind) => {

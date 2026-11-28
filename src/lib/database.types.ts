@@ -133,6 +133,62 @@ isOneToOne: false
                   Relationships: [
                     
                   ]
+                },"push_claim_starts": {
+                  Row: {
+                    "id": number,"started_at": string,"token": string,"user_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "id"?: never,"started_at"?: string,"token": string,"user_id": string
+                  }
+                  Update: {
+                    "id"?: never,"started_at"?: string,"token"?: string,"user_id"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
+                },"push_claims": {
+                  Row: {
+                    "attempts": number,"code_hash": string,"created_at": string,"expires_at": string,"nonce_hash": string,"token": string,"user_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "attempts"?: number,"code_hash": string,"created_at"?: string,"expires_at": string,"nonce_hash": string,"token": string,"user_id": string
+                  }
+                  Update: {
+                    "attempts"?: number,"code_hash"?: string,"created_at"?: string,"expires_at"?: string,"nonce_hash"?: string,"token"?: string,"user_id"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
+                },"push_tickets": {
+                  Row: {
+                    "created_at": string,"ticket_id": string,"token": string,"user_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string,"ticket_id": string,"token": string,"user_id": string
+                  }
+                  Update: {
+                    "created_at"?: string,"ticket_id"?: string,"token"?: string,"user_id"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
+                },"push_tokens": {
+                  Row: {
+                    "device_secret_hash": string,"platform": string,"token": string,"updated_at": string,"user_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "device_secret_hash": string,"platform": string,"token": string,"updated_at"?: string,"user_id"?: string
+                  }
+                  Update: {
+                    "device_secret_hash"?: string,"platform"?: string,"token"?: string,"updated_at"?: string,"user_id"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
                 },"signals": {
                   Row: {
                     "cause": string,"cause_key": string,"computed_at": string,"evidence": NonNullable<Json>,"id": string,"kind": string,"local_date": string,"pushed_at": string | null,"user_id": string
@@ -187,6 +243,11 @@ isOneToOne: false
 "catalog_keys":
 { Args: { "p_catalog": string }; Returns: (string)[]
                            },
+"claim_signal_push":
+{ Args: { "p_cap": number,"p_cause_key": string,"p_same_cause_hours": number,"p_time_zone": string,"p_user_id": string }; Returns: {
+              "language": string,"signal_id": string,"token": string
+            }[]
+                           },
 "complete_onboarding":
 { Args: Record<PropertyKey, never>; Returns: undefined
                            },
@@ -205,6 +266,12 @@ isOneToOne: false
 "end_episode":
 { Args: { "p_ended_at": string,"p_id": string }; Returns: undefined
                            },
+"finish_push_claim":
+{ Args: { "p_device_secret": string,"p_platform": string,"p_token": string,"p_user_id": string }; Returns: boolean
+                           },
+"forget_push_tickets":
+{ Args: { "p_ids": (string)[] }; Returns: undefined
+                           },
 "has_premium":
 { Args: { "p_user": string }; Returns: boolean
                            },
@@ -220,11 +287,30 @@ isOneToOne: false
 "log_episode":
 { Args: { "p_fields": Json,"p_id": string,"p_started_at": string }; Returns: undefined
                            },
+"monitor_targets":
+{ Args: Record<PropertyKey, never>; Returns: {
+              "coarse_lat": number,"coarse_lon": number,"known_triggers": (string)[],"language": string,"lock_screen_detail": boolean,"notify_daily_cap": number,"notify_end": string,"notify_start": string,"timezone": string,"user_id": string
+            }[]
+                           },
 "prune_expired_caches":
 { Args: Record<PropertyKey, never>; Returns: undefined
                            },
+"push_claim_attempt":
+{ Args: { "p_nonce_hash": string,"p_token": string,"p_user_id": string }; Returns: string
+                           },
+"push_receipts_due":
+{ Args: { "p_limit"?: number }; Returns: {
+              "ticket_id": string,"token": string
+            }[]
+                           },
 "record_inputs":
 { Args: { "p_since": string,"p_user_id": string }; Returns: Json
+                           },
+"register_push_token":
+{ Args: { "p_device_secret": string,"p_platform": string,"p_token": string }; Returns: undefined
+                           },
+"request_monitor":
+{ Args: Record<PropertyKey, never>; Returns: undefined
                            },
 "save_agent_note":
 { Args: { "p_text": string }; Returns: string
@@ -235,11 +321,22 @@ isOneToOne: false
 "save_medication":
 { Args: { "p_fields": Json,"p_id": string }; Returns: undefined
                            },
+"save_push_tickets":
+{ Args: { "p_tickets": Json,"p_user_id": string }; Returns: undefined
+                           },
+"save_signals":
+{ Args: { "p_local_date": string,"p_signals": Json,"p_user_id": string }; Returns: {
+              "cause": string,"cause_key": string,"pushed_at": string
+            }[]
+                           },
 "set_ai_consent":
 { Args: { "p_enabled": boolean }; Returns: undefined
                            },
 "set_dose_helped":
 { Args: { "p_helped"?: boolean,"p_id": string }; Returns: undefined
+                           },
+"start_push_claim":
+{ Args: { "p_code_hash": string,"p_nonce_hash": string,"p_token": string,"p_user_id": string }; Returns: boolean
                            },
 "update_episode":
 { Args: { "p_fields": Json,"p_id": string }; Returns: undefined

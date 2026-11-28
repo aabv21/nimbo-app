@@ -44,7 +44,7 @@ the stack needs. The mocks sit just below it, clear of Dressing Room's (54498 an
 
 ## Mocks
 
-Locally the Edge Functions never reach TypeSafe, Anthropic or Open-Meteo. `[edge_runtime.secrets]` in
+Locally the Edge Functions never reach TypeSafe, Anthropic, Open-Meteo or Expo's push service. `[edge_runtime.secrets]` in
 `supabase/config.toml` gives them dummy keys (`local-only-not-a-key`) and points the base URLs at two
 mock servers on the host, which the Edge Runtime reaches from its container as `host.docker.internal`:
 
@@ -56,26 +56,59 @@ mock servers on the host, which the Edge Runtime reaches from its container as `
 | `ANTHROPIC_BASE_URL` | `http://host.docker.internal:54519` | `https://api.anthropic.com` |
 | `OPEN_METEO_URL` | `http://host.docker.internal:54518` | `https://api.open-meteo.com` |
 | `OPEN_METEO_API_KEY` | unset | empty: the free API takes no key ([`owner-runbook.md`](owner-runbook.md)) |
+| `EXPO_PUSH_URL` | `http://host.docker.internal:54518/--/api/v2/push` | `https://exp.host/--/api/v2/push` (`/send` and `/getReceipts` are appended) |
+| `EXPO_ACCESS_TOKEN` | unset | empty unless the Expo project turns on push security |
+| `MONITOR_SECRET` | `local-only-not-a-secret` | set by the owner, equal to the Vault secret `monitor_secret` |
 
-The mock on 54518 serves two routes. `POST /v1/systemone` is Jev. `GET /v1/forecast` is Open-Meteo's forecast:
+The mock on 54518 serves four routes. `POST /v1/systemone` is Jev. `GET /v1/forecast` is Open-Meteo's forecast:
 by default every hour reads 1013.0 hPa, from the current UTC hour, for as many hours as `forecast_hours` asks
 (28 when it is missing), in Open-Meteo's `timezone=GMT` shape. Like the real API it answers 400 with
 `{ error: true, reason }` for a missing or out-of-range `latitude` or `longitude`, an `hourly` variable it does not
-serve (only `pressure_msl`), `forecast_hours` over 384 or an unknown `timezone`.
+serve (only `pressure_msl`), `forecast_hours` over 384 or an unknown `timezone`. `POST /--/api/v2/push/send` is Expo's send: by default every message
+gets an `ok` ticket with a fresh id, and `pushRequests()` returns each request's messages (`respondPush` changes the
+answer, for a `DeviceNotRegistered` ticket or a 500). `POST /--/api/v2/push/getReceipts` answers `ok` for every id it is
+asked about (`respondReceipts` changes it; `receiptRequests()` returns the ids).
+
+`push-claim` keeps the gateway's JWT check (`[functions.push-claim] verify_jwt = true`); `push-unregister` turns it off
+(`verify_jwt = false`), since a phone that signed out has no session and proves itself with its device secret.
 
 The integration tests start the mock they need and close it ([`testing.md`](testing.md#mocks)). For a
 manual check, `node integration/mockServices.ts --serve` keeps the mock Jev answering "nothing flagged"
-(every Noul 0.02, every Choice `other`) and the forecast flat at 1013.0 hPa until Ctrl-C, and `node integration/mockAnthropic.ts --serve companion-checkin`
+(every Noul 0.02, every Choice `other`), the forecast flat at 1013.0 hPa and every push `ok` until Ctrl-C, and `node integration/mockAnthropic.ts --serve companion-checkin`
 keeps the mock Claude answering every message with a check-in draft, the scenario the Maestro companion flow uses
 ([`testing.md`](testing.md#end-to-end-flows-maestro)). The mocks listen on every interface, since the
 Edge Runtime calls from a container.
 
-With no mock running, a call to either model or to the forecast fails fast with a refused connection, and the
+With no mock running, a call to either model, the forecast or the push service fails fast with a refused connection, and the
 functions treat it like a provider outage: the guards fall back from Jev to Claude Haiku, then to their offline
 rules, and mark the result degraded; a request that needs Claude itself answers 503; the forecast reads as
-missing. Nothing is retried against the real APIs.
+missing; a push counts as failed. Nothing is retried against the real APIs.
+
+## The hourly monitor
+
+The pg_cron job `monitor` runs `public.request_monitor()` at :05 every hour, which posts to the `monitor` function through
+pg_net with two Vault secrets. `supabase/seed.sql` creates them on every `pnpm db:reset`:
+
+| Vault secret | Local value |
+| --- | --- |
+| `monitor_secret` | `local-only-not-a-secret`, the same as `MONITOR_SECRET` above |
+| `monitor_url` | `http://supabase_kong_nimbo-app:8000/functions/v1/monitor`: Kong's container name on the stack's Docker network, since pg_net runs inside the database container, where `127.0.0.1` is the container itself |
+
+`[functions.monitor] verify_jwt = false`: the job has no user, so the function checks the shared secret instead
+([`api.md`](api.md#monitor)). The local job runs too, every hour the stack is up, against the mocks when they are running.
+To trigger a run by hand, with the mock on 54518 serving the forecast and Expo (`node integration/mockServices.ts --serve`):
+
+```sh
+curl -s -X POST http://127.0.0.1:54521/functions/v1/monitor -H 'x-webhook-secret: local-only-not-a-secret'
+# or the job's own path, through pg_net and the Vault:
+docker exec supabase_db_nimbo-app psql -U postgres -c 'select public.request_monitor()'
+docker exec supabase_db_nimbo-app psql -U postgres -c 'select status_code, content from net._http_response order by id desc limit 1'
+```
+
+The Edge Runtime reads `[edge_runtime.secrets]` and the function list when the stack starts: after adding a function or a
+secret, run `pnpm db:stop && pnpm db:start`.
 
 ## What is not here
 
-`supabase/seed.sql` seeds nothing, because profiles are created by the signup trigger and the app has
-no reference data in the database.
+`supabase/seed.sql` seeds only the monitor's two local Vault secrets: profiles are created by the signup trigger and the
+app has no reference data in the database.

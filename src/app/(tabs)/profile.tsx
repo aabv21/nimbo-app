@@ -17,6 +17,7 @@ import type { RequestErrorKind } from '../../lib/requestResult';
 import { useSyncState } from '../../lib/sync/SyncProvider';
 import { useOncePerFocus } from '../../lib/useOncePerFocus';
 import { useAgentNotes } from '../../memory/useAgentNotes';
+import { NotificationSettings } from '../../profile/NotificationSettings';
 import { setAiConsent } from '../../profile/profileRepository';
 import type { ThemePreference } from '../../profile/profileRepository';
 import { useProfileChange } from '../../profile/useProfileChange';
@@ -289,16 +290,11 @@ export default function Profile(): React.JSX.Element | null {
         {userId === null ? null : <CabinetRow userId={userId} />}
       </Section>
 
-      <Section title={t('profile.sec.notif')}>
-        <SwitchRow
-          title={t('profile.lock_detail')}
-          sub={t('profile.lock_detail.sub')}
-          value={profile.lockScreenDetail}
-          onChange={(lockScreenDetail) => {
-            void change({ lockScreenDetail });
-          }}
-        />
-      </Section>
+      {userId === null ? null : (
+        <Section title={t('profile.sec.notif')}>
+          <NotificationSettings key={userId} userId={userId} />
+        </Section>
+      )}
 
       <Section title={t('profile.companion')}>
         <CompanionSetting enabled={profile.aiEnabled} />

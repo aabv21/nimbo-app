@@ -20,12 +20,20 @@ jest.mock('expo-haptics', () => ({
   NotificationFeedbackType: { Success: 'success', Warning: 'warning', Error: 'error' },
 }));
 
-// The notifications module is native: every call settles at once with nothing scheduled and permission granted.
+// The notifications module is native: every call settles at once with nothing scheduled and permission granted,
+// a push token for `device-1`, no tap that launched the app, and listeners that never fire unless a suite says so.
 jest.mock('expo-notifications', () => ({
   SchedulableTriggerInputTypes: { DAILY: 'daily', DATE: 'date' },
   AndroidImportance: { DEFAULT: 3 },
   AndroidNotificationVisibility: { PRIVATE: 0 },
   IosAuthorizationStatus: { PROVISIONAL: 3 },
+  PermissionStatus: { GRANTED: 'granted', DENIED: 'denied', UNDETERMINED: 'undetermined' },
+  DEFAULT_ACTION_IDENTIFIER: 'expo.modules.notifications.actions.DEFAULT',
+  getExpoPushTokenAsync: jest.fn(() => Promise.resolve({ type: 'expo', data: 'ExponentPushToken[device-1]' })),
+  addNotificationReceivedListener: jest.fn(() => ({ remove: jest.fn() })),
+  addNotificationResponseReceivedListener: jest.fn(() => ({ remove: jest.fn() })),
+  getLastNotificationResponse: jest.fn(() => null),
+  clearLastNotificationResponse: jest.fn(),
   setNotificationChannelAsync: jest.fn(() => Promise.resolve(null)),
   getPermissionsAsync: jest.fn(() => Promise.resolve({ granted: true, canAskAgain: true })),
   requestPermissionsAsync: jest.fn(() => Promise.resolve({ granted: true, canAskAgain: true })),

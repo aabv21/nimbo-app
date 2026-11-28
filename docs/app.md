@@ -64,11 +64,50 @@ Expo Router routes: every file is a screen and `_layout.tsx` files define naviga
   `RequestResult`.
 - `useProfileChange.ts`: applies a preference at once, saves it, and puts it back on failure; an older
   answer never undoes a newer value.
-- `useTimezoneSync.ts`: keeps the profile's time zone on the phone's.
+- `useTimezoneSync.ts`: keeps the profile's time zone on the phone's; a zone the server refuses (`22023`, not an IANA name) is not sent again until the device zone changes.
 - `useLanguageSync.ts`: keeps `profile.language` on the language the phone shows, on mount and on resume, with one save
   in flight at a time; on a device with no stored language preference it first adopts the profile's language, once
   ([Design decisions](architecture.md#design-decisions)).
 - `tabs.ts`: `visibleTabs`.
+- `NotificationSettings.tsx`: Profile → Notifications. While the permission isn't granted, "Allow notifications"
+  (`registerPush`; once only Settings can change it, the button opens Settings) and, after a refusal, `notif.denied`;
+  once granted, `notif.unavailable` when this build gets no token and `notif.verifying` while a claim is in progress. Then the hours (two time fields, start and end; on iOS the spinner saves when it closes, with Done, the field again or
+  leaving the screen, not on every turn of the wheel;
+  equal times show `notif.hours.empty`, since that window sends nothing), the daily cap (0, 1 or 2: the only way to
+  turn the signal pushes off) and the lock-screen detail switch, each saved through `useProfileChange`.
+
+## Push (`src/push/`)
+
+The phone's side of the signal pushes; the server's tables and functions are in [`database.md`](database.md#push-tokens)
+and [`api.md`](api.md#push-claim).
+
+- `pushStore.ts`: kv `push.<userId>` = `{ token }` (the token this phone registered for the account), and the
+  device-wide `push.deviceSecret` (256 random bits, made once, which proves the phone to the server),
+  `push.pendingUnregister` (`{ token, userId }` entries a sign-out still has to unregister; an older build's bare token,
+  with no account, is dropped) and `push.pendingClaim` (one reclaim in flight, with its nonce and last start time).
+  The device-wide keys are not `<name>.<id>`, so forgetting an account keeps them. It also holds the last registration's
+  outcome in memory for Profile.
+- `signalChannel.ts`: the Android channel `signals` ([`native-config.md`](native-config.md#permissions)).
+- `pushRegistration.ts`: `registerPush` creates the channel, asks only while the system still can, gets the Expo push
+  token for the EAS project and calls `register_push_token` with the device secret. It answers `saved`, `denied`,
+  `unavailable` (no project id, or no FCM/APNs on this build), `verifying` (another account holds the token, so a
+  `push-claim` started, or one is already pending for this account and token) or `failed`, and never throws.
+  Registrations and claim resumes run one at a time, so onboarding's "Allow" and Today's syncs can't both start a claim.
+  `forgetPushToken` deletes the row with the live session; sign-out runs it first, waiting at most 2 s
+  (`FORGET_PUSH_WAIT_MS` in `src/auth/useSignOut.ts`), so a shared phone stops getting the account's pushes at once.
+  `forgetPushTokenLater` (the sign-out cleanup, the fallback) moves the account's token to the pending list, and
+  `flushPendingUnregister` sends each entry to `push-unregister` with its account and the device secret, keeping the
+  ones that fail. `resumePushClaim` asks for a new code only 10 minutes after the last start (`CLAIM_RESTART_MS`), and
+  always with the claim's own nonce, since the server may keep the earlier start; `confirmPushClaim` confirms a code only
+  with that nonce.
+- `PushSync.tsx`: mounted for an onboarded user; flushes the pending list, then registers when the permission is already
+  granted (it never asks).
+- `PushClaimSync.tsx`: resumes a pending claim and confirms it when its data-only code push arrives (foreground only).
+- `PushTapSync.tsx`: a tap on a push opens Today when `data.url` is `/today`, and nothing otherwise; `signalId` is not
+  read yet.
+
+The onboarding notifications step calls `registerPush` after a granted "Allow notifications", and the sign-out cleanup in
+`SyncProvider` calls `forgetPushTokenLater` then `flushPendingUnregister`.
 
 ## Languages (`src/i18n/`)
 
@@ -543,8 +582,8 @@ quiet invitation (`premium.title`, `premium.body`, no price) for everyone else, 
 
 ## Test helpers (`src/test/`)
 
-`authMock.ts` stands in for `AuthProvider` in screen suites, `syncMock.ts` for `SyncProvider` in suites
-that render the root layout, and `reanimatedMock.ts` replaces Reanimated under Jest. `sqliteNode.ts` is
+`authMock.ts` stands in for `AuthProvider` in screen suites, `syncMock.ts` for `SyncProvider` and `pushClientsMock.ts` for
+`src/push/pushRegistration.ts` in suites that render the root layout, and `reanimatedMock.ts` replaces Reanimated under Jest. `sqliteNode.ts` is
 expo-sqlite's synchronous API over `node:sqlite`, and `localDbTest.ts` empties the local store and
 inserts mirror rows ([`testing.md`](testing.md)). `datetimepickerMock.ts` stands in for the native date-time picker (a view that
 keeps its props, so a test can call `onValueChange`), `episodeSeed.ts` makes attacks through the episode store, and

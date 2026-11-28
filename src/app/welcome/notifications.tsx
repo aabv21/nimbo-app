@@ -8,6 +8,7 @@ import { formatClock } from '../../i18n/format';
 import { useI18n } from '../../i18n';
 import { DockRow, OnboardingStep, SETUP_STEPS, dockStyles } from '../../onboarding/OnboardingStep';
 import { useProfileChange } from '../../profile/useProfileChange';
+import { registerPush } from '../../push/pushRegistration';
 import { Button } from '../../ui/Button';
 import { ChoiceGroup } from '../../ui/ChoiceGroup';
 import { controlHeight, fonts, space, type } from '../../ui/theme';
@@ -25,7 +26,7 @@ function clockOf(time: string, locale: Parameters<typeof formatClock>[1]): strin
   return formatClock(new Date(2000, 0, 1, hours, minutes), locale);
 }
 
-/** A setting shown with its value; editable only once push arrives, so it is not a control yet. */
+/** A setting shown with its value; Profile edits it, so it is not a control here. */
 function InfoRow({ label, value }: { label: string; value: string }): React.JSX.Element {
   const { color } = useTheme();
   return (
@@ -39,7 +40,7 @@ function InfoRow({ label, value }: { label: string; value: string }): React.JSX.
 export default function NotificationsStep(): React.JSX.Element {
   const { t, locale } = useI18n();
   const { color } = useTheme();
-  const { profile } = useAuth();
+  const { profile, userId } = useAuth();
   const { change, error } = useProfileChange();
   const [asking, setAsking] = useState(false);
 
@@ -47,7 +48,9 @@ export default function NotificationsStep(): React.JSX.Element {
     setAsking(true);
     try {
       // A denial is an answer too: the step moves on either way.
-      await askNotificationPermission(locale).catch(() => false);
+      const granted = await askNotificationPermission(locale).catch(() => false);
+      // The token is stored in the background; a failure is retried at the next launch.
+      if (granted && userId !== null) void registerPush(userId, locale);
       next();
     } finally {
       setAsking(false);

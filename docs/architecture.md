@@ -430,6 +430,16 @@ or plan touches one module and its mock.
   Before the public store release the owner buys the commercial API Standard plan (`OPEN_METEO_URL` set to the
   customer endpoint and `OPEN_METEO_API_KEY` to its key, which `pressureUrl` then sends) or switches provider
   ([`owner-runbook.md`](owner-runbook.md)).
+- **The hourly monitor.** A `pg_cron` job calls the `monitor` function at :05 every hour through `pg_net`, with a shared
+  secret kept in the Vault ([`api.md`](api.md#monitor)). It evaluates every onboarded user with a valid zone, whatever
+  the hour: the window decides only whether to push. Forecasts are looked up once per distinct cell, a few at a time, and
+  a cell not answered by 100 s simply leaves that user without the pressure signal. No user starts after 90 s and no
+  push is claimed after 110 s, and each run starts one place further along the user list, so the users a run leaves out
+  change every hour. Each push is claimed
+  in SQL first (`claim_signal_push`, under a per-user advisory lock that re-checks the key, the cap since local midnight
+  and the 24-hour cause rule), so overlapping or retried runs never send one twice; a claim whose send fails is lost
+  rather than doubled. Expo's receipts are read on the next runs and dead tokens deleted ([`database.md`](database.md#the-hourly-monitor)).
+  `profiles.timezone` accepts only IANA names, checked before any `AT TIME ZONE`.
 
 ## Reminders and lock-screen privacy
 

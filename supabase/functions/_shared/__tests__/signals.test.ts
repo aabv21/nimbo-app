@@ -7,12 +7,14 @@ import {
   decidePush,
   insideWindow,
   monitorSelects,
+  quietDaysOf,
   type PushDecision,
   type PushLogEntry,
   type Signal,
   type SignalUser,
   signalFromRow,
   todayRows,
+  withoutRepeatedQuiet,
   withStoredPressure,
 } from '../signals.ts';
 import { readCases } from './cases.ts';
@@ -177,5 +179,48 @@ describe('the forecast', () => {
 
   test('weather neither chosen nor tagged on enough attacks: no pressure signal', () => {
     expect(computeSignals({ ...user('2026-11-27T12:10:00Z'), knownTriggers: [] }, now, pack)).toEqual([]);
+  });
+});
+
+describe('the quiet stretch', () => {
+  const quiet = (last: string | null): Signal => ({
+    kind: 'quiet_tracker',
+    cause: 'quiet_tracker',
+    causeKey: `quiet:${last ?? 'never'}`,
+    evidence: { lastCheckinDate: last },
+  });
+  const user = { timeZone: 'America/Bogota', onboardedAt: '2026-09-01T15:00:00Z' };
+  const now = new Date('2026-11-27T13:05:00Z');
+
+  test('quietDaysOf counts local days since the last check-in, or since onboarding without one', () => {
+    expect(quietDaysOf(quiet('2026-11-18'), user, now, pack)).toEqual({ days: 9, over: false });
+    expect(quietDaysOf(quiet(null), user, now, pack)).toEqual({ days: 87, over: false });
+    // 02:00Z is still the 26th in Bogota.
+    expect(quietDaysOf(quiet('2026-11-23'), user, new Date('2026-11-27T02:00:00Z'), pack)).toEqual({ days: 3, over: false });
+    const pressure: Signal = { kind: 'pressure', cause: 'pressure', causeKey: 'pressure:2026-11-27', evidence: { nowHpa: 1, laterHpa: 0, laterAt: '2026-11-28T13:00:00Z', dropHpa: 1 } };
+    expect(quietDaysOf(pressure, user, now, pack)).toBeNull();
+  });
+
+  test('quietDaysOf with no check-in in the records and onboarding older than the window reads "over" the window, never the onboarding', () => {
+    const longAgo = { timeZone: 'America/Bogota', onboardedAt: '2025-06-01T15:00:00Z' };
+    expect(quietDaysOf(quiet(null), longAgo, now, pack)).toEqual({ days: pack.insights.windowDays, over: true });
+    // Onboarded exactly the window ago: every day since is in the records, so the count is exact.
+    const atWindow = { timeZone: 'America/Bogota', onboardedAt: '2026-08-29T15:00:00Z' };
+    expect(quietDaysOf(quiet(null), atWindow, now, pack)).toEqual({ days: 90, over: false });
+  });
+
+  test('quiet:never is dropped once a dated quiet stretch was pushed, since it is that stretch out of the window', () => {
+    const pushed: PushLogEntry = { causeKey: 'quiet:2026-08-20', cause: 'quiet_tracker', pushedAt: '2026-08-23T14:00:00Z' };
+    expect(withoutRepeatedQuiet([quiet(null)], [pushed])).toEqual([]);
+    expect(withoutRepeatedQuiet([quiet(null)], [])).toEqual([quiet(null)]);
+    // Its own earlier push is the ordinary already-pushed rule's to handle, not this one.
+    const neverPushed: PushLogEntry = { causeKey: 'quiet:never', cause: 'quiet_tracker', pushedAt: '2026-09-04T14:00:00Z' };
+    expect(withoutRepeatedQuiet([quiet(null)], [neverPushed])).toEqual([quiet(null)]);
+    // A new stretch with a dated key is never dropped.
+    expect(withoutRepeatedQuiet([quiet('2026-11-20')], [pushed])).toEqual([quiet('2026-11-20')]);
+    expect(decidePush(withoutRepeatedQuiet([quiet(null)], [pushed]), { timeZone: 'America/Bogota', notifyStart: '08:00', notifyEnd: '21:00', notifyDailyCap: 2, pushLog: [pushed] }, now, pack)).toEqual({
+      causeKey: null,
+      reason: 'no_signals',
+    });
   });
 });

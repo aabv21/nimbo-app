@@ -75,4 +75,18 @@ describe('readEnv', () => {
     const env = readEnv(getter({ OPEN_METEO_URL: 'http://host.docker.internal:54518/', OPEN_METEO_API_KEY: 'k' }), ['weather']);
     expect(env).toEqual({ openMeteoUrl: 'http://host.docker.internal:54518', openMeteoApiKey: 'k' });
   });
+
+  test('push: EXPO_PUSH_URL falls back to Expo’s API base and the access token to empty, needing no secret', () => {
+    expect(readEnv(getter({}), ['push'])).toEqual({ expoPushUrl: 'https://exp.host/--/api/v2/push', expoAccessToken: '' });
+  });
+
+  test('push: a set EXPO_PUSH_URL loses its trailing slash, and a set access token is kept', () => {
+    const env = readEnv(getter({ EXPO_PUSH_URL: 'http://host.docker.internal:54518/--/api/v2/push/', EXPO_ACCESS_TOKEN: 't' }), ['push']);
+    expect(env).toEqual({ expoPushUrl: 'http://host.docker.internal:54518/--/api/v2/push', expoAccessToken: 't' });
+  });
+
+  test('monitor: MONITOR_SECRET is required, and an empty one counts as missing', () => {
+    expect(readEnv(getter({ MONITOR_SECRET: 's' }), ['monitor'])).toEqual({ monitorSecret: 's' });
+    expect(() => readEnv(getter({ MONITOR_SECRET: '' }), ['monitor'])).toThrow('missing env: MONITOR_SECRET');
+  });
 });

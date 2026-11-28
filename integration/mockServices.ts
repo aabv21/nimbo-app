@@ -1,6 +1,7 @@
-// Mock TypeSafe System One (Jev) and Open-Meteo's forecast for the local functions, one server. It listens
-// on every interface since the Edge Runtime calls from a container (docs/local-stack.md#mocks).
+// Mock TypeSafe System One (Jev), Open-Meteo's forecast and Expo's push service for the local functions, one
+// server. It listens on every interface since the Edge Runtime calls from a container (docs/local-stack.md#mocks).
 
+import { randomUUID } from 'node:crypto';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { fileURLToPath } from 'node:url';
 
@@ -14,6 +15,12 @@ export type JevReply = MockReply | ((body: unknown) => MockReply);
 /** A forecast reply, or one computed from each request's URL. */
 export type ForecastReply = MockReply | ((url: URL) => MockReply);
 
+/** An Expo send reply, or one computed from each request's messages (an empty list if the body isn't a list). */
+export type PushReply = MockReply | ((messages: unknown[]) => MockReply);
+
+/** An Expo receipts reply, or one computed from each request's ticket ids. */
+export type ReceiptsReply = MockReply | ((ids: string[]) => MockReply);
+
 export type MockServices = {
   /** Sets the reply for every following `POST /v1/systemone`, until changed again. */
   respondJev(next: JevReply): void;
@@ -25,11 +32,21 @@ export type MockServices = {
   respondForecast(next: ForecastReply): void;
   /** The URL of every `GET /v1/forecast` so far, invalid ones included, oldest first. */
   forecastRequests(): URL[];
+  /** Sets the reply for every following `POST /--/api/v2/push/send`, until changed again. */
+  respondPush(next: PushReply): void;
+  /** The messages of every `POST /--/api/v2/push/send` so far, one list per request, oldest first. */
+  pushRequests(): unknown[][];
+  /** Sets the reply for every following `POST /--/api/v2/push/getReceipts`, until changed again. */
+  respondReceipts(next: ReceiptsReply): void;
+  /** The ids of every `POST /--/api/v2/push/getReceipts` so far, one list per request, oldest first. */
+  receiptRequests(): string[][];
   close(): Promise<void>;
 };
 
 const JEV_PATH = '/v1/systemone';
 const FORECAST_PATH = '/v1/forecast';
+export const EXPO_SEND_PATH = '/--/api/v2/push/send';
+export const EXPO_RECEIPTS_PATH = '/--/api/v2/push/getReceipts';
 
 /** The Noul every question gets unless overridden: a clear no. */
 const DEFAULT_NOUL = 0.02;
@@ -131,6 +148,12 @@ const DEFAULT_FORECAST: ForecastReply = (url) => {
   return { status: 200, body: pressureForecast(Array.from({ length: hours }, () => 1013)) };
 };
 
+/** Expo's documented answer: an `ok` ticket with a fresh id for each message. */
+const DEFAULT_PUSH: PushReply = (messages) => ({ status: 200, body: { data: messages.map(() => ({ status: 'ok', id: randomUUID() })) } });
+
+/** Every receipt asked for is `ok`. */
+const DEFAULT_RECEIPTS: ReceiptsReply = (ids) => ({ status: 200, body: { data: Object.fromEntries(ids.map((id) => [id, { status: 'ok' }])) } });
+
 /** The hourly variables this mock serves; Open-Meteo refuses a name it does not know. */
 const HOURLY_VARIABLES = new Set(['pressure_msl']);
 /** Open-Meteo's `forecast_hours` ceiling: 16 days. */
@@ -220,14 +243,19 @@ function parseJson(text: string): unknown {
 
 /**
  * Starts the mock on `port`. Until a test sets its own reply, Jev answers `jevAnswersWith(body, {})` (nothing
- * flagged) and the forecast is flat 1013.0 hPa from the current UTC hour.
+ * flagged), the forecast is flat 1013.0 hPa from the current UTC hour, every push gets an `ok` ticket with a
+ * fresh id and every receipt is `ok`.
  */
 export function startMockServices(port = 54518): Promise<MockServices> {
   let jevReply: JevReply = DEFAULT_JEV;
   let forecastReply: ForecastReply = DEFAULT_FORECAST;
+  let pushReply: PushReply = DEFAULT_PUSH;
+  let receiptsReply: ReceiptsReply = DEFAULT_RECEIPTS;
   const requests: unknown[] = [];
   const headers: Record<string, string>[] = [];
   const forecasts: URL[] = [];
+  const pushes: unknown[][] = [];
+  const receipts: string[][] = [];
 
   const server = createServer((request, response) => {
     const chunks: Buffer[] = [];
@@ -241,6 +269,20 @@ export function startMockServices(port = 54518): Promise<MockServices> {
         forecasts.push(url);
         const problem = forecastProblem(url);
         send(response, problem === null ? replyOf(forecastReply, url) : { status: 400, body: { error: true, reason: problem } });
+        return;
+      }
+      if (request.method === 'POST' && path === EXPO_SEND_PATH) {
+        const body = parseJson(Buffer.concat(chunks).toString('utf8'));
+        const messages: unknown[] = Array.isArray(body) ? body : [];
+        pushes.push(messages);
+        send(response, replyOf(pushReply, messages));
+        return;
+      }
+      if (request.method === 'POST' && path === EXPO_RECEIPTS_PATH) {
+        const body = parseJson(Buffer.concat(chunks).toString('utf8'));
+        const ids = isRecord(body) && Array.isArray(body.ids) ? body.ids.filter((id): id is string => typeof id === 'string') : [];
+        receipts.push(ids);
+        send(response, replyOf(receiptsReply, ids));
         return;
       }
       if (request.method !== 'POST' || path !== JEV_PATH) {
@@ -273,6 +315,14 @@ export function startMockServices(port = 54518): Promise<MockServices> {
           forecastReply = next;
         },
         forecastRequests: () => forecasts.map((url) => new URL(url)),
+        respondPush(next) {
+          pushReply = next;
+        },
+        pushRequests: () => pushes.map((messages) => [...messages]),
+        respondReceipts(next) {
+          receiptsReply = next;
+        },
+        receiptRequests: () => receipts.map((ids) => [...ids]),
         close: () =>
           new Promise<void>((resolveClose, rejectClose) => {
             // Hung requests would otherwise keep `close()` waiting forever.
@@ -287,13 +337,15 @@ export function startMockServices(port = 54518): Promise<MockServices> {
   });
 }
 
-/** `node integration/mockServices.ts --serve`: keeps the mock Jev answering "nothing flagged" and the flat forecast for a manual check until Ctrl-C. */
+/** `node integration/mockServices.ts --serve`: keeps the mock Jev answering "nothing flagged", the flat forecast and the `ok` push tickets for a manual check until Ctrl-C. */
 async function serveFromCli(): Promise<void> {
   const mock = await startMockServices();
-  console.log(`mock Jev and Open-Meteo on :54518 (every Noul ${String(DEFAULT_NOUL)}, every Choice other; 1013.0 hPa every hour)`);
+  console.log(`mock Jev, Open-Meteo and Expo push on :54518 (every Noul ${String(DEFAULT_NOUL)}, every Choice other; 1013.0 hPa every hour; every push ok)`);
   process.once('SIGINT', () => {
     void mock.close().then(() => {
-      console.log(`served ${String(mock.jevRequests().length)} Jev call(s) and ${String(mock.forecastRequests().length)} forecast(s)`);
+      console.log(
+        `served ${String(mock.jevRequests().length)} Jev call(s), ${String(mock.forecastRequests().length)} forecast(s) and ${String(mock.pushRequests().length)} push send(s)`,
+      );
     });
   });
 }
