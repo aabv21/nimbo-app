@@ -10,6 +10,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
+import { needsAiReconsent } from '../account/consent';
 import { AuthProvider, useAuth } from '../auth/AuthProvider';
 import { authErrorMessage } from '../auth/errors';
 import { nextRoute } from '../auth/gate';
@@ -144,6 +145,10 @@ function GatedStack(): React.JSX.Element {
         {/* The medications setup step adds through the cabinet form. */}
         <Stack.Protected guard={target === '/today' || target === '/welcome/triggers'}>
           <Stack.Screen name="cabinet" />
+        </Stack.Protected>
+        {/* The AI consent again, only while a newer AI text awaits an onboarded user's answer (opened from the prompts). */}
+        <Stack.Protected guard={target === '/today' && auth.profile !== null && needsAiReconsent(auth.profile)}>
+          <Stack.Screen name="ai-consent" />
         </Stack.Protected>
         <Stack.Protected guard={target === '/today'}>
           <Stack.Screen name="(tabs)" />

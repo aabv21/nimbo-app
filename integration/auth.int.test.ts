@@ -9,7 +9,17 @@ import {
   signOut,
   signUpWithEmail,
 } from '../src/auth/emailAuth';
-import { anonClient, createUser, deleteUser, deleteUserByEmail, latestEmailCode, loadIntegrationEnv, uniqueEmail } from './helpers';
+import {
+  anonClient,
+  createUser,
+  deleteUser,
+  deleteUserByEmail,
+  latestEmail,
+  latestEmailCode,
+  latestEmailId,
+  loadIntegrationEnv,
+  uniqueEmail,
+} from './helpers';
 
 loadIntegrationEnv();
 
@@ -33,7 +43,7 @@ describe('sign-up with the emailed code', () => {
     const client = anonClient();
 
     // Confirmations are on locally, so sign-up returns no session.
-    expect(await signUpWithEmail(email, password, client)).toEqual({ ok: true, needsConfirmation: true });
+    expect(await signUpWithEmail(email, password, 'en', client)).toEqual({ ok: true, needsConfirmation: true });
     const { data: pending } = await client.auth.getSession();
     expect(pending.session).toBeNull();
 
@@ -57,7 +67,7 @@ describe('sign-up with the emailed code', () => {
     const email = uniqueEmail('signup-wrong-code');
     const password = 'Password123!';
     const client = anonClient();
-    await signUpWithEmail(email, password, client);
+    await signUpWithEmail(email, password, 'en', client);
     const realCode = await latestEmailCode(email);
     const wrongCode = realCode === '000000' ? '111111' : '000000';
 
@@ -73,7 +83,7 @@ describe('sign-up with the emailed code', () => {
   test('a resent code confirms the account', async () => {
     const email = uniqueEmail('signup-resend');
     const client = anonClient();
-    await signUpWithEmail(email, 'Password123!', client);
+    await signUpWithEmail(email, 'Password123!', 'en', client);
 
     // Auth allows one email per address per second (`max_frequency`).
     await new Promise((resolve) => setTimeout(resolve, 1100));
@@ -85,7 +95,7 @@ describe('sign-up with the emailed code', () => {
   });
 
   test('the server rejects a password shorter than the app minimum of 8 as weak', async () => {
-    const result = await signUpWithEmail(uniqueEmail('short-password'), 'Pass12!', anonClient());
+    const result = await signUpWithEmail(uniqueEmail('short-password'), 'Pass12!', 'en', anonClient());
 
     expect(result).toEqual({ ok: false, error: 'auth.error.weakPassword' });
   });
@@ -156,5 +166,77 @@ describe('password reset', () => {
       error: 'auth.error.invalidCode',
     });
     expect(await signInWithEmail(email, 'SecondPassword2!', anonClient())).toEqual({ ok: true });
+  });
+});
+
+describe('auth emails in the sign-up language', () => {
+  const code = /\b\d{6}\b/;
+
+  test('a Spanish sign-up gets the Spanish confirmation, code included', async () => {
+    const email = uniqueEmail('signup-es');
+    await signUpWithEmail(email, 'Password123!', 'es', anonClient());
+
+    const message = await latestEmail(email);
+
+    expect(message.subject).toBe('Tu código de confirmación de Nimbo');
+    expect(message.text).toContain('Tu código de confirmación de Nimbo es:');
+    expect(message.text).toMatch(code);
+    expect(message.text).not.toContain('Your Nimbo confirmation code');
+    await deleteUserByEmail(email);
+  });
+
+  test('a Portuguese sign-up gets the Portuguese confirmation, code included', async () => {
+    const email = uniqueEmail('signup-pt');
+    await signUpWithEmail(email, 'Password123!', 'pt', anonClient());
+
+    const message = await latestEmail(email);
+
+    expect(message.subject).toBe('Seu código de confirmação do Nimbo');
+    expect(message.text).toContain('Seu código de confirmação do Nimbo é:');
+    expect(message.text).toMatch(code);
+    await deleteUserByEmail(email);
+  });
+
+  test('a sign-up without a locale gets English', async () => {
+    const email = uniqueEmail('signup-no-locale');
+    await anonClient().auth.signUp({ email, password: 'Password123!' });
+
+    const message = await latestEmail(email);
+
+    expect(message.subject).toBe('Your Nimbo confirmation code');
+    expect(message.text).toContain('Your Nimbo confirmation code is:');
+    expect(message.text).toMatch(code);
+    await deleteUserByEmail(email);
+  });
+
+  test('a password reset for a user created without metadata arrives in English', async () => {
+    const email = uniqueEmail('reset-no-locale');
+    createdUserIds.push(await createUser(email, 'Password123!'));
+
+    await requestPasswordReset(email, anonClient());
+    const message = await latestEmail(email);
+
+    expect(message.subject).toBe('Your Nimbo password reset code');
+    expect(message.text).toContain('Your Nimbo password reset code is:');
+    expect(message.text).toMatch(code);
+  });
+
+  test('a password reset for a Spanish user arrives in Spanish', async () => {
+    const email = uniqueEmail('reset-es');
+    const client = anonClient();
+    await signUpWithEmail(email, 'Password123!', 'es', client);
+    expect(await confirmSignUp(email, await latestEmailCode(email), client)).toEqual({ ok: true });
+    await rememberSignedInUser(client);
+
+    // The confirmation is the newest message until the reset arrives; wait past it, not on whatever is newest.
+    const confirmationId = await latestEmailId(email);
+    // Auth allows one email per address per second (`max_frequency`).
+    await new Promise((resolve) => setTimeout(resolve, 1100));
+    await requestPasswordReset(email, anonClient());
+    const message = await latestEmail(email, confirmationId);
+
+    expect(message.subject).toBe('Tu código para restablecer la contraseña de Nimbo');
+    expect(message.text).toContain('Tu código para restablecer la contraseña de Nimbo es:');
+    expect(message.text).toMatch(code);
   });
 });

@@ -15,10 +15,12 @@ interface TextLinkProps {
   testID?: string;
   /** `crisis` is 56 pt tall, like every crisis-mode control. */
   size?: 'regular' | 'crisis';
+  /** `link` when it leaves the app (a web page), so a screen reader says where it goes. */
+  role?: 'button' | 'link';
 }
 
-/** A quiet in-text action (forgot password, switch screen): 48 pt tall, labelled as a button. */
-export function TextLink({ label, onPress, disabled = false, align = 'start', testID, size = 'regular' }: TextLinkProps): React.JSX.Element {
+/** A quiet in-text action (forgot password, switch screen, a web page): 48 pt tall. */
+export function TextLink({ label, onPress, disabled = false, align = 'start', testID, size = 'regular', role = 'button' }: TextLinkProps): React.JSX.Element {
   const { color } = useTheme();
   const tones = useTones();
   const { scaleStyle, pressedStyle, onPressIn, onPressOut } = usePressFeedback();
@@ -26,7 +28,7 @@ export function TextLink({ label, onPress, disabled = false, align = 'start', te
     <Animated.View style={[align === 'center' ? styles.center : styles.start, scaleStyle]}>
       <Pressable
         testID={testID}
-        accessibilityRole="button"
+        accessibilityRole={role}
         accessibilityLabel={label}
         accessibilityState={{ disabled }}
         disabled={disabled}

@@ -264,6 +264,12 @@ test('with the AI off, the symptoms say everything is logged with taps', async (
   expect(screen.getByText(t('crisis.ai_off'))).toBeOnTheScreen();
 });
 
+test('with a newer AI text unanswered, the AI is paused, so the symptoms say the same', async () => {
+  resetAuth({ profile: { ...READY_PROFILE, aiEnabled: true, aiConsentVersion: null } });
+  await open();
+  expect(screen.getByText(t('crisis.ai_off'))).toBeOnTheScreen();
+});
+
 test('with the AI on, that line is absent', async () => {
   await open();
   expect(screen.queryByText('Without the AI, everything is logged with taps.')).toBeNull();

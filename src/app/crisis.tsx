@@ -8,6 +8,7 @@ import { BackHandler, Pressable, ScrollView, StyleSheet, Text, View, useColorSch
 import Animated, { ReduceMotion, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
+import { aiActive } from '../account/consent';
 import { useAuth } from '../auth/AuthProvider';
 import { useDoses } from '../cabinet/doseStore';
 import { useMedications } from '../cabinet/medicationStore';
@@ -179,7 +180,7 @@ function CrisisMode({ forceDim }: { forceDim: (on: boolean) => void }): React.JS
         episode={episode}
         doses={episodeDoses}
         medicationName={medicationName}
-        debrief={profile?.aiEnabled === true}
+        debrief={aiActive(profile)}
         onFill={() => {
                 router.replace(`/episode/${id}/edit`);
         }}
@@ -287,7 +288,7 @@ function CrisisMode({ forceDim }: { forceDim: (on: boolean) => void }): React.JS
                     />
                   ))}
                 </View>
-                {profile?.aiEnabled === false ? <Text style={[styles.caption, { color: color.textMuted }]}>{t('crisis.ai_off')}</Text> : null}
+                {profile !== null && !aiActive(profile) ? <Text style={[styles.caption, { color: color.textMuted }]}>{t('crisis.ai_off')}</Text> : null}
               </View>
 
               {acute.length === 0 ? null : (

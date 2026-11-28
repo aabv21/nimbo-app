@@ -49,6 +49,8 @@ test('a new account has a profile with no consent yet, and the fetch leaves the 
       aiConsentAnsweredAt: null,
       aiEnabled: false,
       onboardingCompletedAt: null,
+      termsVersion: null,
+      aiConsentVersion: null,
       theme: 'system',
     },
   });
@@ -58,23 +60,40 @@ test('a new account has a profile with no consent yet, and the fetch leaves the 
 test('acceptTerms then setAiConsent(false) round-trip through the RPCs', async () => {
   const { client } = await signedInUser('profile-consent');
 
-  const accepted = await acceptTerms(client);
+  const accepted = await acceptTerms('en', client);
   expect(accepted.ok).toBe(true);
   if (!accepted.ok) return;
   expect(accepted.value.adultConfirmedAt).not.toBeNull();
   expect(accepted.value.boundaryAcceptedAt).not.toBeNull();
   expect(accepted.value.aiConsentAnsweredAt).toBeNull();
 
-  const declined = await setAiConsent(false, client);
+  const declined = await setAiConsent(false, 'es', client);
   expect(declined.ok).toBe(true);
   if (!declined.ok) return;
   expect(declined.value.aiEnabled).toBe(false);
   expect(declined.value.aiConsentAnsweredAt).not.toBeNull();
+  expect(declined.value.aiConsentVersion).toBe('2026-12-01');
   // The answer is a decision, not a toggle's initial state: the timestamps from the first step stay.
   expect(declined.value.adultConfirmedAt).toBe(accepted.value.adultConfirmedAt);
 
-  const enabled = await setAiConsent(true, client);
+  const enabled = await setAiConsent(true, 'en', client);
   expect(enabled).toMatchObject({ ok: true, value: { aiEnabled: true } });
+
+  // Each answer is kept in the history the user can read, with the language it was given in.
+  const { data: events } = await client.from('consent_events').select('kind,version,locale,granted').order('created_at');
+  expect(events).toEqual([
+    { kind: 'terms', version: '2026-12-01', locale: 'en', granted: true },
+    { kind: 'ai', version: '2026-12-01', locale: 'es', granted: false },
+    { kind: 'ai', version: '2026-12-01', locale: 'en', granted: true },
+  ]);
+});
+
+test('acceptTerms records this build\'s terms version, which fetchProfile then returns', async () => {
+  const { client } = await signedInUser('profile-terms-version');
+
+  expect((await acceptTerms('pt', client)).ok).toBe(true);
+
+  expect(await fetchProfile(client)).toMatchObject({ ok: true, value: { termsVersion: '2026-12-01' } });
 });
 
 test('updateProfile changes only what it is given', async () => {
@@ -117,6 +136,12 @@ test("user A cannot read B's profile, and a hand-edited write of the consent col
     .eq('user_id', a.id)
     .select();
   expect(stamped ?? []).toEqual([]);
+  const { error: versionError } = await a.client.from('profiles').update({ terms_version: '2026-12-01' }).eq('user_id', a.id);
+  expect(versionError).not.toBeNull();
+  const { error: eventError } = await a.client
+    .from('consent_events')
+    .insert({ user_id: a.id, kind: 'terms', version: '2026-12-01', locale: 'en', granted: true });
+  expect(eventError).not.toBeNull();
 
   const { data: others } = await a.client.from('profiles').update({ theme: 'dim' }).eq('user_id', b.id).select();
   expect(others).toEqual([]);

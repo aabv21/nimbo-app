@@ -1,11 +1,13 @@
 // The Companion tab: the chat kept on this phone, evidence behind each number, and drafts the user confirms.
 // The tab exists only while the AI is on (the tab list in this folder's layout); `debrief=<id>` asks about that attack.
+// While the AI consent awaits a newer answer, the tab offers that screen instead of the chat (`aiActive`).
 import { router, useLocalSearchParams } from 'expo-router';
 import { Plus } from 'lucide-react-native';
 import { useCallback, useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { needsAiReconsent } from '../../account/consent';
 import { useAuth } from '../../auth/AuthProvider';
 import { useDoses } from '../../cabinet/doseStore';
 import { useMedications } from '../../cabinet/medicationStore';
@@ -27,15 +29,40 @@ import type { MessageKey } from '../../i18n';
 import { deviceTimeZone, localDate } from '../../lib/localDate';
 import { useOncePerFocus } from '../../lib/useOncePerFocus';
 import { Button } from '../../ui/Button';
+import { Notice } from '../../ui/Notice';
+import { Screen } from '../../ui/Screen';
 import { useTabBarInset } from '../../ui/TabBar';
 import { fonts, space, type } from '../../ui/theme';
 import { useTheme } from '../../ui/themeContext';
 
 export default function Companion(): React.JSX.Element | null {
-  const { userId } = useAuth();
+  const { userId, profile } = useAuth();
   // The tabs mount only for a signed-in user; this keeps the types honest.
   if (userId === null) return null;
+  // Nothing reaches the AI until the newer text is answered: the chat does not mount.
+  if (profile !== null && needsAiReconsent(profile)) return <ReconsentPrompt />;
   return <CompanionScreen userId={userId} />;
+}
+
+function ReconsentPrompt(): React.JSX.Element {
+  const { t } = useI18n();
+  const { color } = useTheme();
+  const tabInset = useTabBarInset();
+  return (
+    <Screen bottomInset={tabInset}>
+      <Text accessibilityRole="header" style={[styles.reconsentTitle, { color: color.text }]}>
+        {t('consent.title')}
+      </Text>
+      <Notice tone="info" title={t('consent.updated')} />
+      <Button
+        testID="companion-reconsent"
+        label={t('companion.reconsent.open')}
+        onPress={() => {
+          router.push('/ai-consent');
+        }}
+      />
+    </Screen>
+  );
 }
 
 function CompanionScreen({ userId }: { userId: string }): React.JSX.Element {
@@ -216,6 +243,7 @@ function CompanionScreen({ userId }: { userId: string }): React.JSX.Element {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  reconsentTitle: { fontFamily: fonts.display, fontSize: type.display, lineHeight: 35 },
   head: { flexDirection: 'row', alignItems: 'center', gap: space[2], paddingBottom: space[2] },
   headText: { flex: 1, gap: space[0] },
   title: { fontFamily: fonts.display, fontSize: type.title, lineHeight: 27 },

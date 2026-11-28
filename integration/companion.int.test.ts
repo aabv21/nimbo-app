@@ -51,8 +51,8 @@ async function seededUser(label: string): Promise<{ id: string; email: string; c
   users.push(id);
   const client = anonClient();
   expect(await signInWithEmail(email, PASSWORD, client)).toEqual({ ok: true });
-  expect((await client.rpc('accept_terms', { p_adult: true, p_boundary: true })).error).toBeNull();
-  expect((await client.rpc('set_ai_consent', { p_enabled: true })).error).toBeNull();
+  expect((await client.rpc('accept_terms', { p_adult: true, p_boundary: true, p_health: true, p_version: '2026-12-01', p_locale: 'en' })).error).toBeNull();
+  expect((await client.rpc('set_ai_consent', { p_enabled: true, p_version: '2026-12-01', p_locale: 'en' })).error).toBeNull();
   const medicationId = randomUUID();
   const episodeId = randomUUID();
   const daysAgo = (days: number, hours = 0) => new Date(Date.now() - days * 86_400_000 + hours * 3_600_000).toISOString();

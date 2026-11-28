@@ -2,9 +2,10 @@ import { router } from 'expo-router';
 import { ChevronRight } from 'lucide-react-native';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
-import { AccessibilityInfo, Pressable, StyleSheet, Text, View } from 'react-native';
+import { AccessibilityInfo, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 
+import { needsAiReconsent, policyUrl } from '../../account/consent';
 import { useAuth } from '../../auth/AuthProvider';
 import { authErrorMessage } from '../../auth/errors';
 import { useSignOut } from '../../auth/useSignOut';
@@ -26,6 +27,7 @@ import { ChoiceGroup } from '../../ui/ChoiceGroup';
 import { Notice } from '../../ui/Notice';
 import { Screen } from '../../ui/Screen';
 import { SwitchRow } from '../../ui/SwitchRow';
+import { TextLink } from '../../ui/TextLink';
 import { useTabBarInset } from '../../ui/TabBar';
 import { controlHeight, fonts, radius, space, type } from '../../ui/theme';
 import { useTheme, useTones } from '../../ui/themeContext';
@@ -108,8 +110,8 @@ function MemoryRow({ userId }: { userId: string }): React.JSX.Element {
 }
 
 /** The AI switch: turning it off asks first, turning it on shows what is shared; consent goes only through `setAiConsent`. */
-function CompanionSetting({ enabled }: { enabled: boolean }): React.JSX.Element {
-  const { t } = useI18n();
+function CompanionSetting({ enabled, pending }: { enabled: boolean; pending: boolean }): React.JSX.Element {
+  const { t, locale } = useI18n();
   const { color } = useTheme();
   const { patchProfile } = useAuth();
   const [asking, setAsking] = useState<boolean | undefined>(undefined);
@@ -119,14 +121,18 @@ function CompanionSetting({ enabled }: { enabled: boolean }): React.JSX.Element 
   const answer = async (next: boolean): Promise<void> => {
     setSaving(true);
     setFailed(false);
-    const result = await setAiConsent(next);
+    const result = await setAiConsent(next, locale);
     setSaving(false);
     if (!result.ok) {
       setFailed(true);
       return;
     }
     // Only the consent fields: the rest of the refetched row may predate a change made meanwhile.
-    patchProfile({ aiEnabled: result.value.aiEnabled, aiConsentAnsweredAt: result.value.aiConsentAnsweredAt });
+    patchProfile({
+      aiEnabled: result.value.aiEnabled,
+      aiConsentAnsweredAt: result.value.aiConsentAnsweredAt,
+      aiConsentVersion: result.value.aiConsentVersion,
+    });
     setAsking(undefined);
     AccessibilityInfo.announceForAccessibility(t(result.value.aiEnabled ? 'profile.companion.on' : 'profile.companion.off'));
   };
@@ -144,11 +150,39 @@ function CompanionSetting({ enabled }: { enabled: boolean }): React.JSX.Element 
           setAsking(next);
         }}
       />
+      {/* The switch shows what the server holds, so turning it off (a withdrawal) works while the AI is paused. */}
+      {pending && asking === undefined ? (
+        <Notice
+          tone="info"
+          title={t('consent.paused')}
+          action={{
+            label: t('companion.reconsent.open'),
+            onPress: () => {
+              router.push('/ai-consent');
+            },
+          }}
+        />
+      ) : null}
       {asking === undefined ? null : (
         <View style={[styles.confirm, { backgroundColor: color.surface, borderColor: color.border }]}>
           <Text style={[styles.body, { color: color.text }]}>
             {t(asking ? 'profile.companion.confirmOn' : 'profile.companion.confirmOff')}
           </Text>
+          {/* Turning it on records the same AI text as the consent screen, so it shows that text's facts and its policy. */}
+          {asking ? (
+            <>
+              <Text style={[styles.body, { color: color.text }]}>{t('consent.sent.body')}</Text>
+              <Text style={[styles.body, { color: color.text }]}>{t('consent.transfer')}</Text>
+              <TextLink
+                testID="profile-ai-policy"
+                label={t('consent.policy_link')}
+                role="link"
+                onPress={() => {
+                  Linking.openURL(policyUrl(locale, 'ai')).catch(() => undefined);
+                }}
+              />
+            </>
+          ) : null}
           {failed ? <Notice tone="danger" title={t('consent.error')} /> : null}
           <Button
             testID="profile-ai-confirm"
@@ -297,7 +331,7 @@ export default function Profile(): React.JSX.Element | null {
       )}
 
       <Section title={t('profile.companion')}>
-        <CompanionSetting enabled={profile.aiEnabled} />
+        <CompanionSetting enabled={profile.aiEnabled} pending={needsAiReconsent(profile)} />
         {userId === null ? null : <MemoryRow key={userId} userId={userId} />}
       </Section>
 

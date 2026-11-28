@@ -34,8 +34,8 @@ test('an attack, a medication, a dose, an edit, the end, a check-in and the end 
   const client = anonClient();
   expect(await signInWithEmail(email, PASSWORD, client)).toEqual({ ok: true });
   // Onboarding finishes only once both consent gates are answered, as they are by the setup steps.
-  expect((await client.rpc('accept_terms', { p_adult: true, p_boundary: true })).error).toBeNull();
-  expect((await client.rpc('set_ai_consent', { p_enabled: false })).error).toBeNull();
+  expect((await client.rpc('accept_terms', { p_adult: true, p_boundary: true, p_health: true, p_version: '2026-12-01', p_locale: 'en' })).error).toBeNull();
+  expect((await client.rpc('set_ai_consent', { p_enabled: false, p_version: '2026-12-01', p_locale: 'en' })).error).toBeNull();
 
   const episodeId = startEpisode(userId, minutesAgo(90));
   const medicationId = '6f1c1d2e-3b4a-4c5d-8e9f-0a1b2c3d4e5f';

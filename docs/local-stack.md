@@ -38,7 +38,8 @@ the stack needs. The mocks sit just below it, clear of Dressing Room's (54498 an
 ## Auth and email
 
 - Email confirmation is on (`enable_confirmations = true`) with a 6-digit code (`otp_length = 6`). The code emails are `supabase/templates/confirmation.html` (sign-up) and `supabase/templates/recovery.html` (password reset); both print `{{ .Token }}` instead of a link.
-- Mailpit catches local email instead of sending it; read the code there. The integration suite and the Maestro sign-up flow read it through Mailpit's API (`/api/v1/messages`).
+- Both emails and their subjects come in English, Spanish or Portuguese. `signUpWithEmail` stores the app's language as `user_metadata.locale`, and the templates and the `subject` lines in `config.toml` branch on `.Data.locale` (`{{ if eq .Data.locale "es" }}…{{ else if eq .Data.locale "pt" }}…{{ else }}…{{ end }}`); every branch prints `{{ .Token }}`. An account without a locale (Google or Apple sign-in, or one made before this) gets English, and a password reset uses the language of the sign-up, not the app's current one. The hosted project needs the same templates and subjects pasted into its Auth settings ([`owner-runbook.md`](owner-runbook.md)).
+- Mailpit catches local email instead of sending it; read the code there. The integration suite (`latestEmail`, `latestEmailCode`) and the Maestro sign-up flow read it through Mailpit's API (`/api/v1/messages`).
 - `site_url` is the app scheme, `nimbo://`.
 - `[auth.rate_limit].email_sent` is raised to 100 locally so sign-up and resend tests never hit the hourly cap (confirmation emails count against it); the hosted project keeps its own limit in its Auth settings.
 

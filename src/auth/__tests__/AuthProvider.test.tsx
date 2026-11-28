@@ -60,6 +60,8 @@ const PROFILE: Profile = {
   knownTriggers: [],
   priority: null,
   trackPeriod: false,
+  termsVersion: '2026-12-01',
+  aiConsentVersion: null,
 };
 
 function wrapper({ children }: { children: ReactNode }) {

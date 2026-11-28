@@ -1,5 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { Linking } from 'react-native';
 
+import { policyUrl } from '../account/consent';
 import Profile from '../app/(tabs)/profile';
 import { translate } from '../i18n';
 import { translatePlural } from '../i18n/plural';
@@ -43,8 +45,8 @@ jest.mock('../i18n/I18nProvider', () => {
   const listeners = new Set<() => void>();
   return {
     ...actual,
-    resetPreference: () => {
-      preference = 'system';
+    resetPreference: (next: string = 'system') => {
+      preference = next;
     },
     useLocalePreference: () => {
       const current = useSyncExternalStore(
@@ -179,6 +181,8 @@ test('turning the AI off asks first, then records false', async () => {
   expect(screen.getAllByText(t('profile.companion.confirmOff'))).toHaveLength(1);
   await fireEvent.press(toggle);
   expect(screen.getAllByText(t('profile.companion.confirmOff'))).toHaveLength(2);
+  // Turning it off shares nothing, so the transfer is not repeated.
+  expect(screen.queryByText(t('consent.transfer'))).not.toBeOnTheScreen();
   expect(mockedConsent).not.toHaveBeenCalled();
 
   await fireEvent.press(screen.getByRole('button', { name: t('common.confirm') }));
@@ -186,7 +190,9 @@ test('turning the AI off asks first, then records false', async () => {
     expect(currentAuth().profile?.aiEnabled).toBe(false);
   });
   expect(mockedConsent).toHaveBeenCalledTimes(1);
-  expect(mockedConsent).toHaveBeenCalledWith(false);
+  expect(mockedConsent).toHaveBeenCalledWith(false, 'en');
+  // The answer's version reaches the profile too, so the gate does not ask for this text again.
+  expect(currentAuth().profile?.aiConsentVersion).toBe(READY_PROFILE.aiConsentVersion);
 });
 
 test('cancelling the confirmation keeps the AI on', async () => {
@@ -205,13 +211,47 @@ test('turning the AI on shows the consent text before recording true', async () 
 
   await fireEvent.press(screen.getByRole('switch', { name: t('profile.companion.switch') }));
   expect(screen.getByText(t('profile.companion.confirmOn'))).toBeOnTheScreen();
+  // The same facts as the consent screen, the US transfer included, with its policy section.
+  expect(screen.getByText(t('consent.sent.body'))).toBeOnTheScreen();
+  expect(screen.getByText(t('consent.transfer'))).toBeOnTheScreen();
+  const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
+  await fireEvent.press(screen.getByRole('link', { name: t('consent.policy_link') }));
+  expect(openURL).toHaveBeenCalledWith(policyUrl('en', 'ai'));
   expect(mockedConsent).not.toHaveBeenCalled();
 
   await fireEvent.press(screen.getByRole('button', { name: t('consent.accept') }));
   await waitFor(() => {
     expect(currentAuth().profile?.aiEnabled).toBe(true);
   });
-  expect(mockedConsent).toHaveBeenCalledWith(true);
+  expect(mockedConsent).toHaveBeenCalledWith(true, 'en');
+});
+
+test('a pending AI re-consent: the switch stays on (a withdrawal still works) and a notice opens the AI screen', async () => {
+  resetAuth({ profile: { ...READY_PROFILE, aiEnabled: true, aiConsentVersion: '2026-11-01' } });
+  await render(<Profile />);
+  expect(screen.getByRole('switch', { name: t('profile.companion.switch') })).toBeChecked();
+  expect(screen.getByText(t('consent.paused'))).toBeOnTheScreen();
+
+  await fireEvent.press(screen.getByRole('button', { name: t('companion.reconsent.open') }));
+  const { router } = jest.requireMock<{ router: { push: jest.Mock } }>('expo-router');
+  expect(router.push).toHaveBeenCalledWith('/ai-consent');
+});
+
+test('with the AI answered to this build\'s text, no paused notice', async () => {
+  await render(<Profile />);
+  expect(screen.queryByText(t('consent.paused'))).not.toBeOnTheScreen();
+});
+
+test('the AI switch records the answer in the UI language', async () => {
+  jest.requireMock<{ resetPreference: (next: string) => void }>('../i18n/I18nProvider').resetPreference('pt');
+  resetAuth({ profile: { ...READY_PROFILE, aiEnabled: false } });
+  await render(<Profile />);
+
+  await fireEvent.press(screen.getByRole('switch', { name: translate('pt', 'profile.companion.switch') }));
+  await fireEvent.press(screen.getByRole('button', { name: translate('pt', 'consent.accept') }));
+  await waitFor(() => {
+    expect(mockedConsent).toHaveBeenCalledWith(true, 'pt');
+  });
 });
 
 test('the account shows the email, and with nothing waiting to upload Sign out signs out at once', async () => {

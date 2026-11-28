@@ -50,6 +50,7 @@ pnpm start
 | `pnpm db:reset` / `pnpm db:test` / `pnpm db:types` | Rebuild the database, run the pgTAP tests, regenerate the DB types |
 | `pnpm e2e` | The Maestro flows on the Android emulator, against the local stack (see `docs/testing.md`) |
 | `pnpm env:local` | Write `.env.local` from the running local stack |
+| `pnpm policy:check` | Check the three privacy policies and list the owner placeholders left (fails until the owner fills them) |
 | `pnpm catalog:sql` | Print `catalog_keys()` from the condition pack, for a new migration when a catalog changes |
 | `pnpm premium grant\|revoke <email>` | The owner's premium switch (see `docs/owner-runbook.md`) |
 | `pnpm calibrate eval` | The owner's guard calibration against the real AI services (see `docs/ai.md`) |

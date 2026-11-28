@@ -21,7 +21,7 @@ import { TextLink } from '../../ui/TextLink';
 const MIN_PASSWORD_LENGTH = 8;
 
 export default function SignUp(): React.JSX.Element {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const { color } = useTheme();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -42,7 +42,7 @@ export default function SignUp(): React.JSX.Element {
 
     setSubmitting(true);
     try {
-      const result = await signUpWithEmail(trimmed, password);
+      const result = await signUpWithEmail(trimmed, password, locale);
       if (!result.ok) {
         setError(result.error);
       } else if (result.needsConfirmation) {

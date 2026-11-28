@@ -1,6 +1,8 @@
+import { router } from 'expo-router';
 import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Linking, StyleSheet, Text, View } from 'react-native';
 
+import { policyUrl } from '../../account/consent';
 import { useAuth } from '../../auth/AuthProvider';
 import { useI18n } from '../../i18n';
 import type { MessageKey } from '../../i18n';
@@ -9,6 +11,7 @@ import { setAiConsent } from '../../profile/profileRepository';
 import { Button } from '../../ui/Button';
 import { Notice } from '../../ui/Notice';
 import { Screen } from '../../ui/Screen';
+import { TextLink } from '../../ui/TextLink';
 import { controlHeight, fonts, radius, space, type } from '../../ui/theme';
 import { useTheme } from '../../ui/themeContext';
 
@@ -19,23 +22,32 @@ const SECTIONS: readonly (readonly [title: MessageKey, body: MessageKey])[] = [
 ];
 
 export default function AiConsent(): React.JSX.Element {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const { color } = useTheme();
-  const { patchProfile } = useAuth();
+  const { profile, patchProfile } = useAuth();
   const [saving, setSaving] = useState<boolean | undefined>(undefined);
   const [failed, setFailed] = useState(false);
+  // Onboarded, the user came from the Companion tab's prompt (`/ai-consent`) to answer a newer text.
+  const again = profile !== null && profile.onboardingCompletedAt !== null;
 
   const answer = async (enabled: boolean): Promise<void> => {
     setFailed(false);
     setSaving(enabled);
     try {
-      const result = await setAiConsent(enabled);
+      const result = await setAiConsent(enabled, locale);
       if (!result.ok) {
         setFailed(true);
         return;
       }
-      // Only the consent fields, as in Profile; once they show, the root layout's gate moves on by itself.
-      patchProfile({ aiEnabled: result.value.aiEnabled, aiConsentAnsweredAt: result.value.aiConsentAnsweredAt });
+      // No gate opened this screen for an onboarded user, so it leaves: to the chat on a yes, to Today on a no (the tab
+      // is gone). First, so the patch below, which unregisters this route, never removes the screen under the user.
+      if (again) router.dismissTo(result.value.aiEnabled ? '/companion' : '/today');
+      // Only the consent fields, as in Profile; during onboarding the root layout's gate then moves on by itself.
+      patchProfile({
+        aiEnabled: result.value.aiEnabled,
+        aiConsentAnsweredAt: result.value.aiConsentAnsweredAt,
+        aiConsentVersion: result.value.aiConsentVersion,
+      });
     } finally {
       setSaving(undefined);
     }
@@ -43,10 +55,11 @@ export default function AiConsent(): React.JSX.Element {
 
   return (
     <Screen>
-      <View style={styles.top}>
-        <StepProgress done={1} total={SETUP_STEPS} />
-      </View>
+      {/* An onboarded user is here only to answer a newer text, not to start the setup steps. */}
+      <View style={styles.top}>{again ? null : <StepProgress done={1} total={SETUP_STEPS} />}</View>
       <Text accessibilityRole="header" style={[styles.title, { color: color.text }]}>{t('consent.title')}</Text>
+      {/* A stored version means a newer text is being asked for, as on the boundary screen. */}
+      {profile !== null && profile.aiConsentVersion !== null ? <Notice tone="info" title={t('consent.updated')} /> : null}
       <Text style={[styles.body, { color: color.text }]}>{t('consent.what')}</Text>
       <View style={[styles.card, { backgroundColor: color.surface }]}>
         {SECTIONS.map(([title, body]) => (
@@ -57,6 +70,15 @@ export default function AiConsent(): React.JSX.Element {
             <Text style={[styles.body, { color: color.text }]}>{t(body)}</Text>
           </View>
         ))}
+        <Text style={[styles.body, { color: color.text }]}>{t('consent.transfer')}</Text>
+        <TextLink
+          testID="ai-consent-policy"
+          label={t('consent.policy_link')}
+          role="link"
+          onPress={() => {
+            Linking.openURL(policyUrl(locale, 'ai')).catch(() => undefined);
+          }}
+        />
       </View>
       <Text style={[styles.body, { color: color.textMuted }]}>{t('consent.optional')}</Text>
       {failed ? <Notice tone="danger" title={t('consent.error')} /> : null}

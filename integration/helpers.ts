@@ -156,6 +156,7 @@ interface MailpitMessagesResponse {
 }
 
 interface MailpitMessage {
+  Subject: string;
   Text: string;
 }
 
@@ -178,28 +179,39 @@ async function findLatestMessageFor(email: string): Promise<MailpitMessageSummar
   return messages.find((message) => message.To.some((to) => to.Address === email));
 }
 
+/** The id of Mailpit's newest message to `email` right now, so a later `latestEmail` can wait past it. */
+export async function latestEmailId(email: string): Promise<string | undefined> {
+  return (await findLatestMessageFor(email))?.ID;
+}
+
 /**
- * The 6-digit code in Mailpit's newest message to `email` (`GET /api/v1/messages` lists newest first). Polls up
+ * Mailpit's newest message to `email` (`GET /api/v1/messages` lists newest first), other than `previousId`. Polls up
  * to ~2 s: `resetPasswordForEmail` can resolve before Mailpit has recorded the message.
  */
-export async function latestEmailCode(email: string): Promise<string> {
+export async function latestEmail(email: string, previousId?: string): Promise<{ subject: string; text: string }> {
   let latest: MailpitMessageSummary | undefined;
-  for (let attempt = 0; attempt < MAILPIT_POLL_ATTEMPTS && latest === undefined; attempt += 1) {
+  for (let attempt = 0; attempt < MAILPIT_POLL_ATTEMPTS && (latest === undefined || latest.ID === previousId); attempt += 1) {
     if (attempt > 0) {
       await sleep(MAILPIT_POLL_INTERVAL_MS);
     }
     latest = await findLatestMessageFor(email);
   }
-  if (latest === undefined) {
-    throw new Error(`No Mailpit message found addressed to ${email}`);
+  if (latest === undefined || latest.ID === previousId) {
+    throw new Error(`No new Mailpit message found addressed to ${email}`);
   }
 
   const messageResponse = await fetch(`${MAILPIT_URL}/api/v1/message/${latest.ID}`);
   if (!messageResponse.ok) {
     throw new Error(`Mailpit /api/v1/message/${latest.ID} returned ${String(messageResponse.status)}`);
   }
-  const { Text } = (await messageResponse.json()) as MailpitMessage;
-  const match = /\b\d{6}\b/.exec(Text);
+  const { Subject, Text } = (await messageResponse.json()) as MailpitMessage;
+  return { subject: Subject, text: Text };
+}
+
+/** The 6-digit code in Mailpit's newest message to `email`. */
+export async function latestEmailCode(email: string): Promise<string> {
+  const { text } = await latestEmail(email);
+  const match = /\b\d{6}\b/.exec(text);
   if (match === null) {
     throw new Error(`No 6-digit code found in the Mailpit message to ${email}`);
   }

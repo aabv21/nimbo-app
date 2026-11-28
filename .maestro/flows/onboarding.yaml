@@ -1,4 +1,4 @@
-# A fresh install: the intro, sign-up with the Mailpit code, both consent gates (AI declined), every
+# A fresh install: the intro, sign-up with the Mailpit code, both consent gates (all three boxes, AI declined), every
 # setup step skipped, and Today. Runs first; the next flows reuse this user.
 appId: com.aabv21.nimbo
 ---
@@ -32,6 +32,17 @@ appId: com.aabv21.nimbo
     id: "boundary-adult"
 - tapOn:
     id: "boundary-not-medical"
+# The health data consent and Continue sit below the fold on a small screen.
+- scrollUntilVisible:
+    element:
+      id: "boundary-health"
+    direction: DOWN
+- tapOn:
+    id: "boundary-health"
+- scrollUntilVisible:
+    element:
+      id: "boundary-continue"
+    direction: DOWN
 - tapOn:
     id: "boundary-continue"
 - extendedWaitUntil:

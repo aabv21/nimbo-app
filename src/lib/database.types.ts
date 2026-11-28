@@ -51,6 +51,40 @@ export type Database = {
                   Relationships: [
                     
                   ]
+                },"consent_events": {
+                  Row: {
+                    "created_at": string,"granted": boolean,"id": string,"kind": string,"locale": Database["public"]['Enums']["app_language"],"user_id": string,"version": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string,"granted": boolean,"id"?: string,"kind": string,"locale": Database["public"]['Enums']["app_language"],"user_id": string,"version": string
+                  }
+                  Update: {
+                    "created_at"?: string,"granted"?: boolean,"id"?: string,"kind"?: string,"locale"?: Database["public"]['Enums']["app_language"],"user_id"?: string,"version"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "consent_events_kind_version_fkey"
+      columns: ["kind","version"]
+isOneToOne: false
+      referencedRelation: "consent_texts"
+      referencedColumns: ["kind","version"]
+    }
+                  ]
+                },"consent_texts": {
+                  Row: {
+                    "kind": string,"published_at": string,"version": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "kind": string,"published_at": string,"version": string
+                  }
+                  Update: {
+                    "kind"?: string,"published_at"?: string,"version"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
                 },"doses": {
                   Row: {
                     "created_at": string,"episode_id": string | null,"helped": boolean | null,"id": string,"medication_id": string,"taken_at": string,"updated_at": string,"user_id": string
@@ -121,14 +155,14 @@ isOneToOne: false
                   ]
                 },"profiles": {
                   Row: {
-                    "adult_confirmed_at": string | null,"ai_consent_answered_at": string | null,"ai_consent_at": string | null,"ai_enabled": boolean,"boundary_accepted_at": string | null,"coarse_lat": number | null,"coarse_lon": number | null,"condition": string,"created_at": string,"known_triggers": (string)[],"language": Database["public"]['Enums']["app_language"] | null,"lock_screen_detail": boolean,"notify_daily_cap": number,"notify_end": string,"notify_start": string,"onboarding_completed_at": string | null,"priority": string | null,"reduce_motion": boolean,"theme": Database["public"]['Enums']["app_theme"],"timezone": string | null,"track_period": boolean,"updated_at": string,"user_id": string
+                    "adult_confirmed_at": string | null,"ai_consent_answered_at": string | null,"ai_consent_at": string | null,"ai_consent_version": string | null,"ai_enabled": boolean,"boundary_accepted_at": string | null,"coarse_lat": number | null,"coarse_lon": number | null,"condition": string,"created_at": string,"known_triggers": (string)[],"language": Database["public"]['Enums']["app_language"] | null,"lock_screen_detail": boolean,"notify_daily_cap": number,"notify_end": string,"notify_start": string,"onboarding_completed_at": string | null,"priority": string | null,"reduce_motion": boolean,"terms_version": string | null,"theme": Database["public"]['Enums']["app_theme"],"timezone": string | null,"track_period": boolean,"updated_at": string,"user_id": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "adult_confirmed_at"?: string | null,"ai_consent_answered_at"?: string | null,"ai_consent_at"?: string | null,"ai_enabled"?: boolean,"boundary_accepted_at"?: string | null,"coarse_lat"?: number | null,"coarse_lon"?: number | null,"condition"?: string,"created_at"?: string,"known_triggers"?: (string)[],"language"?: Database["public"]['Enums']["app_language"] | null,"lock_screen_detail"?: boolean,"notify_daily_cap"?: number,"notify_end"?: string,"notify_start"?: string,"onboarding_completed_at"?: string | null,"priority"?: string | null,"reduce_motion"?: boolean,"theme"?: Database["public"]['Enums']["app_theme"],"timezone"?: string | null,"track_period"?: boolean,"updated_at"?: string,"user_id": string
+                    "adult_confirmed_at"?: string | null,"ai_consent_answered_at"?: string | null,"ai_consent_at"?: string | null,"ai_consent_version"?: string | null,"ai_enabled"?: boolean,"boundary_accepted_at"?: string | null,"coarse_lat"?: number | null,"coarse_lon"?: number | null,"condition"?: string,"created_at"?: string,"known_triggers"?: (string)[],"language"?: Database["public"]['Enums']["app_language"] | null,"lock_screen_detail"?: boolean,"notify_daily_cap"?: number,"notify_end"?: string,"notify_start"?: string,"onboarding_completed_at"?: string | null,"priority"?: string | null,"reduce_motion"?: boolean,"terms_version"?: string | null,"theme"?: Database["public"]['Enums']["app_theme"],"timezone"?: string | null,"track_period"?: boolean,"updated_at"?: string,"user_id": string
                   }
                   Update: {
-                    "adult_confirmed_at"?: string | null,"ai_consent_answered_at"?: string | null,"ai_consent_at"?: string | null,"ai_enabled"?: boolean,"boundary_accepted_at"?: string | null,"coarse_lat"?: number | null,"coarse_lon"?: number | null,"condition"?: string,"created_at"?: string,"known_triggers"?: (string)[],"language"?: Database["public"]['Enums']["app_language"] | null,"lock_screen_detail"?: boolean,"notify_daily_cap"?: number,"notify_end"?: string,"notify_start"?: string,"onboarding_completed_at"?: string | null,"priority"?: string | null,"reduce_motion"?: boolean,"theme"?: Database["public"]['Enums']["app_theme"],"timezone"?: string | null,"track_period"?: boolean,"updated_at"?: string,"user_id"?: string
+                    "adult_confirmed_at"?: string | null,"ai_consent_answered_at"?: string | null,"ai_consent_at"?: string | null,"ai_consent_version"?: string | null,"ai_enabled"?: boolean,"boundary_accepted_at"?: string | null,"coarse_lat"?: number | null,"coarse_lon"?: number | null,"condition"?: string,"created_at"?: string,"known_triggers"?: (string)[],"language"?: Database["public"]['Enums']["app_language"] | null,"lock_screen_detail"?: boolean,"notify_daily_cap"?: number,"notify_end"?: string,"notify_start"?: string,"onboarding_completed_at"?: string | null,"priority"?: string | null,"reduce_motion"?: boolean,"terms_version"?: string | null,"theme"?: Database["public"]['Enums']["app_theme"],"timezone"?: string | null,"track_period"?: boolean,"updated_at"?: string,"user_id"?: string
                   }
                   Relationships: [
                     
@@ -238,7 +272,7 @@ isOneToOne: false
           }
           Functions: {
             "accept_terms":
-{ Args: { "p_adult": boolean,"p_boundary": boolean }; Returns: undefined
+{ Args: { "p_adult": boolean,"p_boundary": boolean,"p_health": boolean,"p_locale": Database["public"]['Enums']["app_language"],"p_version": string }; Returns: undefined
                            },
 "catalog_keys":
 { Args: { "p_catalog": string }; Returns: (string)[]
@@ -330,7 +364,7 @@ isOneToOne: false
             }[]
                            },
 "set_ai_consent":
-{ Args: { "p_enabled": boolean }; Returns: undefined
+{ Args: { "p_enabled": boolean,"p_locale": Database["public"]['Enums']["app_language"],"p_version": string }; Returns: undefined
                            },
 "set_dose_helped":
 { Args: { "p_helped"?: boolean,"p_id": string }; Returns: undefined

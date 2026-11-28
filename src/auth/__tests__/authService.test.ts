@@ -80,12 +80,16 @@ beforeEach(() => {
 });
 
 describe('signUpWithEmail', () => {
-  test('forwards email and password and resolves ok with needsConfirmation false when a session comes back', async () => {
+  test('forwards email, password and locale and resolves ok with needsConfirmation false when a session comes back', async () => {
     const client = fakeClient();
 
-    const result = await signUpWithEmail('new@example.com', 'hunter22', asClient(client));
+    const result = await signUpWithEmail('new@example.com', 'hunter22', 'es', asClient(client));
 
-    expect(client.auth.signUp).toHaveBeenCalledWith({ email: 'new@example.com', password: 'hunter22' });
+    expect(client.auth.signUp).toHaveBeenCalledWith({
+      email: 'new@example.com',
+      password: 'hunter22',
+      options: { data: { locale: 'es' } },
+    });
     expect(result).toEqual({ ok: true, needsConfirmation: false });
   });
 
@@ -93,7 +97,7 @@ describe('signUpWithEmail', () => {
     const client = fakeClient();
     client.auth.signUp.mockResolvedValue({ data: { session: null }, error: null });
 
-    const result = await signUpWithEmail('new@example.com', 'hunter22', asClient(client));
+    const result = await signUpWithEmail('new@example.com', 'hunter22', 'en', asClient(client));
 
     expect(result).toEqual({ ok: true, needsConfirmation: true });
   });
@@ -105,17 +109,18 @@ describe('signUpWithEmail', () => {
       error: new AuthError('already registered', 422, 'user_already_exists'),
     });
 
-    const result = await signUpWithEmail('taken@example.com', 'hunter22', asClient(client));
+    const result = await signUpWithEmail('taken@example.com', 'hunter22', 'en', asClient(client));
 
     expect(result).toEqual({ ok: false, error: 'auth.error.emailInUse' });
   });
 
   test('falls back to the (mocked) lib/supabase client when none is passed', async () => {
-    const result = await signUpWithEmail('default-client@example.com', 'hunter22');
+    const result = await signUpWithEmail('default-client@example.com', 'hunter22', 'pt');
 
     expect(mockedDefaultClient.auth.signUp).toHaveBeenCalledWith({
       email: 'default-client@example.com',
       password: 'hunter22',
+      options: { data: { locale: 'pt' } },
     });
     expect(result).toEqual({ ok: true, needsConfirmation: false });
   });

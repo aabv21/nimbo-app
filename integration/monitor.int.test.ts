@@ -90,8 +90,8 @@ async function seedUser(pushToken: string): Promise<string> {
   users.push(id);
   const client = anonClient();
   expect(await signInWithEmail(email, PASSWORD, client)).toEqual({ ok: true });
-  expect((await client.rpc('accept_terms', { p_adult: true, p_boundary: true })).error).toBeNull();
-  expect((await client.rpc('set_ai_consent', { p_enabled: false })).error).toBeNull();
+  expect((await client.rpc('accept_terms', { p_adult: true, p_boundary: true, p_health: true, p_version: '2026-12-01', p_locale: 'en' })).error).toBeNull();
+  expect((await client.rpc('set_ai_consent', { p_enabled: false, p_version: '2026-12-01', p_locale: 'en' })).error).toBeNull();
   expect((await client.rpc('complete_onboarding')).error).toBeNull();
   const { error } = await client
     .from('profiles')

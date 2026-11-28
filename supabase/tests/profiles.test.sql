@@ -73,9 +73,10 @@ select throws_ok(
   '42501', null, 'a client cannot move a profile to another user'
 );
 
--- 5. accept_terms needs both confirmations and stamps them once, with the server clock.
-select throws_ok($$ select public.accept_terms(true, false) $$, '22023', null, 'accept_terms(true, false) raises 22023');
-select throws_ok($$ select public.accept_terms(false, true) $$, '22023', null, 'accept_terms(false, true) raises 22023');
+-- 5. accept_terms needs every confirmation and stamps them once per version, with the server clock (the
+-- versions themselves: consent.test.sql).
+select throws_ok($$ select public.accept_terms(true, false, true, '2026-12-01', 'en') $$, '22023', null, 'accept_terms without the boundary raises 22023');
+select throws_ok($$ select public.accept_terms(false, true, true, '2026-12-01', 'en') $$, '22023', null, 'accept_terms without the adult confirmation raises 22023');
 
 select is(
   (select (adult_confirmed_at is null)::text || ',' || (boundary_accepted_at is null)::text from public.profiles),
@@ -83,7 +84,7 @@ select is(
   'a refused accept_terms leaves both timestamps null'
 );
 
-select lives_ok($$ select public.accept_terms(true, true) $$, 'accept_terms(true, true) succeeds');
+select lives_ok($$ select public.accept_terms(true, true, true, '2026-12-01', 'en') $$, 'a complete accept_terms succeeds');
 
 select is(
   (select (adult_confirmed_at = now())::text || ',' || (boundary_accepted_at = now())::text from public.profiles),
@@ -97,7 +98,7 @@ set adult_confirmed_at = '2020-01-01T00:00:00Z', boundary_accepted_at = '2020-01
 where user_id = '11111111-1111-1111-1111-111111111111';
 
 set local role authenticated;
-select public.accept_terms(true, true);
+select public.accept_terms(true, true, true, '2026-12-01', 'en');
 
 reset role;
 select is(
@@ -110,7 +111,7 @@ select is(
 set local role authenticated;
 
 -- 6. set_ai_consent records the answer and the consent together.
-select public.set_ai_consent(true);
+select public.set_ai_consent(true, '2026-12-01', 'en');
 
 select is(
   (select ai_enabled::text || ',' || (ai_consent_at = now())::text || ',' || (ai_consent_answered_at = now())::text
@@ -119,7 +120,7 @@ select is(
   'set_ai_consent(true) sets ai_enabled, ai_consent_at and ai_consent_answered_at'
 );
 
-select public.set_ai_consent(false);
+select public.set_ai_consent(false, '2026-12-01', 'en');
 
 select is(
   (select ai_enabled::text || ',' || (ai_consent_at is null)::text || ',' || (ai_consent_answered_at = now())::text
@@ -138,15 +139,15 @@ select is((select coarse_lat from public.profiles), 12.3, 'the latitude is store
 -- 8. Function privileges: only keep_alive() is open to anon.
 reset role;
 
-select ok(not has_function_privilege('anon', 'public.accept_terms(boolean, boolean)', 'execute'), 'anon cannot execute accept_terms');
-select ok(not has_function_privilege('anon', 'public.set_ai_consent(boolean)', 'execute'), 'anon cannot execute set_ai_consent');
+select ok(not has_function_privilege('anon', 'public.accept_terms(boolean, boolean, boolean, text, public.app_language)', 'execute'), 'anon cannot execute accept_terms');
+select ok(not has_function_privilege('anon', 'public.set_ai_consent(boolean, text, public.app_language)', 'execute'), 'anon cannot execute set_ai_consent');
 select ok(has_function_privilege('anon', 'public.keep_alive()', 'execute'), 'anon can execute keep_alive');
-select ok(has_function_privilege('authenticated', 'public.accept_terms(boolean, boolean)', 'execute'), 'authenticated can execute accept_terms');
-select ok(has_function_privilege('authenticated', 'public.set_ai_consent(boolean)', 'execute'), 'authenticated can execute set_ai_consent');
+select ok(has_function_privilege('authenticated', 'public.accept_terms(boolean, boolean, boolean, text, public.app_language)', 'execute'), 'authenticated can execute accept_terms');
+select ok(has_function_privilege('authenticated', 'public.set_ai_consent(boolean, text, public.app_language)', 'execute'), 'authenticated can execute set_ai_consent');
 
 select set_config('request.jwt.claims', '', true);
 set local role anon;
-select throws_ok($$ select public.accept_terms(true, true) $$, '42501', null, 'anon calling accept_terms is refused');
+select throws_ok($$ select public.accept_terms(true, true, true, '2026-12-01', 'en') $$, '42501', null, 'anon calling accept_terms is refused');
 
 -- 9. No client insert or delete, and anon reads nothing.
 select throws_ok($$ select count(*) from public.profiles $$, '42501', null, 'anon cannot read profiles');

@@ -7,6 +7,7 @@ import type { ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 
+import { aiActive } from '../account/consent';
 import { useAuth } from '../auth/AuthProvider';
 import { useDoses } from '../cabinet/doseStore';
 import { useMedications } from '../cabinet/medicationStore';
@@ -174,7 +175,7 @@ export function useTellMe(episodeId: string): TellMeState {
   };
 
   return {
-    shown: profile?.aiEnabled === true && available,
+    shown: aiActive(profile) && available,
     canSend,
     phase,
     listening,

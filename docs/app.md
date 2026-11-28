@@ -14,17 +14,23 @@ Expo Router routes: every file is a screen and `_layout.tsx` files define naviga
   shows a loading view instead (Try again and Sign out once signed in). `index.tsx` forwards the landing route to the allowed screen.
 - `(auth)/`: `intro` (the three value screens a signed-out phone opens on once; every way out marks it seen),
   `sign-in`, `sign-up`, `confirm-email` (the 6-digit code, with resend) and `reset`.
-- `welcome/`: `boundary` (adult confirmation and the not-a-medical-device boundary, `accept_terms`) and
-  `ai-consent` (`set_ai_consent`), each registered only while it is the one due, then the five setup steps together:
+- `welcome/`: `boundary` (adult confirmation, the not-a-medical-device boundary and, apart under its own header, the
+  health-data consent; the policy link; `accept_terms` with this build's version and the UI language; a line saying the
+  terms changed when a version is already stored, and then also an emergency call row, since no other screen opens until
+  the newer terms are accepted) and `ai-consent` (the processors, the US transfer, the policy's AI
+  section; `set_ai_consent` with the version and language; the "updated" line when a version is already stored), each
+  registered only while it is the one due (the boundary also again for a newer terms text), then the five setup steps together:
   `triggers` (pack trigger chips, `knownTriggers` in the order picked), `priority` (one of four, orders Today),
-  `medications` (rows and Add, through the cabinet form), `notifications` (the lock-screen choice, the permission, and the
-  hours and daily cap shown read-only) and `location` (an optional rough area; both buttons finish onboarding through the outbox's `complete_onboarding`). No
+  `medications` (rows and Add, through the cabinet form), `notifications` (where a push travels, the lock-screen choice, the
+  permission, and the hours and daily cap shown read-only) and `location` (an optional rough area; both buttons finish onboarding through the outbox's `complete_onboarding`). No
   back gesture; a failed save keeps the user on the step with the error.
 - `(tabs)/`: `today`, `companion`, `history`, `profile` behind a headless tab shell with the floating
   bar. The tab list comes from `visibleTabs`, so Companion has no trigger when the AI is off, and the
-  shell renders nothing for a route without a trigger.
+  shell renders nothing for a route without a trigger. While a newer AI text awaits an answer, `companion` shows a prompt to answer it instead of the chat, Today's AI card
+  says the AI is paused with the same button, and Profile keeps the switch on (so turning it off still withdraws) with a
+  paused notice.
   `profile` holds language, appearance, reduce motion, the period question's opt-in (`trackPeriod`), the
-  lock-screen detail, the medicine cabinet row, the AI switch, the "What I know about you" row and sign-out, which asks first while
+  lock-screen detail, the medicine cabinet row, the AI switch (turning it on shows what is sent, the US transfer and the policy link), the "What I know about you" row and sign-out, which asks first while
   `useSyncState()` counts records not uploaded (pending or failed) and says they stay on this phone.
 - `urgent-care.tsx`: the urgent-care screen for a red-flag hit ([Red flags](#red-flags-srcredflags-srcappurgent-caretsx)), registered with
   the tabs as a full-screen modal with no animation and no swipe to dismiss.
@@ -34,10 +40,21 @@ Expo Router routes: every file is a screen and `_layout.tsx` files define naviga
 - `memory.tsx`: "What I know about you", the agent's notes ([Agent notes](#agent-notes-srcmemory-srcappmemorytsx)),
   registered with the tabs. The root layout also mounts the language sync (`useLanguageSync`) while the tabs are the
   allowed target, keyed by account.
+- `ai-consent.tsx`: the AI consent screen again, registered only while an onboarded user's AI answer predates this
+  build's text (its own `Stack.Protected`), opened from the paused prompts on the Companion tab, Today and Profile; no
+  setup progress, and an answer leaves for the chat (yes) or Today (no) before the patch unregisters the route.
 - `checkin.tsx`: the full daily check-in, a transparent modal that draws its own sheet; `cabinet/`: the medicine
   cabinet list and form, also registered during the medications setup step; `episode/`: an attack's detail and
   its editor. Each is described in its section below.
 - `src/__tests__/` holds the tests that span routes.
+
+## Account (`src/account/`)
+
+- `consent.ts`: the consent text versions this build shows (`TERMS_VERSION`, `AI_CONSENT_VERSION`, each a row of
+  `consent_texts`), `policyUrl(locale, section?)` (the published privacy policy per language, with an optional anchor)
+  and the re-consent checks, `needsTermsConsent` and `needsAiReconsent`, plus `aiActive`: the AI is on and answered to
+  this build's text, which Today, crisis mode, dictation and the Companion tab check instead of `aiEnabled`
+  ([The consent model](architecture.md#the-consent-model)). Pure, with type-only imports.
 
 ## Auth (`src/auth/`)
 
@@ -47,7 +64,7 @@ Expo Router routes: every file is a screen and `_layout.tsx` files define naviga
 - `currentUser.ts`: `currentUserId()`, the account `AuthProvider` last reported, for work that settles after its screen
   has gone (a late companion answer checks it is still for the signed-in user). It is seeded from the stored session
   when the provider mounts, so a cold start does not read null until the first auth event.
-- `gate.ts`: `nextRoute`, the pure gate.
+- `gate.ts`: `nextRoute`, the pure gate, re-consent included.
 - `authService.ts` re-exports the whole auth surface; `emailAuth.ts` (sign up, sign in, code confirm,
   resend, reset, sign out) has no native imports so the integration tests can load it;
   `socialAuth.ts` (Apple and Google ID-token sign-in, with `nonce.ts`) is the native part.
@@ -59,7 +76,7 @@ Expo Router routes: every file is a screen and `_layout.tsx` files define naviga
 
 - `profileRepository.ts`: reads and updates the profile (snake_case to `Profile`, with a theme or
   language newer than the build read as Automatic or the phone's language) and calls the two consent
-  RPCs; it never touches the cache itself. It also defines the cache format, `readCachedProfileSync`
+  RPCs with this build's version and the caller's locale (`acceptTerms(locale)`, `setAiConsent(enabled, locale)`); it never touches the cache itself. It also defines the cache format, `readCachedProfileSync`
   and `writeCachedProfile` (key `profile.<userId>`), which only `AuthProvider` calls. Calls return a
   `RequestResult`.
 - `useProfileChange.ts`: applies a preference at once, saves it, and puts it back on failure; an older
@@ -132,7 +149,7 @@ Hermes has no `Intl.PluralRules`), falling back to `.other`, and fills `{n}` wit
 - Components: `Screen`, `DockedScreen` (a scrolling screen with its actions docked at the bottom, outside the
   scroll, so they stay in the thumb zone at every text size; Today and the onboarding steps use it; `scrollRef` lets
   a screen scroll to one of its parts), `Button`,
-  `TextField`, `TextLink`, `Notice`, `ChoiceGroup`, `SwitchRow`, `CheckRow`, `CodeBoxes`, `BackButton`, `TabBar`
+  `TextField`, `TextLink` (`role="link"` when it opens a web page), `Notice` (`info`, `warning` or `danger`), `ChoiceGroup`, `SwitchRow`, `CheckRow`, `CodeBoxes`, `BackButton`, `TabBar`
   (the floating Liquid Glass bar) and `TabScene` (a tab's entrance when it gains focus). Components read
   colours only from `useTheme()` and durations only from `useMotion()`. `Button` and `SwitchRow` pass an optional
   `testID` through for the Maestro flows.
@@ -382,6 +399,9 @@ catch, and the ordinary attack descriptions it must not, under each locale and u
   `clearUrgentCare()` drops it. The screen reads it once and clears it when it unmounts, and
   `AuthProvider` clears it on sign-out and on an account switch, so a message never outlives the
   screen or the session.
+- `src/redflags/EmergencyCall.tsx`: the call button (`CallButton`, danger fill, 56 pt), `dial` and `phoneRegion`, and
+  `EmergencyCallRow`: the region's number from the pack's emergency table, or the local-emergency line and a button
+  that opens the dialer. Urgent care docks the button; the boundary screen shows the row during a terms re-consent.
 - `src/app/urgent-care.tsx`: what was found (or the 72-hour line for a duration hit), the why lines,
   "ask someone to stay with you", then one filled 56 pt call button (`tel:<number>`) with the region
   under it. A region with no number gets "call your local emergency number" and a button that opens

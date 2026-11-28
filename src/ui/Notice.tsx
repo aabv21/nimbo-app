@@ -1,12 +1,15 @@
-import { ChevronRight, OctagonAlert, TriangleAlert } from 'lucide-react-native';
+import { ChevronRight, Info, OctagonAlert, TriangleAlert } from 'lucide-react-native';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { controlHeight, fonts, radius, space, type } from './theme';
 import { useTheme, useTones } from './themeContext';
 
 interface NoticeProps {
-  /** `warning` is amber (approaching a limit); `danger` is brick (at it). Both carry an icon and words, never colour alone. */
-  tone: 'warning' | 'danger';
+  /**
+   * `info` is the accent (something changed, nothing is wrong); `warning` is amber (approaching a limit); `danger` is
+   * brick (at it). Each carries an icon and words, never colour alone.
+   */
+  tone: 'info' | 'warning' | 'danger';
   title: string;
   body?: string;
   action?: { label: string; onPress: () => void };
@@ -16,15 +19,16 @@ export function Notice({ tone, title, body, action }: NoticeProps): React.JSX.El
   const { color } = useTheme();
   const tones = useTones();
   const danger = tone === 'danger';
-  const mark = danger ? color.danger : color.warning;
-  const Icon = danger ? OctagonAlert : TriangleAlert;
+  const mark = danger ? color.danger : tone === 'warning' ? color.warning : color.accent;
+  const Icon = danger ? OctagonAlert : tone === 'warning' ? TriangleAlert : Info;
+  const fill = danger ? tones.noticeDanger : tone === 'warning' ? tones.noticeWarning : tones.opaquePill;
 
   return (
     <View
-      // A danger notice interrupts a screen reader; a warning waits its turn.
+      // A danger notice interrupts a screen reader; the others wait their turn.
       accessibilityRole={danger ? 'alert' : 'summary'}
       accessibilityLiveRegion={danger ? 'assertive' : 'polite'}
-      style={[styles.notice, { borderColor: mark, backgroundColor: danger ? tones.noticeDanger : tones.noticeWarning }]}
+      style={[styles.notice, { borderColor: mark, backgroundColor: fill }]}
     >
       <Icon size={24} color={mark} />
       <View style={styles.content}>

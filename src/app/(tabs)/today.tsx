@@ -6,6 +6,7 @@ import type { ComponentRef } from 'react';
 import { AccessibilityInfo, StyleSheet, Text, View } from 'react-native';
 import type { ScrollView } from 'react-native';
 
+import { aiActive, needsAiReconsent } from '../../account/consent';
 import { useAuth } from '../../auth/AuthProvider';
 import { CheckinCard } from '../../checkin/CheckinCard';
 import { isCheckinDone, useCheckin, useCheckinDates } from '../../checkin/checkinStore';
@@ -71,7 +72,7 @@ function TodayScreen({ userId }: { userId: string }): React.JSX.Element {
   const anyCheckin = useCheckinDates(userId, EVER[0], EVER[1]).size > 0;
   const month = useMedicationMonth(userId, now, deviceTimeZone());
   const signals = useTodaySignals(userId, now);
-  const aiOn = profile?.aiEnabled === true;
+  const aiOn = aiActive(profile);
   const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
   const checkinRef = useRef<ComponentRef<typeof Text>>(null);
   const checkinY = useRef(0);
@@ -181,9 +182,26 @@ function TodayScreen({ userId }: { userId: string }): React.JSX.Element {
           }
         />
       )}
-      {profile?.aiEnabled === false ? (
-        <View style={[styles.card, { backgroundColor: color.surface, borderColor: color.border }]}>
-          <Text style={[styles.body, { color: color.text }]}>{t('today.summary.ai_off')}</Text>
+      {profile !== null && !aiOn ? (
+        <View style={[styles.card, styles.aiOff, { backgroundColor: color.surface, borderColor: color.border }]}>
+          {/* On but awaiting an answer to a newer text: paused, with the way to answer it. */}
+          {needsAiReconsent(profile) ? (
+            <>
+              <Text style={[styles.body, { color: color.text }]}>{t('consent.paused')}</Text>
+              <Button
+                testID="today-ai-reconsent"
+                variant="secondary"
+                label={t('companion.reconsent.open')}
+                onPress={() => {
+                  once(() => {
+                    router.push('/ai-consent');
+                  });
+                }}
+              />
+            </>
+          ) : (
+            <Text style={[styles.body, { color: color.text }]}>{t('today.summary.ai_off')}</Text>
+          )}
         </View>
       ) : null}
       {open === null ? null : <AttackCard userId={userId} episode={open} />}
@@ -211,4 +229,5 @@ const styles = StyleSheet.create({
   small: { fontFamily: fonts.body, fontSize: type.label, lineHeight: 21 },
   body: { fontFamily: fonts.body, fontSize: type.body, lineHeight: 24 },
   card: { padding: space[3], borderRadius: radius.card, borderWidth: 1 },
+  aiOff: { gap: space[2] },
 });

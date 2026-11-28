@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { clearPersistedAuth, supabase } from '../lib/supabase';
 import type { Database } from '../lib/database.types';
+import type { Locale } from '../i18n';
 import { toAuthErrorKey } from './errors';
 import type { AuthErrorKey } from './errors';
 
@@ -19,13 +20,15 @@ export type Client = SupabaseClient<Database>;
 /**
  * No Apple/Google imports (unlike `socialAuth.ts`), so this module loads under plain Node in the
  * `integration` Jest project. `client` defaults to the `supabase` singleton; tests pass their own.
+ * `locale` goes into the user metadata, where the auth email templates read it (docs/local-stack.md#auth-and-email).
  */
 export async function signUpWithEmail(
   email: string,
   password: string,
+  locale: Locale,
   client: Client = supabase,
 ): Promise<SignUpResult> {
-  const { data, error } = await client.auth.signUp({ email, password });
+  const { data, error } = await client.auth.signUp({ email, password, options: { data: { locale } } });
   if (error !== null) {
     return { ok: false, error: toAuthErrorKey(error) };
   }

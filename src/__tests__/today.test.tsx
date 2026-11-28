@@ -256,6 +256,24 @@ test('with the AI off, Today says where to turn it on', async () => {
   resetAuth({ profile: { ...READY_PROFILE, aiEnabled: false } });
   await render(<Today />);
   expect(screen.getByText(t('today.summary.ai_off'))).toBeOnTheScreen();
+  expect(screen.queryByText(t('consent.paused'))).not.toBeOnTheScreen();
+});
+
+test('with the AI on but a newer AI text unanswered, Today says the AI is paused and opens that screen', async () => {
+  resetAuth({ profile: { ...READY_PROFILE, aiEnabled: true, aiConsentVersion: '2026-11-01' } });
+  await render(<Today />);
+  expect(screen.getByText(t('consent.paused'))).toBeOnTheScreen();
+  expect(screen.queryByText(t('today.summary.ai_off'))).not.toBeOnTheScreen();
+
+  await fireEvent.press(screen.getByTestId('today-ai-reconsent'));
+  const { router } = jest.requireMock<{ router: { push: jest.Mock } }>('expo-router');
+  expect(router.push).toHaveBeenCalledWith('/ai-consent');
+});
+
+test('with the AI on and answered, Today shows neither line', async () => {
+  await render(<Today />);
+  expect(screen.queryByText(t('today.summary.ai_off'))).not.toBeOnTheScreen();
+  expect(screen.queryByText(t('consent.paused'))).not.toBeOnTheScreen();
 });
 
 test('the companion note sits above the sections, and Reply opens the companion', async () => {

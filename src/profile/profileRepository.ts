@@ -1,3 +1,4 @@
+import { AI_CONSENT_VERSION, TERMS_VERSION } from '../account/consent';
 import type { Client } from '../auth/emailAuth';
 import { kvGetJson, kvRemove, kvSet } from '../lib/kv';
 import { enqueue } from '../lib/outbox/outbox';
@@ -29,6 +30,9 @@ export interface Profile {
   aiConsentAnsweredAt: string | null;
   aiEnabled: boolean;
   onboardingCompletedAt: string | null;
+  /** The consent text versions the user last answered (`src/account/consent.ts`). */
+  termsVersion: string | null;
+  aiConsentVersion: string | null;
   knownTriggers: readonly string[];
   priority: Priority | null;
   trackPeriod: boolean;
@@ -54,7 +58,7 @@ export type ProfileChanges = Partial<EditableProfile> & { coarseLocation?: { lat
 
 /** Explicit on purpose: never `*`, so the coarse location and the condition never reach the profile cache. */
 export const PROFILE_COLUMNS =
-  'language,timezone,theme,reduce_motion,notify_start,notify_end,notify_daily_cap,lock_screen_detail,adult_confirmed_at,boundary_accepted_at,ai_consent_answered_at,ai_enabled,onboarding_completed_at,known_triggers,priority,track_period';
+  'language,timezone,theme,reduce_motion,notify_start,notify_end,notify_daily_cap,lock_screen_detail,adult_confirmed_at,boundary_accepted_at,ai_consent_answered_at,ai_enabled,onboarding_completed_at,known_triggers,priority,track_period,terms_version,ai_consent_version';
 
 type Row = Pick<
   Tables<'profiles'>,
@@ -74,6 +78,8 @@ type Row = Pick<
   | 'known_triggers'
   | 'priority'
   | 'track_period'
+  | 'terms_version'
+  | 'ai_consent_version'
 >;
 
 // Row-level security scopes every query below to the signed-in user's own row, so none filters by id.
@@ -119,7 +125,9 @@ function isProfile(value: unknown): value is Profile {
     isNullableString(v['onboardingCompletedAt']) &&
     isStringArray(v['knownTriggers']) &&
     (v['priority'] === null || isOneOf(v['priority'], PRIORITIES)) &&
-    typeof v['trackPeriod'] === 'boolean'
+    typeof v['trackPeriod'] === 'boolean' &&
+    isNullableString(v['termsVersion']) &&
+    isNullableString(v['aiConsentVersion'])
   );
 }
 
@@ -149,6 +157,8 @@ function toProfile(row: Row): Profile | null {
     knownTriggers: row.known_triggers,
     priority: isOneOf(priority, PRIORITIES) ? priority : null,
     trackPeriod: row.track_period,
+    termsVersion: row.terms_version,
+    aiConsentVersion: row.ai_consent_version,
   };
   return isProfile(profile) ? profile : null;
 }
@@ -159,7 +169,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 /**
  * A copy cached by an older build lacks the newer fields; filling them in keeps a phone that upgraded
- * and opens offline on Today instead of the loading view.
+ * and opens offline on a screen instead of the loading view. A missing consent version reads as none
+ * answered, so the gate asks again rather than letting an unversioned consent through.
  */
 function upgradeCached(value: Record<string, unknown>): Profile | null {
   const upgraded = {
@@ -167,6 +178,8 @@ function upgradeCached(value: Record<string, unknown>): Profile | null {
     knownTriggers: isStringArray(value['knownTriggers']) ? value['knownTriggers'] : [],
     priority: isOneOf(value['priority'], PRIORITIES) ? value['priority'] : null,
     trackPeriod: typeof value['trackPeriod'] === 'boolean' ? value['trackPeriod'] : false,
+    termsVersion: isNullableString(value['termsVersion']) ? value['termsVersion'] : null,
+    aiConsentVersion: isNullableString(value['aiConsentVersion']) ? value['aiConsentVersion'] : null,
   };
   return isProfile(upgraded) ? upgraded : null;
 }
@@ -262,13 +275,18 @@ async function callThenFetch(
   return fetchProfile(client);
 }
 
-/** The consent timestamps are set only by this function (never by a client write). */
-export function acceptTerms(client: Client = supabase): Promise<RequestResult<Profile>> {
-  return callThenFetch(client, () => client.rpc('accept_terms', { p_adult: true, p_boundary: true }));
+/**
+ * The consent stamps and versions are set only by these two calls (never by a client write). Each sends this
+ * build's text version and the language the user read it in, which the server records with the answer.
+ */
+export function acceptTerms(locale: Locale, client: Client = supabase): Promise<RequestResult<Profile>> {
+  return callThenFetch(client, () =>
+    client.rpc('accept_terms', { p_adult: true, p_boundary: true, p_health: true, p_version: TERMS_VERSION, p_locale: locale }),
+  );
 }
 
-export function setAiConsent(enabled: boolean, client: Client = supabase): Promise<RequestResult<Profile>> {
-  return callThenFetch(client, () => client.rpc('set_ai_consent', { p_enabled: enabled }));
+export function setAiConsent(enabled: boolean, locale: Locale, client: Client = supabase): Promise<RequestResult<Profile>> {
+  return callThenFetch(client, () => client.rpc('set_ai_consent', { p_enabled: enabled, p_version: AI_CONSENT_VERSION, p_locale: locale }));
 }
 
 /**

@@ -2,7 +2,7 @@
 
 The backend is Supabase (Postgres 17), run locally through the `db:*` scripts ([`local-stack.md`](local-stack.md)).
 This document covers what the migrations create: `public.profiles`, its policies and grants, the
-signup trigger, the consent RPCs, the tracking tables with their RPCs, entitlements, the AI quotas, the companion's data (the debrief columns, `set_dose_helped` and `agent_notes`) `record_inputs`, the read the insights and signals run on, the pressure forecast cache, the stored signals, the push tokens, and the hourly monitor's RPCs, receipts queue and job. Schema changes are new migration files in
+signup trigger, the consent RPCs with the consent versions and history, the tracking tables with their RPCs, entitlements, the AI quotas, the companion's data (the debrief columns, `set_dose_helped` and `agent_notes`) `record_inputs`, the read the insights and signals run on, the pressure forecast cache, the stored signals, the push tokens, and the hourly monitor's RPCs, receipts queue and job. Schema changes are new migration files in
 `supabase/migrations/`; a merged migration is never edited. The diagram [`diagrams/data-model.svg`](diagrams/data-model.svg) shows how the pieces relate, and [`architecture.md`](architecture.md#the-consent-model) explains why consent is RPC-only.
 
 ## `public.profiles`
@@ -25,10 +25,12 @@ the signup trigger. A client never inserts a row, so every client write is an up
 | `known_triggers` | `text[]` | `not null default '{}'`; every value must be a key of the triggers catalog, none repeated (`is_catalog_subset`) |
 | `track_period` | `boolean` | `not null default false`; client-writable |
 | `priority` | `text` | nullable; one of `fewer`, `triggers`, `overuse`, `logging` (narrowed by the onboarding_profile migration) |
-| `adult_confirmed_at`, `boundary_accepted_at` | `timestamptz` | nullable; set only by `accept_terms` |
+| `adult_confirmed_at`, `boundary_accepted_at` | `timestamptz` | nullable; set only by `accept_terms`, again when the terms version changes |
+| `terms_version` | `text` | nullable; the terms version last accepted; set only by `accept_terms` ([consent versions](#consent-versions)) |
 | `ai_consent_answered_at` | `timestamptz` | nullable; set by `set_ai_consent`, kept when the answer is no |
 | `ai_enabled` | `boolean` | `not null default false`; set only by `set_ai_consent` |
 | `ai_consent_at` | `timestamptz` | nullable; set when consent is given, cleared when it is withdrawn |
+| `ai_consent_version` | `text` | nullable; the AI consent version last answered, yes or no; set only by `set_ai_consent` |
 | `onboarding_completed_at` | `timestamptz` | nullable; not client-writable |
 | `created_at`, `updated_at` | `timestamptz` | `not null default now()`; `updated_at` is set by a trigger |
 
@@ -46,7 +48,7 @@ RLS is enabled. The migration revokes every default privilege on the table from 
 cannot be moved to another user. Update is granted on these columns only: `language`, `timezone`,
 `theme`, `reduce_motion`, `notify_start`, `notify_end`, `notify_daily_cap`, `lock_screen_detail`,
 `coarse_lat`, `coarse_lon`, `known_triggers`, `priority`, `track_period`. Updating any other column (every consent
-column, `condition`, `onboarding_completed_at`, `user_id`) fails with `42501`. Insert and delete are
+column and both consent versions, `condition`, `onboarding_completed_at`, `user_id`) fails with `42501`. Insert and delete are
 revoked outright, so they also fail with `42501` rather than silently matching no rows.
 
 ## Signup and update triggers
@@ -63,13 +65,30 @@ Every `security definer` function sets `search_path = ''`, qualifies every name,
 
 | Function | Contract |
 | --- | --- |
-| `accept_terms(p_adult boolean, p_boundary boolean) returns void` | Raises `22023` unless both arguments are true. Sets `adult_confirmed_at` and `boundary_accepted_at` to the server time where they are null, so a repeat call keeps the first timestamps. |
-| `set_ai_consent(p_enabled boolean) returns void` | Raises `22023` on null. Sets `ai_consent_answered_at` to the server time, `ai_enabled` to the answer, and `ai_consent_at` to the server time when true and null when false. |
-| `complete_onboarding() returns void` | Raises `22023` until `boundary_accepted_at` and `ai_consent_answered_at` are both set, then sets `onboarding_completed_at = coalesce(onboarding_completed_at, now())`, so a repeat keeps the first time. |
+| `accept_terms(p_adult boolean, p_boundary boolean, p_health boolean, p_version text, p_locale app_language) returns void` | Raises `22023` unless the three confirmations are true, `p_locale` is set and `p_version` is a `terms` row of `consent_texts`. Raises `22023` too when the stored `terms_version` is newer than `p_version` (no downgrade) or the caller has no profile row, before any event is written. Sets `terms_version = p_version`; sets `adult_confirmed_at` and `boundary_accepted_at` to the server time when the version changes, and only where they are null within the same version, so a repeat keeps the first timestamps. Inserts one `consent_events` row (`terms`, granted) per call. |
+| `set_ai_consent(p_enabled boolean, p_version text, p_locale app_language) returns void` | Raises `22023` on a null answer or locale, a `p_version` that is not an `ai` row of `consent_texts`, a grant (`p_enabled` true) when the stored `ai_consent_version` is newer than `p_version`, or no profile row, before any event is written. A withdrawal is never refused for its version: it turns the AI off and keeps the newer stored version (`greatest`). Sets `ai_consent_answered_at` to the server time, `ai_enabled` to the answer, `ai_consent_at` to the server time when true and null when false, and `ai_consent_version = p_version` on a yes and a no. Inserts one `consent_events` row with `granted = p_enabled`. |
+| `complete_onboarding() returns void` | Raises `22023` until `boundary_accepted_at`, `ai_consent_answered_at` and `terms_version` are all set, then sets `onboarding_completed_at = coalesce(onboarding_completed_at, now())`, so a repeat keeps the first time. |
 | `keep_alive() returns timestamptz` | `security invoker`, reads no table, answers the server time. The only function `anon` may execute; it lets a scheduled call keep a free hosted project from pausing. |
 
 Both consent functions raise `42501` when there is no signed-in user. The client never writes a
-consent timestamp, so a timestamp cannot be forged or back-dated.
+consent timestamp, version or event, so none can be forged or back-dated. The two-argument `accept_terms` and the
+one-argument `set_ai_consent` were dropped by the consent_versions migration, so an older build fails instead of
+recording an unversioned consent.
+
+## Consent versions
+
+`20261130120000_consent_versions.sql` makes consent provable: which text each user accepted, when and in which
+language ([`architecture.md`](architecture.md#the-consent-model)).
+
+| Table | Columns | Access |
+| --- | --- | --- |
+| `consent_texts` | `kind` (`terms` or `ai`), `version` (a `YYYY-MM-DD` date), `published_at date`; primary key `(kind, version)` | RLS on; `consent_texts_select_all` lets `authenticated` read every row; no client write; `anon` nothing. Seeded with `('terms', '2026-12-01')` and `('ai', '2026-12-01')`. |
+| `consent_events` | `id uuid`, `user_id` (references `auth.users`, `on delete cascade`), `kind`, `version` (foreign key to `consent_texts`), `locale app_language`, `granted boolean`, `created_at`; index `(user_id, created_at)` | RLS on; `consent_events_select_own` with `(select auth.uid())`; select granted to `authenticated`, every write revoked; written only by the two consent RPCs. |
+
+A new text version is one migration that inserts its `consent_texts` row, plus the matching constant in
+`src/account/consent.ts` (`TERMS_VERSION`, `AI_CONSENT_VERSION`); the app's gate then asks every user with an older
+version again. `consent_events` is append-only and lives as long as the account: it is the proof of each answer,
+including every switch of the AI in Profile.
 
 ## Tracking tables
 
@@ -306,10 +325,18 @@ pushed one is not pushed as `quiet:never` either, which errs on the side of fewe
 
 ## Tests
 
-pgTAP files in `supabase/tests/`, run by `pnpm db:test`. `profiles.test.sql` (37 assertions), `tracking.test.sql` (106), `onboarding_profile.test.sql` (13), `entitlements.test.sql` (29), `quota.test.sql` (20), `companion_data.test.sql` (55), `record_inputs.test.sql` (22), `weather_cache.test.sql` (25), `signals.test.sql` (20), `push_tokens.test.sql` (53) and `monitor.test.sql` (53). `profiles.test.sql` covers
+pgTAP files in `supabase/tests/`, run by `pnpm db:test`. `profiles.test.sql` (37 assertions), `consent.test.sql` (63), `tracking.test.sql` (106), `onboarding_profile.test.sql` (13), `entitlements.test.sql` (29), `quota.test.sql` (20), `companion_data.test.sql` (55), `record_inputs.test.sql` (22), `weather_cache.test.sql` (25), `signals.test.sql` (20), `push_tokens.test.sql` (53) and `monitor.test.sql` (53). `profiles.test.sql` covers
 the signup row and its defaults, own-row visibility, the update grants and each refused column,
 both RPCs including the repeat and withdrawal cases, the value checks, function privileges for
-`anon` and `authenticated`, and the refused insert and delete. `tracking.test.sql` covers RLS and the refused direct writes on the four tables, each RPC's idempotency, patch semantics (including a moved start, a start after the end as `23514`, times ten minutes ahead stored as now, a clamped start stopping at the stored end, and times two days ahead as `22023`), ownership (`P0002`), catalog and range errors, and `anon` privileges. `onboarding_profile.test.sql` covers `complete_onboarding`, the trigger catalog check, the priorities and `track_period`. `entitlements.test.sql` covers own-row reads, the `updated_at` trigger, each refused write, the boundary at exactly now, `service_role`, the grant and purchase time cases (an expired purchase beside a grant and the reverse), the `42501` for another user, and `anon`. `quota.test.sql` covers the 41st `companion` call refused, `dictation` counted apart, another user's own budget, the day rule (a day three days off and a null day count on the UTC day, one day ahead gets its own counter), a zero or null limit, RLS with no policy, and no execute or select for `anon` or `authenticated`. `companion_data.test.sql` covers the relief checks on `helped` and `did_not_help`, `debriefed` stamping once (a repeat keeps an earlier stamp) and `false` clearing it, a non-boolean `debriefed` as `22023`, a replayed debrief, `set_dose_helped` set, repeated, cleared by omitting `p_helped` and refused on another user's dose, `agent_notes` read-own and its refused direct writes, the 200-character, blank and control-character notes, the 21st note, `delete_agent_note` leaving another user's note, the signed-out `42501`s and `anon`. `record_inputs.test.sql` covers the caller's own episodes, check-ins, doses and medications
+`anon` and `authenticated`, and the refused insert and delete. `consent.test.sql` covers both consent tables (RLS, the seeded versions, the
+version and kind checks, the history index), the dropped old signatures, the RPCs' `security definer` and empty
+`search_path`, every refused `accept_terms` (a missing box, an unpublished version, no locale) leaving no version and no
+event, one event per call, the stamps kept within a version and set again for a new one, a downgrade refused for terms and for an AI grant with
+the newer version kept and no event, an AI withdrawal under an older version accepted (the AI off, the newer version
+kept, one event naming the older text), a caller with no profile row refused with no event, `set_ai_consent`'s version on a
+decline and its refusals (a terms-only version included), another user's history hidden, every refused client write to
+the history, the texts and both version columns, `complete_onboarding` refusing stamps without a version, `anon`, and
+the cascade on user delete. `tracking.test.sql` covers RLS and the refused direct writes on the four tables, each RPC's idempotency, patch semantics (including a moved start, a start after the end as `23514`, times ten minutes ahead stored as now, a clamped start stopping at the stored end, and times two days ahead as `22023`), ownership (`P0002`), catalog and range errors, and `anon` privileges. `onboarding_profile.test.sql` covers `complete_onboarding`, the trigger catalog check, the priorities and `track_period`. `entitlements.test.sql` covers own-row reads, the `updated_at` trigger, each refused write, the boundary at exactly now, `service_role`, the grant and purchase time cases (an expired purchase beside a grant and the reverse), the `42501` for another user, and `anon`. `quota.test.sql` covers the 41st `companion` call refused, `dictation` counted apart, another user's own budget, the day rule (a day three days off and a null day count on the UTC day, one day ahead gets its own counter), a zero or null limit, RLS with no policy, and no execute or select for `anon` or `authenticated`. `companion_data.test.sql` covers the relief checks on `helped` and `did_not_help`, `debriefed` stamping once (a repeat keeps an earlier stamp) and `false` clearing it, a non-boolean `debriefed` as `22023`, a replayed debrief, `set_dose_helped` set, repeated, cleared by omitting `p_helped` and refused on another user's dose, `agent_notes` read-own and its refused direct writes, the 200-character, blank and control-character notes, the 21st note, `delete_agent_note` leaving another user's note, the signed-out `42501`s and `anon`. `record_inputs.test.sql` covers the caller's own episodes, check-ins, doses and medications
 (archived included), `hasLocation` turning true once an area is saved, another user's id giving empty lists and a null zone, the
 `p_since` cut (an ended attack before it dropped, an open one kept, an older dose dropped, the check-in day before kept), no
 `coarse_lat` or `coarse_lon` key or value in the output, `anon` refused and `service_role` granted. `weather_cache.test.sql` covers

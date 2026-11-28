@@ -2,6 +2,7 @@ import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
 import { fireEvent, renderRouter, screen } from 'expo-router/testing-library';
 
+import { signUpWithEmail } from '../auth/authService';
 import { translate } from '../i18n';
 import type { MessageKey } from '../i18n';
 import { kvRemove } from '../lib/kv';
@@ -83,6 +84,19 @@ test('Get started marks the intro seen and opens sign-up', async () => {
 
   await header('auth.signUp.title');
   expect(readIntroSeen()).toBe(true);
+});
+
+test('sign-up sends the app language, so the confirmation email arrives in it', async () => {
+  resetAuth({ status: 'signedOut', userId: null, profile: null });
+  jest.mocked(signUpWithEmail).mockResolvedValue({ ok: true, needsConfirmation: true });
+  await renderRouter('./src/app', { initialUrl: '/sign-up' });
+  await header('auth.signUp.title');
+
+  await fireEvent.changeText(screen.getByTestId('sign-up-email'), ' new@example.com ');
+  await fireEvent.changeText(screen.getByTestId('sign-up-password'), 'Password123!');
+  await fireEvent.press(screen.getByTestId('sign-up-submit'));
+
+  expect(signUpWithEmail).toHaveBeenCalledWith('new@example.com', 'Password123!', 'en');
 });
 
 test('Skip on the intro marks it seen and opens sign-in', async () => {
@@ -188,7 +202,7 @@ test('a granted notification permission registers this phone’s push token, the
   expect(registerPush).toHaveBeenCalledWith('user-1', 'en');
 });
 
-test('the lock-screen choice is saved, and the hours and cap rows are not buttons', async () => {
+test('the step says where a push travels, the lock-screen choice is saved, and the hours and cap rows are not buttons', async () => {
   await renderRouter('./src/app', { initialUrl: '/welcome/notifications' });
   await header('onb.notif.title');
 
@@ -196,6 +210,9 @@ test('the lock-screen choice is saved, and the hours and cap rows are not button
   expect(screen.getByText(t('notif.cap'))).toBeOnTheScreen();
   expect(screen.queryByRole('button', { name: t('notif.hours') })).not.toBeOnTheScreen();
   expect(screen.queryByRole('button', { name: t('notif.cap') })).not.toBeOnTheScreen();
+
+  // Where a push travels, said before the user allows it.
+  expect(screen.getByText(t('onb.notif.transfer'))).toBeOnTheScreen();
 
   await fireEvent.press(screen.getByRole('radio', { name: t('notif.lock.detail') }));
   expect(updateProfile).toHaveBeenCalledWith({ lockScreenDetail: true });

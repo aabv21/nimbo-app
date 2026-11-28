@@ -48,6 +48,8 @@ const ROW = {
   known_triggers: [],
   priority: null,
   track_period: false,
+  terms_version: '2026-12-01',
+  ai_consent_version: '2026-12-01',
 };
 const PROFILE = {
   language: null,
@@ -66,6 +68,8 @@ const PROFILE = {
   knownTriggers: [],
   priority: null,
   trackPeriod: false,
+  termsVersion: '2026-12-01',
+  aiConsentVersion: '2026-12-01',
 };
 
 function wrapper({ children }: { children: ReactNode }): React.JSX.Element {

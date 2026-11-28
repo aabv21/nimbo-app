@@ -181,8 +181,8 @@ test('pullAll reads back exactly what was sent', async () => {
 
 test('finishing onboarding sent twice through the outbox is fine, and the first stamp stands', async () => {
   const user = await signedInUser('outbox-onboarding');
-  expect((await user.client.rpc('accept_terms', { p_adult: true, p_boundary: true })).error).toBeNull();
-  expect((await user.client.rpc('set_ai_consent', { p_enabled: false })).error).toBeNull();
+  expect((await user.client.rpc('accept_terms', { p_adult: true, p_boundary: true, p_health: true, p_version: '2026-12-01', p_locale: 'en' })).error).toBeNull();
+  expect((await user.client.rpc('set_ai_consent', { p_enabled: false, p_version: '2026-12-01', p_locale: 'en' })).error).toBeNull();
   const stamp = async (): Promise<string | null> => {
     const { data, error } = await user.client.from('profiles').select('onboarding_completed_at').single();
     expect(error).toBeNull();

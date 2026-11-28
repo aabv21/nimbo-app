@@ -16,10 +16,10 @@ select set_config('request.jwt.claims', json_build_object('sub', '11111111-1111-
 -- complete_onboarding waits for both gates.
 select throws_ok($$ select public.complete_onboarding() $$, '22023', null, 'complete_onboarding raises 22023 before any gate');
 
-select public.accept_terms(true, true);
+select public.accept_terms(true, true, true, '2026-12-01', 'en');
 select throws_ok($$ select public.complete_onboarding() $$, '22023', null, 'complete_onboarding raises 22023 before the AI answer');
 
-select public.set_ai_consent(false);
+select public.set_ai_consent(false, '2026-12-01', 'en');
 select lives_ok($$ select public.complete_onboarding() $$, 'complete_onboarding succeeds once both gates are set');
 select ok((select onboarding_completed_at = now() from public.profiles), 'it stamps the server time');
 

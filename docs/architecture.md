@@ -45,8 +45,8 @@ or Portuguese. It is not a medical device and never diagnoses or prescribes.
 | Local store and outbox | Phone | `nimbo.db`: mirrors of the four tracking tables, which every screen reads, the queue of RPC calls that carries each change to the server, and the companion chat, kept only on this phone ([Health data offline](#health-data-offline)). |
 | Local reminders | Phone | Preventive medication reminders scheduled on the phone, with no server ([Reminders and lock-screen privacy](#reminders-and-lock-screen-privacy)). |
 | Auth | Supabase | Email and password with a 6-digit email code to confirm and to reset, and Sign in with Apple and Google through native ID tokens. |
-| Postgres 17 | Supabase | The `profiles` table with RLS and column grants, the signup trigger, the consent RPCs, the tracking tables `episodes`, `medications`, `doses` and `checkins` (with the debrief columns), `entitlements`, `agent_notes` and `usage_counters` ([`database.md`](database.md)). |
-| `accept_terms`, `set_ai_consent`, `complete_onboarding` | Postgres | The only writers of the consent columns and the onboarding stamp; they stamp the server clock. |
+| Postgres 17 | Supabase | The `profiles` table with RLS and column grants, the signup trigger, the consent RPCs with `consent_texts` and `consent_events`, the tracking tables `episodes`, `medications`, `doses` and `checkins` (with the debrief columns), `entitlements`, `agent_notes` and `usage_counters` ([`database.md`](database.md)). |
+| `accept_terms`, `set_ai_consent`, `complete_onboarding` | Postgres | The only writers of the consent columns, the consent versions and history, and the onboarding stamp; they stamp the server clock. |
 | Tracking RPCs | Postgres | The nine `security definer` writers of the tracking tables (`set_dose_helped` included), called only through the outbox; a create ignores an id it already has ([`database.md`](database.md#tracking-rpcs)). |
 | `save_agent_note`, `delete_agent_note` | Postgres | The only writers of the agent's notes, at most 20 per user ([`database.md`](database.md#companion-data)). |
 | `consume_quota` | Postgres | Spends one AI unit per user, local day and kind; only the service role may call it ([`database.md`](database.md#ai-quotas)). |
@@ -100,8 +100,8 @@ returns one of seven routes:
 | Status `loading`, or signed in with no readable profile | `/loading` |
 | Signed out on a phone that never showed the intro | `/intro` |
 | Signed out | `/sign-in` |
-| `adultConfirmedAt` or `boundaryAcceptedAt` is null | `/welcome/boundary` |
-| `aiConsentAnsweredAt` is null | `/welcome/ai-consent` |
+| `adultConfirmedAt` or `boundaryAcceptedAt` is null, or `termsVersion` is null or older than `TERMS_VERSION` | `/welcome/boundary` |
+| `aiConsentAnsweredAt` is null, or before onboarding ends the AI is on and `aiConsentVersion` is null or older than `AI_CONSENT_VERSION` | `/welcome/ai-consent` |
 | `onboardingCompletedAt` is null (the setup steps) | `/welcome/triggers` |
 | Everything answered | `/today` |
 
@@ -123,16 +123,48 @@ answered, not skipped, and each setup step moves on with its own buttons.
 An unreadable profile is not an unanswered consent, so a signed-in user whose profile cannot be
 read stays on loading and never sees the consent screens.
 
+Versions are dates and compare as text (`needsTermsConsent` and `needsAiReconsent` in `src/account/consent.ts`); a
+stored version newer than the build's (accepted on a newer build) is never asked again, and the server refuses to
+record an older one. The two kinds are asked again differently:
+
+- **Terms** stay a gate for everyone, onboarded or not: a newer terms text sends the user to the boundary screen
+  before anything else. Accepting needs the network, so the first launch after a terms bump needs a connection once;
+  until then no other screen is registered, urgent care and the free-text fields that lead to it included, so the
+  boundary screen itself shows an emergency call row (the region's number, as urgent care dials it) while it asks
+  again. A first-time boundary does not: no access the user had is behind it.
+- **AI**, once onboarding is done, is never a gate, so it cannot lock anyone out offline. While a newer AI text awaits
+  an answer the AI is off on the phone (`aiActive`): Today, crisis mode and dictation behave as with the AI off; the
+  Companion tab, Today's AI card and Profile say it is paused and open the same consent screen at `/ai-consent`, a
+  route registered only while that answer is due. Profile's switch keeps showing the stored answer, so a withdrawal
+  works at any time, and the server always accepts one, even under an older text. A user with the
+  AI off answers no new AI text: nothing is shared with the AI providers.
+
+The `companion` function checks only `ai_enabled`; the version is enforced in the app, which sends nothing to it while
+an AI re-consent is pending.
+
 The sign-up path: sign up, then the code screen (`confirm-email`). Signing in with an unconfirmed
 address leads to the same screen, which then says no code is on its way yet and leads with sending one. A password reset uses the `reset` screen
 with its own code.
 
 ## The consent model
 
-Three answers are recorded on the profile: the adult confirmation and the boundary acceptance
-(both required, stamped together by `accept_terms`), and the AI answer (`set_ai_consent`), which
-stores the answer apart from the question having been asked, so a "no" is remembered and not asked
-again. Declining AI leaves the app complete: `visibleTabs` in `src/profile/tabs.ts` drops the
+Two consents are recorded on the profile. The boundary screen's terms consent has three required boxes: 18 or
+older, not a medical device, and storing health data. The health-data box sits apart under its own header, because
+health data is sensitive data that needs specific, highlighted consent (LGPD art. 11), and the screen links to the
+privacy policy (`policyUrl(locale)`, opened in the browser). `accept_terms` stamps the answer. The AI consent
+(`set_ai_consent`) stores the answer apart from the question having been asked, so a "no" is remembered and not asked
+again; its screen names the processors and the transfer to the United States and links to the policy's AI section, and
+the notifications step says that a push goes through Expo and Google in the United States.
+
+Each answer carries the version of the text the user read and the app's language. The server refuses a version it has
+not published (`consent_texts`), keeps the version on the profile (`terms_version`, `ai_consent_version`), sets the
+terms stamps again when the version changes, and appends every answer, the Profile switch's included, to
+`consent_events`: the profile keeps only the latest answer, the history proves each one (LGPD art. 8). The version
+strings live in `src/account/consent.ts`; the tables and contracts are in [`database.md`](database.md#consent-versions).
+The policy itself is [`privacy-policy.md`](privacy-policy.md) (with [`.es.md`](privacy-policy.es.md) and
+[`.pt.md`](privacy-policy.pt.md)); its "Version" date is `TERMS_VERSION`, and its section anchors include every
+`PolicySection` the app links to, which `scripts/__tests__/policy-check.test.ts` and `pnpm policy:check` check.
+A boundary screen opened for a newer text says so above the boxes (`boundary.updated`). Declining AI leaves the app complete: `visibleTabs` in `src/profile/tabs.ts` drops the
 Companion tab, and the Profile switch can turn it on later.
 
 Consent is RPC-only because a column the client can update is a column a hand-made request can set:
@@ -150,7 +182,8 @@ reports a null session at `INITIAL_SESSION` while keeping it; the provider reads
 instead and stays signed in until a real `SIGNED_OUT`. A failed profile read keeps the cached
 profile, and with none the status still leaves `loading` (the view offers Try again and Sign out). A
 profile cached by an older build, without `knownTriggers`, `priority` or `trackPeriod`, reads them as
-their defaults, so an upgraded phone opened offline still reaches its screen. A failed launch read is
+their defaults, so an upgraded phone opened offline still reaches its screen. One cached without the consent versions
+reads them as null, so it reaches the boundary screen to accept the versioned terms (online) instead of the loading view. A failed launch read is
 retried when the app resumes or the network returns (`useOnResume`). Every request has a timeout
 (`fetchWithTimeout`), so a dead connection does not hold a spinner. Health records open offline from
 the local store ([Health data offline](#health-data-offline)).
@@ -225,7 +258,7 @@ crisis mode is complete: everything is logged with taps.
 
 With the AI on, "Tell me" is a mic held in the dock. Recognition runs on the phone on iOS (and on Android when the
 language pack is installed). When the offline pack is not installed, Android sends the audio to Google's speech
-recognizer, so Google is a processor of dictated audio and the privacy policy must name it; Nimbo itself never stores
+recognizer, so Google is a processor of dictated audio, which the privacy policy names; Nimbo itself never stores
 or uploads audio, only the transcript as text. The transcript passes the phone's red-flag check before anything else. The companion
 then answers in crisis mode with at most two sentences, which can be read aloud, and a draft that Confirm saves. When
 the companion cannot answer (offline, down, or today's dictation or message quota used up), the words are appended to

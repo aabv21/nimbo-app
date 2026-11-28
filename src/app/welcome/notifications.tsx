@@ -79,6 +79,7 @@ export default function NotificationsStep(): React.JSX.Element {
         </DockRow>
       }
     >
+      <Text style={[styles.transfer, { color: color.textMuted }]}>{t('onb.notif.transfer')}</Text>
       <View style={styles.section}>
         <Text accessibilityRole="header" style={[styles.sectionTitle, { color: color.text }]}>
           {t('notif.lock.title')}
@@ -112,6 +113,7 @@ export default function NotificationsStep(): React.JSX.Element {
 const styles = StyleSheet.create({
   section: { gap: space[2] },
   sectionTitle: { fontFamily: fonts.bodyBold, fontSize: type.label, lineHeight: 20 },
+  transfer: { fontFamily: fonts.body, fontSize: type.label, lineHeight: 20 },
   rows: { borderTopWidth: 1 },
   row: {
     flexDirection: 'row',

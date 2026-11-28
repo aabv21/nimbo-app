@@ -1,6 +1,7 @@
 jest.mock('../../lib/supabase', () => ({ supabase: {} }));
 jest.mock('expo-sqlite', () => require('../../test/sqliteNode'));
 
+import { AI_CONSENT_VERSION, TERMS_VERSION } from '../../account/consent';
 import type { Client } from '../../auth/emailAuth';
 import { kvGet, kvRemove } from '../../lib/kv';
 import { listOutbox } from '../../lib/outbox/outbox';
@@ -35,6 +36,8 @@ const ROW = {
   known_triggers: ['weather'],
   priority: 'overuse',
   track_period: true,
+  terms_version: '2026-12-01',
+  ai_consent_version: null,
   // Columns the app does not read; they must not leak into the cached profile.
   condition: 'migraine',
   created_at: '2026-11-01T09:00:00Z',
@@ -57,6 +60,8 @@ const PROFILE: Profile = {
   knownTriggers: ['weather'],
   priority: 'overuse',
   trackPeriod: true,
+  termsVersion: '2026-12-01',
+  aiConsentVersion: null,
 };
 
 type Outcome = { data: unknown; error: { code?: string; message: string } | null; status: number };
@@ -122,8 +127,8 @@ test('updateProfile sends only the given fields, in column names, and leaves the
 test('the consent calls refetch the row without caching it', async () => {
   const { client } = fakeClient(OK);
 
-  await expect(acceptTerms(client)).resolves.toEqual({ ok: true, value: PROFILE });
-  await expect(setAiConsent(true, client)).resolves.toEqual({ ok: true, value: PROFILE });
+  await expect(acceptTerms('en', client)).resolves.toEqual({ ok: true, value: PROFILE });
+  await expect(setAiConsent(true, 'en', client)).resolves.toEqual({ ok: true, value: PROFILE });
 
   expect(kvGet('profile.u1')).toBeNull();
 });
@@ -163,27 +168,33 @@ test('updateProfile maps every editable field to its column', async () => {
   });
 });
 
-test('acceptTerms calls accept_terms with both boxes ticked, then refetches', async () => {
+test('acceptTerms calls accept_terms with every box ticked, this build\'s version and the locale, then refetches', async () => {
   const { client, rpc } = fakeClient(OK);
 
-  const result = await acceptTerms(client);
+  const result = await acceptTerms('pt', client);
 
-  expect(rpc).toHaveBeenCalledWith('accept_terms', { p_adult: true, p_boundary: true });
+  expect(rpc).toHaveBeenCalledWith('accept_terms', {
+    p_adult: true,
+    p_boundary: true,
+    p_health: true,
+    p_version: TERMS_VERSION,
+    p_locale: 'pt',
+  });
   expect(result).toEqual({ ok: true, value: PROFILE });
 });
 
-test('setAiConsent calls set_ai_consent with the answer, then refetches', async () => {
+test('setAiConsent calls set_ai_consent with the answer, this build\'s version and the locale, then refetches', async () => {
   const { client, rpc } = fakeClient(OK);
 
-  await setAiConsent(false, client);
+  await setAiConsent(false, 'es', client);
 
-  expect(rpc).toHaveBeenCalledWith('set_ai_consent', { p_enabled: false });
+  expect(rpc).toHaveBeenCalledWith('set_ai_consent', { p_enabled: false, p_version: AI_CONSENT_VERSION, p_locale: 'es' });
 });
 
 test('a failed RPC returns its error and does not refetch', async () => {
   const { client, from } = fakeClient(OK, { data: null, error: { code: 'P0001', message: 'nope' }, status: 400 });
 
-  await expect(acceptTerms(client)).resolves.toEqual({ ok: false, kind: 'unknown' });
+  await expect(acceptTerms('en', client)).resolves.toEqual({ ok: false, kind: 'unknown' });
   expect(from).not.toHaveBeenCalled();
 });
 
@@ -232,7 +243,7 @@ test('fetchProfile selects the explicit column list, never the location or a sta
   await fetchProfile(client);
 
   expect(select).toHaveBeenCalledWith(PROFILE_COLUMNS);
-  expect(PROFILE_COLUMNS).toContain('known_triggers,priority,track_period');
+  expect(PROFILE_COLUMNS).toContain('known_triggers,priority,track_period,terms_version,ai_consent_version');
   expect(PROFILE_COLUMNS).not.toContain('coarse_lat');
   expect(PROFILE_COLUMNS).not.toContain('coarse_lon');
   expect(PROFILE_COLUMNS).not.toContain('condition');
@@ -280,6 +291,16 @@ test('a profile cached by the previous build reads with the defaults, not as no 
   kvSet('profile.u1', JSON.stringify(wave1));
 
   expect(readCachedProfileSync('u1')).toEqual({ ...wave1, knownTriggers: [], priority: null, trackPeriod: false });
+});
+
+test('a profile cached before consent versions existed reads with no version answered', async () => {
+  const { kvSet } = await import('../../lib/kv');
+  const unversioned: Record<string, unknown> = { ...PROFILE };
+  delete unversioned['termsVersion'];
+  delete unversioned['aiConsentVersion'];
+  kvSet('profile.u1', JSON.stringify(unversioned));
+
+  expect(readCachedProfileSync('u1')).toEqual({ ...PROFILE, termsVersion: null, aiConsentVersion: null });
 });
 
 test('a cached priority this build does not know reads as null', async () => {

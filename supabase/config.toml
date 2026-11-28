@@ -247,12 +247,13 @@ otp_expiry = 3600
 # admin_email = "admin@email.com"
 # sender_name = "Admin"
 
+# The templates and subjects branch on `user_metadata.locale`, set at sign-up (docs/local-stack.md#auth-and-email).
 [auth.email.template.confirmation]
-subject = "Your Nimbo confirmation code"
+subject = '{{ if eq .Data.locale "es" }}Tu código de confirmación de Nimbo{{ else if eq .Data.locale "pt" }}Seu código de confirmação do Nimbo{{ else }}Your Nimbo confirmation code{{ end }}'
 content_path = "./supabase/templates/confirmation.html"
 
 [auth.email.template.recovery]
-subject = "Your Nimbo password reset code"
+subject = '{{ if eq .Data.locale "es" }}Tu código para restablecer la contraseña de Nimbo{{ else if eq .Data.locale "pt" }}Seu código para redefinir a senha do Nimbo{{ else }}Your Nimbo password reset code{{ end }}'
 content_path = "./supabase/templates/recovery.html"
 
 # Uncomment to customize email template
