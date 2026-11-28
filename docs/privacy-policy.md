@@ -175,7 +175,7 @@ In the app:
 - Edit any attack, medication or check-in; delete an attack or a dose (to fix a dose, delete it and log it again); archive a medication. To erase your medications and check-ins entirely, delete your account or write to Nimbo.
 - See and delete Nimbo’s notes in Profile → “What I know about you”.
 - Turn the AI on or off in Profile.
-- **Export my data** (Profile → “Your data”) gives you a JSON file with the records the server keeps: your account’s email, when it was created, your last sign-in and your sign-in methods, your settings, attacks, medications, doses, check-ins, Nimbo’s notes, signals, consent records, premium status, usage counts and your registered phones (phone type and last registration; never the push token). The conversation is not included: it lives only on your phone.
+- **Export my data** (Profile → “Your data”) gives you a JSON file with the records the server keeps: your account’s email, when it was created, your last sign-in and your sign-in methods, your settings (your approximate area included), attacks, medications, doses, check-ins, Nimbo’s notes, signals, consent records, premium status, usage counts and your registered phones (phone type and last registration; never the push token). The conversation is not included: it lives only on your phone.
 - **Delete my account** (Profile → “Your data”): see [Deleting your account](#delete-your-account).
 
 By email, write to [hello.aabv21@gmail.com](mailto:hello.aabv21@gmail.com) from your account’s address, so Nimbo can check it is you. Requests are free and answered within 15 days. For example, write to remove your approximate area, which the app does not show after setup.

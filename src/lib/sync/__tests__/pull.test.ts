@@ -1,4 +1,5 @@
 import type { Client } from '../../../auth/emailAuth';
+import { allowUserKeys, refuseUserKeys } from '../../kv';
 import { localDb } from '../../local/db';
 import { clearLocalDb, insertEpisode } from '../../../test/localDbTest';
 import { enqueue } from '../../outbox/outbox';
@@ -82,6 +83,16 @@ test('replaces non-dirty rows with the server version', async () => {
     { id: E1, user_id: A, intensity: 8, pain_areas: '["temple_left"]', dirty: 0 },
     { id: E2, user_id: A, intensity: 6, pain_areas: '["temple_left"]', dirty: 0 },
   ]);
+});
+
+test('a pull that lands after the account was deleted on this phone writes nothing back', async () => {
+  const { client } = fakeClient({ episodes: [episode(E1, A)] });
+  refuseUserKeys(A);
+
+  expect(await pullAll(A, client)).toEqual({ ok: true, value: undefined });
+
+  expect(localEpisodes()).toEqual([]);
+  allowUserKeys(A);
 });
 
 test("keeps a dirty row's local version", async () => {

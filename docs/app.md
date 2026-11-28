@@ -30,8 +30,10 @@ Expo Router routes: every file is a screen and `_layout.tsx` files define naviga
   says the AI is paused with the same button, and Profile keeps the switch on (so turning it off still withdraws) with a
   paused notice.
   `profile` holds language, appearance, reduce motion, the period question's opt-in (`trackPeriod`), the
-  lock-screen detail, the medicine cabinet row, the AI switch (turning it on shows what is sent, the US transfer and the policy link), the "What I know about you" row and sign-out, which asks first while
-  `useSyncState()` counts records not uploaded (pending or failed) and says they stay on this phone.
+  lock-screen detail, the medicine cabinet row, the AI switch (turning it on shows what is sent, the US transfer and the policy link), "Your data" ("What I know about you", "Export my data"
+  and the privacy policy, opened in the browser in the UI language), sign-out, which asks first while
+  `useSyncState()` counts records not uploaded (pending or failed) and says they stay on this phone, and, set apart at
+  the end in the danger colour, "Delete my account".
 - `urgent-care.tsx`: the urgent-care screen for a red-flag hit ([Red flags](#red-flags-srcredflags-srcappurgent-caretsx)), registered with
   the tabs as a full-screen modal with no animation and no swipe to dismiss.
 - `crisis.tsx`: crisis mode for the attack in `?id=` ([Attacks and crisis mode](#attacks-and-crisis-mode-srcepisodes-srccrisis-srcappcrisistsx)),
@@ -43,6 +45,10 @@ Expo Router routes: every file is a screen and `_layout.tsx` files define naviga
 - `ai-consent.tsx`: the AI consent screen again, registered only while an onboarded user's AI answer predates this
   build's text (its own `Stack.Protected`), opened from the paused prompts on the Companion tab, Today and Profile; no
   setup progress, and an answer leaves for the chat (yes) or Today (no) before the patch unregisters the route.
+- `export.tsx` and `delete-account.tsx`: "Export my data" and "Delete my account", registered with the tabs
+  ([Account deletion on the phone](#account-deletion-on-the-phone)). The export screen writes the file, then offers the
+  share sheet; the deletion screen lists what goes, links to the export, and keeps its one filled button, the danger one,
+  disabled until "I understand this can’t be undone" is ticked.
 - `checkin.tsx`: the full daily check-in, a transparent modal that draws its own sheet; `cabinet/`: the medicine
   cabinet list and form, also registered during the medications setup step; `episode/`: an attack's detail and
   its editor. Each is described in its section below.
@@ -55,6 +61,46 @@ Expo Router routes: every file is a screen and `_layout.tsx` files define naviga
   and the re-consent checks, `needsTermsConsent` and `needsAiReconsent`, plus `aiActive`: the AI is on and answered to
   this build's text, which Today, crisis mode, dictation and the Companion tab check instead of `aiEnabled`
   ([The consent model](architecture.md#the-consent-model)). Pure, with type-only imports.
+- `accountClient.ts`: `exportData()` calls `export-data` and accepts only a `schemaVersion: 1` document, returned as
+  indented JSON text; `deleteAccount()` calls `delete-account` with the session's token; `verifyAccount(userId)` asks
+  Auth about that token only; `exportFileName()` is `nimbo-data-YYYY-MM-DD.json` (the phone's day). Failures are
+  `network` or `unknown`, plus `reauth` for a deletion; none throws ([API](api.md#export-data)).
+- `deletionMarker.ts`, `deletionFlow.ts`, `forgetAccount.ts`, `deviceFiles.ts` and `usePrivacyActions.ts`: the
+  deletion on the phone, below.
+
+### Account deletion on the phone
+
+"Delete my account" runs `runDeletion(userId, outbox)`, once per user at a time (a second tap answers `busy`):
+
+1. It writes the kv marker `account.deleting.<userId>` (`deleting:<ms>`) before anything else, so a lost answer is
+   never forgotten, then pauses the user's outbox (`SyncProvider`'s `outboxFor(userId)`) and calls `deleteAccount`.
+2. **Deleted** (a 200 `deleted`, or a 401 for a token Auth answers `user_not_found` to): `clearOutbox`, then
+   `signOutLocally` (local scope; when supabase-js can't finish, the stored session is cleared and the sign-out retried)
+   only while the stored session is still that user's, then `forgetAccountOnDevice`: `refuseUserKeys` first, then
+   `forgetUserRows` (every mirror, chat and outbox row of the user, queued or not) and every kv key with the id as a dot
+   segment (the profile cache, push settings, notes, quotas, the long-attack and over-question flags, the marker).
+   Then `forgetDeviceFiles` removes the export files and the reminders, and the outbox is unpaused without a run.
+   The gate then shows the signed-out screens.
+3. **Reauth** (no session, or a 401 Auth does not explain as deleted): the marker becomes `reauth`, the data stays, the
+   phone signs out and an alert asks the user to sign in again and retry.
+4. **Network or unknown**: the server may have finished, so the marker stays `deleting`, nothing is forgotten, and the
+   screen shows the message.
+
+While any marker is there, `SyncProvider`'s cycle sends and pulls nothing: it runs `confirmPendingDeletion` instead
+(launch, sign-in, resume, reconnect), which only verifies. `gone` finishes step 2; `exists` past
+`DELETION_SETTLE_MS` (10 minutes after the marker) clears it and runs the outbox again; anything else waits. A marker
+time that can't be trusted is stamped anew, so the window starts over. On every sign-out and account change,
+`AuthProvider` runs `forgetInterruptedDeletions`, which forgets every other account still marked `deleting`; a sign-in
+lifts the refusal for that account (`allowUserKeys`), since a session proves it still exists.
+
+The refusal (`kvSet` stores nothing for a key with a refused id as a segment) lives in memory for the process, enough
+since a deleted account can't sign in again; `pullAll` checks it too, so a pull that lands after the purge writes
+nothing back. Every kv key an account owns carries its id as a segment, so at launch `SyncProvider` also runs
+`sweepOrphanKeys`: the keys of every account but the signed-in one with nothing queued go, owner read as the key's
+first UUID-shaped segment (device-wide keys have none; a key from before ids were added, such as
+`redflag.long.<episodeId>`, goes the same way). The export file lives only in the cache directory: replaced by the
+next export, removed at every sign-out and at deletion, and its name and content are never logged or put in a route.
+The chat stays on the phone and is not in the export.
 
 ## Auth (`src/auth/`)
 
@@ -66,7 +112,7 @@ Expo Router routes: every file is a screen and `_layout.tsx` files define naviga
   when the provider mounts, so a cold start does not read null until the first auth event.
 - `gate.ts`: `nextRoute`, the pure gate, re-consent included.
 - `authService.ts` re-exports the whole auth surface; `emailAuth.ts` (sign up, sign in, code confirm,
-  resend, reset, sign out) has no native imports so the integration tests can load it;
+  resend, reset, sign out, and `signOutLocally` for after a deletion) has no native imports so the integration tests can load it;
   `socialAuth.ts` (Apple and Google ID-token sign-in, with `nonce.ts`) is the native part.
 - `errors.ts` maps Supabase auth errors to message keys; `validation.ts` checks input before a
   request; `useSignOut.ts` signs out even when offline; `SocialButtons.tsx` is the provider buttons: Google
@@ -162,7 +208,8 @@ Hermes has no `Intl.PluralRules`), falling back to `.other`, and fills `{n}` wit
 
 - `supabase.ts`: the one client, with a SQLite-backed session store, a request timeout, and
   foreground-only token refresh; `readStoredSession` and `clearPersistedAuth` read and clear it.
-- `kv.ts`: the only caller of the on-device key-value store; `storedSession.ts` parses the persisted
+- `kv.ts`: the only caller of the on-device key-value store, with `kvKeys()` and the post-deletion guard
+  (`refuseUserKeys`, `allowUserKeys`, `kvUserRefused`); `storedSession.ts` parses the persisted
   session; `fetchWithTimeout.ts`; `requestResult.ts` (the `network`, `invalid` and `unknown` kinds);
   `useOnResume.ts` (a retry hook for foreground and network return, told which it is); `useOncePerFocus.ts` (a press
   that opens another screen runs once until this screen is focused again, so a double tap never pushes twice, used by
@@ -184,7 +231,8 @@ transaction, shows the change at once, and the outbox sends it when it can.
   `notifyChanged(tables)` tells readers a committed write changed those tables. `purgeUser(userId)`
   deletes a user's mirror rows except those still waiting to be sent (dirty, or with an unsent or failed
   operation), which survive until that user signs back in and sends them, and deletes all of their chat rows whatever is
-  queued; it returns whether nothing of theirs is left queued. `purgeOtherUsers` runs it at launch for everyone but the
+  queued; it returns whether nothing of theirs is left queued. `forgetUserRows(userId)` deletes every row of the user,
+  dirty or queued included, after an account deletion. `purgeOtherUsers` runs it at launch for everyone but the
   signed-in user, chat-only users included, and returns them, so `SyncProvider` drops their cached notes and finished
   debriefs as a sign-out does.
 - `local/useLocalQuery.ts`: `useLocalQuery(tables, read)` re-reads only when one of `tables` changes (or
@@ -196,7 +244,8 @@ transaction, shows the change at once, and the outbox sends it when it can.
   dirty (`set_dose_helped` marks the dose). The chat is never queued. The
   row stays dirty while any operation with its record key (the `p_id`, or `checkin:<local_date>`) is unsent,
   failed ones included. `listOutbox(userId)` returns that user's operations in order, and `resetFailed(userId)`
-  puts them all back in line, due now, with fresh attempts.
+  puts them all back in line, due now, with fresh attempts. `clearOutbox(userId)` drops them all and marks their rows
+  clean, only for a deleted account.
 - The tenth kind, `complete_onboarding` (args `{}`, record key `profile:onboarding`, no mirror row), finishes
   onboarding. It is queued rather than called so that a user who left setup unfinished can still reach Today, and
   crisis mode, offline: `completeOnboarding(userId)` queues it and returns the stamp the screen shows through
@@ -227,9 +276,12 @@ transaction, shows the change at once, and the outbox sends it when it can.
   request made during one runs one more. A timer wakes it when the head of the queue's backoff ends. On
   sign-out or an account switch it pauses the previous user's outbox and, once that and any running
   cycle have settled, purges their rows and, when nothing of theirs is left queued, their cached
-  profile (`removeCachedProfile`); at launch it purges every other user's. Its cleanup also forgets the user's
-  cached notes, finished debriefs, today's pressure row (kv `signals.<userId>`) and push token.
-  `useSyncState()` gives `pending`, `failed`, `syncing` and `retry()`.
+  profile (`removeCachedProfile`); at launch it purges every other user's, and sweeps the kv keys of every account
+  with nothing queued (`sweepOrphanKeys`). Its cleanup also forgets the user's cached notes, finished debriefs, today's
+  pressure row (kv `signals.<userId>`), push token and any export file. While a deletion is marked it only verifies the
+  account ([Account deletion on the phone](#account-deletion-on-the-phone)).
+  `useSyncState()` gives `pending`, `failed`, `syncing`, `retry()` and `outboxFor(userId)` (the deletion's pause, clear
+  and resume).
 - `sync/SyncNotice.tsx`: the sync banner. It shows nothing while synced. After 600 ms of pending work it
   shows one muted line ("Saved on this phone, syncing · 2 records to upload"). With failures it shows a
   notice that asks for a tap on Try again (a failed operation is only sent again from there). Each state cross-fades at the theme's `base` duration.
@@ -457,7 +509,7 @@ Medications and doses live in the local mirrors and reach the server through the
   unlinks the attack's doses as the server's `on delete set null` does. `useEpisodes` (newest first), `useEpisode`,
   `useOpenEpisode`, and `readOpenEpisode` for code outside a render.
 - `episodes/useLongAttackWatch.ts`: on mount and on every resume, an attack open for the pack's `statusHours` (72)
-  opens urgent care with `long_attack`, then sets kv `redflag.long.<episodeId>`, so it opens once per attack. It waits
+  opens urgent care with `long_attack`, then sets kv `redflag.long.<userId>.<episodeId>`, so it opens once per attack. It waits
   while another urgent-care screen is up and while the landing route `/` is still redirecting.
 - `crisis/countdown.ts`: pure. `nextDoseAt` from the latest dose and the interval the user entered, `minutesLeft`
   (a part minute counts, never below 0), and `resolveDoseTime`, which places a typed clock time on today's date in a
@@ -537,7 +589,7 @@ Medications and doses live in the local mirrors and reach the server through the
   first, and medication above `ok` moves above everything. The new order snaps, with no layout animation.
 - `today/StatusLine.tsx`: the status sentence (first day, an attack in progress with its running time, or no attack with when
   the last one ended), the open attack's card, and from 12 hours the "is it over?" question (`Not yet` waits for the next
-  12-hour multiple, kept per attack in kv). `today/MedicationSummary.tsx`: the month's dose days per class against its limit,
+  12-hour multiple, kept per attack in kv `today.over.<userId>.<episodeId>`). `today/MedicationSummary.tsx`: the month's dose days per class against its limit,
   the most urgent overuse notice and the next preventive dose due today.
 - `(tabs)/today.tsx` puts them together with the sync line, the companion note, the AI-off card and the signals
   section ([Signals on Today](#signals-on-today)), and docks Start an attack (or Back to the attack) above the tab bar;

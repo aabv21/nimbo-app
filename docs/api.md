@@ -1,7 +1,7 @@
 # API: the Edge Functions
 
-The app calls three Edge Functions: `companion`, and `push-claim` and `push-unregister` for its push token; a fourth,
-`monitor`, is called only by the database's hourly job. Everything
+The app calls five Edge Functions: `companion`, `push-claim` and `push-unregister` for its push token, and `export-data`
+and `delete-account` for the user's data rights; a sixth, `monitor`, is called only by the database's hourly job. Everything
 else it reads and writes through PostgREST and the RPCs in [`database.md`](database.md). How the function works inside: [`ai.md`](ai.md) and
 [`architecture.md`](architecture.md#the-companion-function).
 
@@ -183,6 +183,65 @@ matched, so it can't tell which tokens exist. `400 { "error": "invalid_body" }` 
 chunked body streams; `405` for another method, `500 { "error": "internal" }` when the database fails (the phone keeps the
 token and tries again at the next launch). The log line is `{"outcome":"unregistered"}`.
 
+## `export-data`
+
+`POST /functions/v1/export-data` with the user's session token; `verify_jwt` is on. It answers everything the server keeps
+about the caller as one JSON document (`supabase/functions/export-data/handler.ts`; the privacy policy's "Export my data"
+lists the same). The body is ignored; one over 256 bytes is refused unread.
+
+Each table is read page by page (`limit=1000`, then the next `offset`, until a page comes back empty, so a hosted
+`max_rows` under 1000 still reads every row) with `user_id=eq.<the JWT's sub>`, and a row whose `user_id` is anyone
+else's is dropped even if a read returned it. Every read goes with the caller's token, so RLS applies, except
+`usage_counters`, which no client may read: that one goes with the service role, filtered by the same verified uid. The
+account comes from `GET /auth/v1/user` with the caller's token and must name the caller.
+
+| Key | Content |
+| --- | --- |
+| `schemaVersion` | `1` |
+| `exportedAt` | The server time, ISO 8601. |
+| `termsVersion`, `aiConsentVersion` | The profile's accepted versions, or null. |
+| `account` | `{ email, createdAt, lastSignInAt, providers }`; `providers` is Auth's `app_metadata.providers` (`email`, `google`, `apple`). |
+| `profile`, `entitlement` | The `profiles` row (`*`, the coarse area included) and the `entitlements` row, or null. |
+| `episodes`, `medications`, `doses`, `checkins`, `agentNotes`, `signals`, `consentEvents` | Every row (`*`, archived medications included), ordered by `started_at,id`; `created_at,id`; `taken_at,id`; `local_date`; `created_at,id`; `computed_at,id`; `created_at,id`. |
+| `usageCounters` | Every `usage_counters` row still kept (30 days), ordered by `day,kind`. |
+| `pushDevices` | `push_tokens` read as `user_id,platform,updated_at` only, ordered by `updated_at,platform,token` (the token orders the pages, unique per user, but is never selected): never the token or `device_secret_hash`, which never leave the database. |
+
+`push_claims`, `push_claim_starts` and `push_tickets` are left out on purpose: transient security and delivery data,
+kept an hour or two days. `EXPORTED_TABLES` and `EXCLUDED_TABLES` in the handler list them; the unit test requires them
+to equal the list pgTAP pins as every `public` table with a `user_id` ([`database.md`](database.md#account-deletion-and-export)).
+The 200 carries `cache-control: no-store`, since the file holds health data. The chat is not
+in the file: it lives only on the phone.
+
+Errors: `405 { "error": "method_not_allowed" }` for a method other than `POST`, `401 { "error": "unauthorized" }` without
+a user token (the gateway answers a malformed or expired one first), `413 { "error": "payload_too_large" }` for a body over
+256 bytes (declared or counted while streaming), `400 { "error": "invalid_body" }` for one that broke off while streaming,
+and `500 { "error": "internal" }`, with no detail, when Auth or any read fails: a partial file is never sent. The log line
+is `{"outcome":"exported"}` or `{"outcome":"error"}`.
+
+## `delete-account`
+
+`POST /functions/v1/delete-account` with the user's session token; `verify_jwt` is on. It deletes the caller's account; the
+database's `on delete cascade` foreign keys then remove every row of theirs in all 14 user tables at once
+([`database.md`](database.md#account-deletion-and-export)). The uid is always the verified JWT's `sub`. The body is ignored;
+one over 256 bytes is refused unread.
+
+1. `GET /auth/v1/user` with the caller's token (10 s deadline, `AUTH_TIMEOUT_MS`). Only Auth's `error_code: "user_not_found"`
+   means the account is already gone: `200 { "outcome": "deleted" }` (logged `already_deleted`), with no admin call. Any
+   other failure, a bare 404 included (a misrouted gateway answers 404 too), or a body naming another id, is a `500`: the
+   function never reports a deletion on an answer it can't trust.
+2. `DELETE /auth/v1/admin/users/<uid>` with the service role (10 s deadline). A 404 means an earlier attempt deleted the
+   user: `200 { "outcome": "deleted" }`. Any other non-2xx is `500 { "error": "internal" }`.
+3. `200 { "outcome": "deleted" }`.
+
+A retry is always safe: after a cut connection the phone calls again with the same token, and step 1 answers `deleted`.
+Sign in with Apple has no revoke step while iOS is parked. A monitor run that read its targets before the deletion finds
+nothing to save or claim for that user and sends nothing ([`database.md`](database.md#account-deletion-and-export)).
+Auth's own `auth.audit_log_entries` are not linked to the user and keep the email after the deletion; the privacy policy
+discloses them as sign-in security logs.
+
+Errors: `405`, `401`, `413` and `400` as for `export-data`, and `500 { "error": "internal" }` with no detail. The log line
+is the outcome word only: `deleted`, `already_deleted` or `error`.
+
 ## `monitor`
 
 `POST /functions/v1/monitor`, called at :05 every hour by the pg_cron job `monitor` through pg_net
@@ -208,7 +267,8 @@ depends only on the expected secret's length (`secretMatches`), and the job read
    with rows one message per token, `signalPushCopy` (the neutral title unless `lock_screen_detail`) with
    `data: { url: '/today' }`; then `save_push_tickets` and the deletion of the tokens Expo answered
    `DeviceNotRegistered`. An error inside one user counts as `failed` and never stops the next. A claim whose send then
-   fails stays stamped: that push is lost, never doubled.
+   fails stays stamped: that push is lost, never doubled. A user whose account is deleted during the run is not a
+   failure: `save_signals` answers nothing for them and `claim_signal_push` finds no token, so nothing is sent.
 4. **Reply.** `200 { "outcome": "done", "targets", "evaluated", "skipped", "failed", "signals", "pushed",
    "weather_fetches", "receipts_checked", "tokens_removed" }`: `signals` is the signals computed, `pushed` the messages
    Expo accepted, `weather_fetches` the requests that reached the forecast provider (cache hits excluded).
@@ -224,4 +284,4 @@ Two `pg_cron` jobs run in the database; neither is called by the app ([`database
 | Job | Schedule (UTC) | Runs |
 | --- | --- | --- |
 | `monitor` | `5 * * * *` | `select public.request_monitor()`: reads `monitor_url` and `monitor_secret` from the Vault and posts to `monitor` through `pg_net` with `x-webhook-secret`; without both secrets it does nothing. A missed run is skipped, not caught up: the next hour evaluates everyone again. |
-| `prune-expired-caches` | `17 3 * * *` | `select public.prune_expired_caches()`: deletes `signals` computed over 30 days ago (except each user's newest pushed quiet stretch, which keeps that stretch from being pushed again), `weather_cache` and `push_tickets` rows over 2 days old, expired push claims, claim starts over an hour old, and the run history of Nimbo's jobs over 7 days old. |
+| `prune-expired-caches` | `17 3 * * *` | `select public.prune_expired_caches()`: deletes `signals` computed over 30 days ago (except each user's newest pushed quiet stretch, which keeps that stretch from being pushed again), `weather_cache` and `push_tickets` rows over 2 days old, expired push claims, claim starts over an hour old, `usage_counters` over 30 days old, and the run history of Nimbo's jobs over 7 days old. |

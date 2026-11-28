@@ -177,7 +177,8 @@ An authenticated caller asking about another user gets `42501`; the service role
 counter per user, day and `public.quota_kind` (`companion`, `dictation`, and `screen`, added alone by
 `20261128120200_screen_quota.sql` since a new enum value cannot be used in the transaction that adds it), with primary key `(user_id, day, kind)`, `count >= 0`
 and `on delete cascade` from `auth.users`. RLS is on with no policy, and every privilege is revoked from `anon` and
-`authenticated`, so a client can neither read nor write a counter.
+`authenticated`, so a client can neither read nor write a counter. Counters are kept 30 days
+([account deletion and export](#account-deletion-and-export)); `export-data` reads them with the service role.
 
 `consume_quota(p_user_id uuid, p_kind public.quota_kind, p_limit integer, p_day date) returns boolean` is `security definer`
 with `search_path = ''`, revoked from `public`, `anon` and `authenticated` and granted to `service_role` only: the Edge
@@ -323,9 +324,38 @@ and `claim_signal_push` checks the same, so the newest such row must outlive the
 one row per user. The cost: a stretch whose dated key was never pushed (a cap of 0 for months) and that follows an older
 pushed one is not pushed as `quiet:never` either, which errs on the side of fewer pushes.
 
+## Account deletion and export
+
+`export-data` and `delete-account` need no table of their own ([`api.md`](api.md#export-data)). Deletion is Auth's admin
+delete of the `auth.users` row; every `public` table with a `user_id` has an `on delete cascade` foreign key to it, so the
+rows go in the same statement. Those tables are exactly 14: `profiles`, `episodes`, `medications`, `doses`, `checkins`,
+`agent_notes`, `entitlements`, `usage_counters`, `signals`, `push_tokens` and `consent_events`, which `export-data`
+exports, and `push_claims`, `push_claim_starts` and `push_tickets`, which it leaves out (transient security and delivery
+data). `doses.medication_id` references `medications` with NO ACTION, not cascade: its check runs at the end of the
+statement, after the cascade has removed the doses too, so the deletion succeeds; RESTRICT would refuse it.
+`consent_events` cascade too: consent records are kept as long as the account, and the policy says so.
+
+`supabase/tests/account.test.sql` pins all of it. A query over `pg_constraint` finds no `public` table with a `user_id`
+lacking the cascade; `set_eq` pins the set of `public` tables with a `user_id` to the 14 names of its `pinned_user_tables`
+list; every `public` foreign key to `auth.users` (an `owner_id`, a second key) must cascade and sit on a pinned table; and
+deleting a user with a row in every table leaves none of theirs and every row of another user. `export-data`'s unit test
+reads `pinned_user_tables` from that file and requires `EXPORTED_TABLES` plus `EXCLUDED_TABLES` to equal it, so the two
+lists cannot drift: a new user table fails pgTAP until it is pinned, then the unit test until the function exports or
+excludes it.
+
+`20261130120100_account_data.sql` changes two functions:
+
+| Function | Change |
+| --- | --- |
+| `prune_expired_caches()` | Redefined with the earlier deletes unchanged, plus `usage_counters` whose `day` is over 30 days before today's UTC date. |
+| `save_signals(…)` | Redefined unchanged but for one exception block: when the upsert breaks `signals_user_id_fkey` (read with `get stacked diagnostics … constraint_name`), because the account was deleted after the monitor read its targets, it answers no rows instead of raising, so the run counts no failure; any other foreign key error is raised again. `claim_signal_push` then finds no token and nothing is sent. |
+
+Not in the cascade: `auth.audit_log_entries`, Auth's own log, which is not linked to the user and keeps the email; the
+privacy policy discloses it as the sign-in security logs.
+
 ## Tests
 
-pgTAP files in `supabase/tests/`, run by `pnpm db:test`. `profiles.test.sql` (37 assertions), `consent.test.sql` (63), `tracking.test.sql` (106), `onboarding_profile.test.sql` (13), `entitlements.test.sql` (29), `quota.test.sql` (20), `companion_data.test.sql` (55), `record_inputs.test.sql` (22), `weather_cache.test.sql` (25), `signals.test.sql` (20), `push_tokens.test.sql` (53) and `monitor.test.sql` (53). `profiles.test.sql` covers
+pgTAP files in `supabase/tests/`, run by `pnpm db:test`. `profiles.test.sql` (37 assertions), `consent.test.sql` (63), `tracking.test.sql` (106), `onboarding_profile.test.sql` (13), `entitlements.test.sql` (29), `quota.test.sql` (20), `companion_data.test.sql` (55), `record_inputs.test.sql` (22), `weather_cache.test.sql` (25), `signals.test.sql` (20), `push_tokens.test.sql` (53), `monitor.test.sql` (53) and `account.test.sql` (17). `profiles.test.sql` covers
 the signup row and its defaults, own-row visibility, the update grants and each refused column,
 both RPCs including the repeat and withdrawal cases, the value checks, function privileges for
 `anon` and `authenticated`, and the refused insert and delete. `consent.test.sql` covers both consent tables (RLS, the seeded versions, the
@@ -368,7 +398,12 @@ minutes old but not 5 minutes or 25 hours, forgotten once checked), `push_ticket
 monitor function refused to `anon` and `authenticated`, granted to the service role and a definer with an empty
 `search_path`, `request_monitor()` owned by `postgres`, without the Vault secrets doing nothing and with them posting once with the header and the
 30 s timeout, the job at `5 * * * *`, and the prune (signals 30 days stale go, pushed or not, but the newest pushed quiet
-stretch stays; tickets over 2 days old go).
+stretch stays; tickets over 2 days old go). `account.test.sql` covers the cascade pin, the pinned set of 14 user tables, every foreign key to `auth.users` cascading from a pinned table,
+`doses` → `medications` staying NO ACTION, a deletion of a user with doses on a medication, an open episode and a row in
+every table leaving none of theirs and all of another user's, `save_signals` for a deleted user answering and storing
+nothing while another foreign key error (a probe key added in the test's transaction) still raises `23503` (still
+service-role only, a definer with an empty `search_path`), and the prune of `usage_counters` (31 days old
+goes, 30 and 29 stay) with the prune's definer, grants and comment.
 
 ## New table checklist
 
@@ -384,4 +419,5 @@ API until these close it:
 - `security definer` functions set `search_path = ''` and qualify every name.
 - An index on the column that per-user queries filter by, unless it is already the primary key or leads another index.
 - A pgTAP test for the policies, grants and constraints, including that user A cannot read or change user B's rows.
+- With a `user_id` or any other key to `auth.users`: `on delete cascade`, the name in `account.test.sql`'s `pinned_user_tables`, and an entry in `export-data`'s `EXPORTED_TABLES` (and its read) or `EXCLUDED_TABLES` ([account deletion and export](#account-deletion-and-export)).
 - `pnpm db:types`, and commit the generated types (CI fails on drift).

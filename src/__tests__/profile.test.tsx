@@ -117,6 +117,27 @@ test('"What I know about you" counts the notes with the AI off too, and opens on
   expect(router.push).toHaveBeenCalledWith('/memory');
 });
 
+test('"Your data" opens the export, the privacy policy in the UI language and, set apart after Sign out, the deletion', async () => {
+  const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
+  await render(<Profile />);
+  const { router } = jest.requireMock<{ router: { push: jest.Mock } }>('expo-router');
+
+  expect(screen.getByRole('header', { name: t('profile.sec.data') })).toBeOnTheScreen();
+  await fireEvent.press(screen.getByRole('button', { name: t('profile.export') }));
+  expect(router.push).toHaveBeenCalledWith('/export');
+
+  await fireEvent.press(screen.getByRole('link', { name: t('profile.privacy') }));
+  await fireEvent.press(screen.getByRole('link', { name: t('profile.privacy') }));
+  expect(openURL).toHaveBeenCalledTimes(2);
+  expect(openURL).toHaveBeenCalledWith(policyUrl('en'));
+
+  const buttons = screen.getAllByRole('button').map((element) => element.props.accessibilityLabel as unknown);
+  expect(buttons.indexOf(t('profile.delete'))).toBeGreaterThan(buttons.indexOf(t('profile.signOut')));
+  await fireEvent.press(screen.getByTestId('profile-delete'));
+  expect(router.push).toHaveBeenCalledWith('/delete-account');
+  openURL.mockRestore();
+});
+
 test('one note reads in the singular', async () => {
   jest.mocked(fetchAgentNotes).mockResolvedValue({
     ok: true,

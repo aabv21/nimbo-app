@@ -96,6 +96,8 @@ export default defineConfig(
       'src/ui/__tests__/ThemeProvider.test.tsx',
       'src/__tests__/{boundary,ai-consent,consent-gate,smoke,profile}.test.tsx',
       'src/__tests__/{cabinet,crisis,checkin,history,episode,onboarding,today,sign-out,companion,memory}.test.tsx',
+      'src/__tests__/{export,delete-account}.test.tsx',
+      'src/account/__tests__/*.test.{ts,tsx}',
       'src/cabinet/__tests__/*.test.{ts,tsx}',
       'src/checkin/__tests__/*.test.{ts,tsx}',
       'src/episodes/__tests__/*.test.{ts,tsx}',

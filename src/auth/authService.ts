@@ -8,6 +8,7 @@ export {
   resendSignUpCode,
   signInWithEmail,
   signOut,
+  signOutLocally,
   signUpWithEmail,
 } from './emailAuth';
 export { isGoogleSignInConfigured, signInWithApple, signInWithGoogle } from './socialAuth';

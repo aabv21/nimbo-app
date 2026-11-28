@@ -1,4 +1,4 @@
-import { kvGetJson, kvRemove, kvSet, parseJson } from '../kv';
+import { allowUserKeys, kvGet, kvGetJson, kvKeys, kvRemove, kvSet, kvUserRefused, parseJson, refuseUserKeys } from '../kv';
 
 const isPair = (value: unknown): value is { a: number } =>
   typeof value === 'object' && value !== null && typeof (value as { a?: unknown }).a === 'number';
@@ -24,4 +24,49 @@ test('parseJson reads a raw value the same way', () => {
   expect(parseJson('{"a":2}', isPair)).toEqual({ a: 2 });
   expect(parseJson(null, isPair)).toBeNull();
   expect(parseJson('{', isPair)).toBeNull();
+});
+
+describe('the post-deletion guard', () => {
+  afterEach(() => {
+    allowUserKeys('u1');
+    for (const key of kvKeys()) kvRemove(key);
+  });
+
+  test("after refuseUserKeys, a key with the user's id as any segment stores nothing, and another user's still stores", () => {
+    refuseUserKeys('u1');
+
+    kvSet('profile.u1', 'x');
+    kvSet('companion.quota.companion.u1.2026-12-01', '1');
+    kvSet('profile.u2', 'x');
+
+    expect(kvGet('profile.u1')).toBeNull();
+    expect(kvGet('companion.quota.companion.u1.2026-12-01')).toBeNull();
+    expect(kvGet('profile.u2')).toBe('x');
+    expect(kvUserRefused('u1')).toBe(true);
+  });
+
+  test('a segment only containing the id is not refused', () => {
+    refuseUserKeys('u1');
+
+    kvSet('profile.u10', 'x');
+
+    expect(kvGet('profile.u10')).toBe('x');
+  });
+
+  test('allowUserKeys lifts it', () => {
+    refuseUserKeys('u1');
+    allowUserKeys('u1');
+
+    kvSet('profile.u1', 'x');
+
+    expect(kvGet('profile.u1')).toBe('x');
+    expect(kvUserRefused('u1')).toBe(false);
+  });
+
+  test('kvKeys lists the stored keys', () => {
+    kvSet('a.one', '1');
+    kvSet('b.two', '2');
+
+    expect(kvKeys().sort()).toEqual(['a.one', 'b.two']);
+  });
 });

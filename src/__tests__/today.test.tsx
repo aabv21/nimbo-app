@@ -10,6 +10,7 @@ import { endEpisode, readOpenEpisode, startEpisode } from '../episodes/episodeSt
 import { formatClock } from '../i18n/format';
 import { translate } from '../i18n';
 import type { MessageKey, Params } from '../i18n';
+import { kvGet } from '../lib/kv';
 import { localDate } from '../lib/localDate';
 import { listOutbox } from '../lib/outbox/outbox';
 import { READY_PROFILE, resetAuth } from '../test/authMock';
@@ -128,12 +129,14 @@ test('at 12 hours Today asks whether the attack is over, and “Yes” ends it',
 });
 
 test('“Not yet” hides the question until the next 12 hours', async () => {
-  startEpisode('user-1', new Date(NOW.getTime() - 13 * 60 * 60 * 1000));
+  const id = startEpisode('user-1', new Date(NOW.getTime() - 13 * 60 * 60 * 1000));
   const first = await render(<Today />);
 
   await fireEvent.press(screen.getByRole('button', { name: t('crisis.over.not_yet') }));
   expect(screen.queryByText(t('crisis.over.title'))).not.toBeOnTheScreen();
   expect(readOpenEpisode('user-1')).not.toBeNull();
+  // Kept under the user's id, so the sign-out and deletion sweeps find it.
+  expect(kvGet(`today.over.user-1.${id}`)).toBe('1');
 
   // Still hidden on the next visit within the same 12 hours.
   await first.unmount();

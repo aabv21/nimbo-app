@@ -4,7 +4,7 @@ import { themes } from '../theme';
 
 test.each(['day', 'dark', 'dim'] as const)('%s meets the contrast floor', (name) => {
   const c = themes[name].color;
-  for (const [fg, bg] of [[c.text, c.bg], [c.text, c.surface], [c.textMuted, c.bg], [c.accentText, c.bg], [c.onAccent, c.accent]] as const) {
+  for (const [fg, bg] of [[c.text, c.bg], [c.text, c.surface], [c.textMuted, c.bg], [c.accentText, c.bg], [c.onAccent, c.accent], [c.onAccent, c.danger], [c.danger, c.bg]] as const) {
     expect(contrast(fg, bg)).toBeGreaterThanOrEqual(4.5);
   }
   for (const mark of [c.accent, c.danger, c.warning]) expect(contrast(mark, c.bg)).toBeGreaterThanOrEqual(3);

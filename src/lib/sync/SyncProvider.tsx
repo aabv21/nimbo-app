@@ -3,6 +3,11 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 
+import { confirmPendingDeletion } from '../../account/deletionFlow';
+import type { OutboxControl } from '../../account/deletionFlow';
+import { deletionState } from '../../account/deletionMarker';
+import { removeExports } from '../../account/deviceFiles';
+import { orphanOwners, sweepOrphanKeys } from '../../account/forgetAccount';
 import { useAuth } from '../../auth/AuthProvider';
 import { useLocalQuery } from '../local/useLocalQuery';
 import { purgeOtherUsers, purgeUser } from '../local/db';
@@ -11,7 +16,7 @@ import { removeCachedNotes } from '../../memory/agentNotesRepository';
 import { removeCachedProfile } from '../../profile/profileRepository';
 import { flushPendingUnregister, forgetPushTokenLater } from '../../push/pushRegistration';
 import { removeCachedSignals } from '../../signals/signalRepository';
-import { onEnqueue, outboxState, resetFailed, wakeOffline } from '../outbox/outbox';
+import { clearOutbox, onEnqueue, outboxState, resetFailed, wakeOffline } from '../outbox/outbox';
 import { pauseOutbox, resumeOutbox, rpcSender, runOutbox } from '../outbox/runOutbox';
 import type { OutboxDeps } from '../outbox/runOutbox';
 import { readStoredSession, supabase } from '../supabase';
@@ -20,8 +25,8 @@ import { pullAll } from './pull';
 
 /**
  * The agent's notes (the user's words about themselves, never queued), the debriefs marked done, today's pressure
- * row, and this phone's push token, unregistered through `push-unregister` with the device secret since the session
- * is gone.
+ * row, this phone's push token, unregistered through `push-unregister` with the device secret since the session
+ * is gone, and any export file (it holds health data).
  */
 function forgetUserCaches(userId: string): void {
   removeCachedNotes(userId);
@@ -29,6 +34,31 @@ function forgetUserCaches(userId: string): void {
   removeDebriefsDone(userId);
   forgetPushTokenLater(userId);
   void flushPendingUnregister();
+  try {
+    removeExports();
+  } catch {
+    // The cache directory is the OS's to purge; the next export or deletion removes it.
+  }
+}
+
+/** Something of `userId`'s is still to send, failed included: their data waits on the phone for them. */
+function hasQueued(userId: string): boolean {
+  const { pending, failed } = outboxState(userId);
+  return pending + failed > 0;
+}
+
+/** The outbox controls a deletion uses; `run` asks for a sync after a resume. */
+function outboxControl(userId: string, run: () => void): OutboxControl {
+  return {
+    pause: () => pauseOutbox(userId),
+    clear: () => {
+      clearOutbox(userId);
+    },
+    resume: (options) => {
+      resumeOutbox(userId);
+      if (options?.run !== false) run();
+    },
+  };
 }
 
 export interface SyncState {
@@ -38,6 +68,8 @@ export interface SyncState {
   syncing: boolean;
   /** Puts failed operations back in line and syncs now. */
   retry: () => void;
+  /** The pause, clear and resume an account deletion needs for `userId`'s outbox. */
+  outboxFor: (userId: string) => OutboxControl;
 }
 
 const SyncContext = createContext<SyncState | undefined>(undefined);
@@ -77,6 +109,16 @@ export function SyncProvider({ children }: { children: ReactNode }): React.JSX.E
         do {
           const user = userRef.current;
           if (user === null) break;
+          // An unconfirmed deletion: nothing is sent or pulled, only the account checked; a `kept` answer asks again.
+          if (deletionState(user) !== null) {
+            await confirmPendingDeletion(
+              user,
+              outboxControl(user, () => {
+                again.current = true;
+              }),
+            );
+            continue;
+          }
           await runOutbox(user, deps);
           if (userRef.current !== user) continue;
           // A failed pull keeps the mirror as it is; the next trigger tries again.
@@ -90,11 +132,15 @@ export function SyncProvider({ children }: { children: ReactNode }): React.JSX.E
     return cycle.current;
   }, []);
 
-  // At launch, rows of anyone but the signed-in user are left from a sign-out made while the app was closed.
+  // At launch, rows and kv keys of anyone but the signed-in user are left from a sign-out made while the app was closed.
   const launchUser = useRef(userId);
   useEffect(() => {
-    // Their notes and finished debriefs go as at a sign-out, whatever the outbox holds.
-    for (const user of purgeOtherUsers(launchUser.current)) forgetUserCaches(user);
+    const keep = launchUser.current;
+    // Their notes and finished debriefs go as at a sign-out, whatever the outbox holds; an account with only kv keys
+    // left (no rows) too. Then every key of an account with nothing queued goes, its profile cache included.
+    const forgotten = new Set([...purgeOtherUsers(keep), ...orphanOwners(keep, hasQueued)]);
+    for (const user of forgotten) forgetUserCaches(user);
+    sweepOrphanKeys(keep, hasQueued);
   }, []);
 
   useEffect(() => {
@@ -154,9 +200,17 @@ export function SyncProvider({ children }: { children: ReactNode }): React.JSX.E
     void sync();
   }, [userId, sync]);
 
+  const outboxFor = useCallback(
+    (user: string) =>
+      outboxControl(user, () => {
+        void sync();
+      }),
+    [sync],
+  );
+
   const value = useMemo(
-    () => ({ pending: counts.pending, failed: counts.failed, syncing, retry }),
-    [counts, syncing, retry],
+    () => ({ pending: counts.pending, failed: counts.failed, syncing, retry, outboxFor }),
+    [counts, syncing, retry, outboxFor],
   );
 
   return <SyncContext.Provider value={value}>{children}</SyncContext.Provider>;

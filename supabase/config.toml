@@ -429,6 +429,12 @@ verify_jwt = true
 [functions.push-claim]
 verify_jwt = true
 
+[functions.export-data]
+verify_jwt = true
+
+[functions.delete-account]
+verify_jwt = true
+
 # No session: a phone that signed out proves itself with its device secret instead (docs/api.md#push-unregister).
 [functions.push-unregister]
 verify_jwt = false

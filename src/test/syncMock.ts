@@ -2,7 +2,13 @@
 // () => require('../test/syncMock'))`. Nothing syncs and the banner state is empty.
 import type { SyncState } from '../lib/sync/SyncProvider';
 
-const state: SyncState = { pending: 0, failed: 0, syncing: false, retry: () => undefined };
+const state: SyncState = {
+  pending: 0,
+  failed: 0,
+  syncing: false,
+  retry: () => undefined,
+  outboxFor: () => ({ pause: () => Promise.resolve(), clear: () => undefined, resume: () => undefined }),
+};
 
 export function useSyncState(): SyncState {
   return state;

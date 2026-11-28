@@ -55,6 +55,7 @@ or Portuguese. It is not a medical device and never diagnoses or prescribes.
 | Condition pack | Shared code | The migraine catalogs, medication classes, overuse limits, red flags, emergency numbers, dose days and the crisis plan, in `supabase/functions/_shared/condition/`, imported by the app and the functions. |
 | `companion` | Edge Function | One chat message: the input screen, the quota, a bounded Claude tool loop over the caller's own rows and the reply screen ([The companion](#the-companion)). |
 | `push-claim`, `push-unregister` | Edge Functions | Reclaim a push token another account holds, by a code pushed to it; forget a token after a sign-out, with the device secret ([Push notifications](#push-notifications)). |
+| `export-data`, `delete-account` | Edge Functions | Answer everything the server keeps about the caller as one JSON file, read with their token (the service role only for `usage_counters`); delete the caller's auth user, whose cascade removes every row of theirs ([`api.md`](api.md#export-data), [`database.md`](database.md#account-deletion-and-export)). |
 | `monitor` | Edge Function | Every hour, from `pg_cron`: Expo's receipts, then each user's signals computed, stored and at most one neutral push sent ([Signals and the monitor](#signals-and-the-monitor)). |
 | Insights and signal rules | Shared code | `_shared/insights.ts` and `_shared/signals.ts`, pure, run on the phone over the mirror and on the server over `record_inputs` ([Insights](#insights)). |
 | Open-Meteo, Expo push | External | The pressure forecast and the push relay to FCM and APNs, called only by `monitor` (and `push-claim` for its code push). |
@@ -233,7 +234,13 @@ loses nothing. The modules are in [`app.md`](app.md#local-store-outbox-and-sync-
   and, once no send or pull can still write them, their rows are deleted except those still waiting to be
   sent (dirty, or with an unsent or failed call), which stay until that user signs back in; the pull
   brings the rest back then. Their chat, the cached agent notes (kv `memory.<userId>`) and the debriefs marked done (kv `debrief.done.<userId>`) are deleted in full whatever is queued, since nothing waits on them. The cached profile goes with them once nothing of theirs is queued. Signing
-  out from Profile with records not uploaded asks first, saying how many stay on this phone.
+  out from Profile with records not uploaded asks first, saying how many stay on this phone. At launch the kv keys of
+  any account but the signed-in one with nothing queued are swept too: every key an account owns carries its id.
+- **An account deletion cut in half.** The phone marks the deletion before calling `delete-account` and sends or
+  pulls nothing while the marker is there, so a lost answer is checked at the next launch, resume or reconnect, never
+  forgotten; once the account is gone it drops every row, kv key and export file of it and refuses later kv writes and
+  pulls for that id for the rest of the process, so a late answer can't bring anything back
+  ([`app.md`](app.md#account-deletion-on-the-phone)).
 - **Onboarding offline.** The last setup step queues `complete_onboarding` and stamps the profile on
   the phone, so the gate opens Today at once; the server stamp arrives with the next sync.
 
@@ -615,7 +622,8 @@ No feature is gated yet; the server check is the authority.
   or an account switch the previous user's rows are deleted, and a launch deletes any other user's
   rows left by a sign-out made while the app was closed. Only rows still waiting to be sent (dirty, or
   with an unsent or failed operation) stay until that user signs back in, and the cached profile stays
-  only while something of theirs is queued. Android backup is off
+  only while something of theirs is queued. A deletion drops all of them, queued or not, with the chat, the kv keys,
+  the reminders and the export file, which lives only in the cache directory and also goes at every sign-out. Android backup is off
   (`allowBackup: false`); iOS iCloud backup still includes the file, an open gap
   ([`native-config.md`](native-config.md#what-appjson-sets)).
 - **Repository.** Rulesets on `main`, `develop` and release tags require the CI checks; private

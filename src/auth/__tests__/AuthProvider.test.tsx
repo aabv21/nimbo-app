@@ -34,7 +34,8 @@ jest.mock('expo-sqlite', () => require('../../test/sqliteNode'));
 
 import UrgentCare from '../../app/urgent-care';
 import { translate } from '../../i18n';
-import { kvGet, kvRemove, kvSet } from '../../lib/kv';
+import { markDeletion } from '../../account/deletionMarker';
+import { allowUserKeys, kvGet, kvRemove, kvSet, kvUserRefused, refuseUserKeys } from '../../lib/kv';
 import { completeOp, enqueue, listOutbox } from '../../lib/outbox/outbox';
 import { clearLocalDb } from '../../test/localDbTest';
 import { nextRoute } from '../gate';
@@ -201,6 +202,34 @@ test('sign-out clears the profile from memory but keeps the cache for an offline
   expect(result.current).toMatchObject({ status: 'signedOut', userId: null, profile: null });
   const { readCachedProfileSync } = await import('../../profile/profileRepository');
   expect(readCachedProfileSync('u1')).toEqual(PROFILE);
+});
+
+describe('an account deletion', () => {
+  test("a sign-out drops the data of an account still marked deleting (the server may have finished)", async () => {
+    mockReadStoredSession.mockReturnValue({ userId: 'u1', email: null });
+    kvSet('profile.u1', JSON.stringify(PROFILE));
+    markDeletion('u1', 'deleting');
+    await renderHook(() => useAuth(), { wrapper });
+
+    await act(() => {
+      authStateCallback?.('SIGNED_OUT', null);
+    });
+
+    expect(kvGet('profile.u1')).toBeNull();
+    expect(kvGet('account.deleting.u1')).toBeNull();
+    allowUserKeys('u1');
+  });
+
+  test('a sign-in of the same account again lifts the kv refusal, since it still exists', async () => {
+    refuseUserKeys('u2');
+    await renderHook(() => useAuth(), { wrapper });
+
+    await act(() => {
+      authStateCallback?.('SIGNED_IN', { user: { id: 'u2' } });
+    });
+
+    expect(kvUserRefused('u2')).toBe(false);
+  });
 });
 
 const EXCERPT = 'the worst headache of my life';

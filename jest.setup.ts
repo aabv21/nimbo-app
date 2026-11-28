@@ -119,9 +119,18 @@ jest.mock('expo-sqlite/kv-store', () => {
       removeItemSync: (key: string): void => {
         store.delete(key);
       },
+      getAllKeysSync: (): string[] => [...store.keys()],
     },
   };
 });
+
+// The file system and the share sheet are native: an in-memory cache directory whose files a suite can list, and a
+// share sheet that is available and settles at once.
+jest.mock('expo-file-system', () => require('./src/test/fileSystemMock'));
+jest.mock('expo-sharing', () => ({
+  isAvailableAsync: jest.fn(() => Promise.resolve(true)),
+  shareAsync: jest.fn(() => Promise.resolve()),
+}));
 
 // React Native's Jest preset reports a font scale of 2, so every suite would render the large-text
 // layouts; default to the standard text size and let a large-text test mock it explicitly.

@@ -59,7 +59,7 @@ test('at 72 hours urgent care opens once with long_attack, and neither a resume 
 
   expect(show).toHaveBeenCalledTimes(1);
   expect(show).toHaveBeenCalledWith({ flags: ['long_attack'], source: 'duration', excerpt: null, episodeId: id });
-  expect(kvGet(`redflag.long.${id}`)).not.toBeNull();
+  expect(kvGet(`redflag.long.user-1.${id}`)).not.toBeNull();
 
   at(80);
   resume();
@@ -88,7 +88,7 @@ test('while urgent care is already showing it does not push a second screen, and
     useLongAttackWatch('user-1');
   });
   expect(show).not.toHaveBeenCalled();
-  expect(kvGet(`redflag.long.${id}`)).toBeNull();
+  expect(kvGet(`redflag.long.user-1.${id}`)).toBeNull();
 
   jest.mocked(currentUrgentCare).mockReturnValue(null);
   resume();

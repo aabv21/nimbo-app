@@ -6,6 +6,7 @@ import type { StyleProp, ViewStyle } from 'react-native';
 import Animated, { ReduceMotion, withSpring, withTiming } from 'react-native-reanimated';
 import type { EntryOrExitLayoutType } from 'react-native-reanimated';
 
+import { mix } from './color';
 import { crossFade, easingFor, spring, useMotion } from './motion';
 import type { MotionPreset } from './motion';
 import { controlHeight, crisisControlHeight, fonts, radius, space, type } from './theme';
@@ -20,7 +21,8 @@ export interface IconProps {
 interface ButtonProps {
   label: string;
   onPress: () => void;
-  variant?: 'primary' | 'secondary';
+  /** `danger` is the filled button of a destructive step (deleting the account), in place of the primary one. */
+  variant?: 'primary' | 'secondary' | 'danger';
   /** Crisis controls are 56 pt tall. */
   size?: 'regular' | 'crisis';
   icon?: ComponentType<IconProps>;
@@ -79,11 +81,13 @@ export function Button({
   const { scaleStyle, pressedStyle, onPressIn, onPressOut } = usePressFeedback();
 
   const inactive = disabled && !loading;
-  const primary = variant === 'primary';
-  const fill = inactive ? tone.disabledFill : primary ? color.accent : 'transparent';
-  const ink = inactive ? color.textMuted : primary ? color.onAccent : color.accentText;
-  const edge = inactive || primary ? 'transparent' : color.textMuted;
-  const pressedFill = primary ? tone.pressAccent : tone.pressSecondary;
+  const danger = variant === 'danger';
+  const filled = variant === 'primary' || danger;
+  const fill = inactive ? tone.disabledFill : danger ? color.danger : filled ? color.accent : 'transparent';
+  const ink = inactive ? color.textMuted : filled ? color.onAccent : color.accentText;
+  const edge = inactive || filled ? 'transparent' : color.textMuted;
+  // The danger fill darkens (or, in the dark themes, lightens) towards the text when pressed, like the accent's.
+  const pressedFill = danger ? mix(color.danger, color.text, 0.86) : filled ? tone.pressAccent : tone.pressSecondary;
   const shown = loading ? (loadingLabel ?? label) : label;
   const LeadIcon = loading ? Ellipsis : Icon;
 

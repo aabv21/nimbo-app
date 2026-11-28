@@ -8,7 +8,7 @@ jest.mock('../SyncProvider', () => ({ useSyncState: jest.fn() }));
 const retry = jest.fn();
 
 function syncState(pending: number, failed: number): void {
-  jest.mocked(useSyncState).mockReturnValue({ pending, failed, syncing: pending > 0, retry });
+  jest.mocked(useSyncState).mockReturnValue({ pending, failed, syncing: pending > 0, retry, outboxFor: jest.fn() });
 }
 
 beforeEach(() => {

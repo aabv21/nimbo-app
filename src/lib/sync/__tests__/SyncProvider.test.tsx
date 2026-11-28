@@ -1,7 +1,8 @@
 import { act, render } from '@testing-library/react-native';
 import { useEffect } from 'react';
 
-import { kvGet, kvSet } from '../../kv';
+import { markDeletion } from '../../../account/deletionMarker';
+import { kvGet, kvKeys, kvRemove, kvSet } from '../../kv';
 import { readStoredSession } from '../../supabase';
 import { resetAuth, setAuth } from '../../../test/authMock';
 import { clearLocalDb, insertEpisode } from '../../../test/localDbTest';
@@ -292,6 +293,78 @@ describe('rows left on the phone', () => {
     }
     expect(kvGet('memory.user-1')).toBe('[]');
     expect(kvGet('debrief.done.user-1')).toBe('["e1"]');
+  });
+});
+
+describe('kv keys left on the phone', () => {
+  const GONE = '0b7f6d7e-1111-4c4c-9a9a-000000000001';
+  const QUEUED = '0b7f6d7e-2222-4c4c-9a9a-000000000002';
+  const EPISODE = '0b7f6d7e-eeee-4c4c-9a9a-0000000000e9';
+
+  beforeEach(() => {
+    for (const key of kvKeys()) kvRemove(key);
+  });
+
+  test('startup sweeps the keys of a user with no rows and nothing queued, and keeps a queued one and the device-wide ones', async () => {
+    for (const key of [`profile.${GONE}`, `premium.${GONE}`, `signals.${GONE}`, `redflag.long.${EPISODE}`, `profile.${QUEUED}`]) {
+      kvSet(key, 'x');
+    }
+    kvSet('locale-preference', 'es');
+    kvSet('profile.user-1', 'mine');
+    localDb().withTransactionSync(() => {
+      enqueue(QUEUED, 'complete_onboarding', {});
+    });
+
+    await render(
+      <SyncProvider>
+        <Probe />
+      </SyncProvider>,
+    );
+    await flush();
+
+    expect(kvKeys().sort()).toEqual([`profile.${QUEUED}`, 'locale-preference', 'profile.user-1'].sort());
+  });
+});
+
+describe('an unconfirmed deletion', () => {
+  afterEach(() => {
+    kvRemove('account.deleting.user-1');
+  });
+
+  test('nothing is sent or pulled while the marker is there; the account is only checked', async () => {
+    markDeletion('user-1', 'deleting');
+
+    await render(
+      <SyncProvider>
+        <Probe />
+      </SyncProvider>,
+    );
+    await flush();
+
+    expect(runOutbox).not.toHaveBeenCalled();
+    expect(pullAll).not.toHaveBeenCalled();
+  });
+
+  test("outboxFor gives the deletion this user's pause, clear and resume", async () => {
+    await render(
+      <SyncProvider>
+        <Probe />
+      </SyncProvider>,
+    );
+    await flush();
+    insertEpisode('user-1', 'queued-episode');
+    localDb().withTransactionSync(() => {
+      enqueue('user-1', 'delete_episode', { p_id: 'queued-episode' });
+    });
+    const control = state?.outboxFor('user-1');
+
+    await control?.pause();
+    control?.clear();
+    control?.resume({ run: false });
+
+    expect(pauseOutbox).toHaveBeenCalledWith('user-1');
+    expect(listOutbox('user-1')).toEqual([]);
+    expect(resumeOutbox).toHaveBeenLastCalledWith('user-1');
   });
 });
 

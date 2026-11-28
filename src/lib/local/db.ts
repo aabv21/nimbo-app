@@ -176,6 +176,21 @@ export function purgeUser(userId: string): boolean {
 }
 
 /**
+ * After an account deletion: every row of `userId` goes, dirty or queued included, since nothing of theirs can be sent
+ * any more. Unlike `purgeUser`, nothing waits for the user to come back.
+ */
+export function forgetUserRows(userId: string): void {
+  const db = localDb();
+  db.withTransactionSync(() => {
+    // Each name comes from the fixed lists above.
+    for (const table of [...MIRROR_TABLES, 'chat_messages', 'outbox'] as const) {
+      db.runSync(`DELETE FROM ${table} WHERE user_id = ?;`, [userId]);
+    }
+  });
+  notifyChanged([...MIRROR_TABLES, 'chat_messages', 'outbox']);
+}
+
+/**
  * At launch: purges every user but `keepUserId`, which covers a sign-out made while the app was closed (or a row left
  * by one). Returns the users it purged, so the caller can drop their kv caches too.
  */

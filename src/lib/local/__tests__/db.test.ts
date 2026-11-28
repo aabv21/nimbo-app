@@ -1,6 +1,6 @@
 import { clearLocalDb, insertEpisode } from '../../../test/localDbTest';
 import { enqueue } from '../../outbox/outbox';
-import { localDb, notifyChanged, purgeOtherUsers, purgeUser, subscribeTables } from '../db';
+import { forgetUserRows, localDb, notifyChanged, purgeOtherUsers, purgeUser, subscribeTables } from '../db';
 
 jest.mock('expo-sqlite', () => require('../../../test/sqliteNode'));
 
@@ -138,4 +138,31 @@ describe('purging a user', () => {
     purgeOtherUsers(null);
     expect(rowsOf('clean')).toBe(0);
   });
+});
+
+test("forgetUserRows deletes every mirror, chat and outbox row of that user, dirty or queued, and notifies every table", () => {
+  clearLocalDb();
+  insertEpisode('gone', 'clean');
+  insertEpisode('gone', 'queued');
+  insertEpisode('kept', 'theirs');
+  localDb().withTransactionSync(() => {
+    enqueue('gone', 'delete_episode', { p_id: 'queued' });
+  });
+  localDb().runSync("INSERT INTO checkins (user_id, local_date, dirty) VALUES ('gone', '2026-11-27', 1);");
+  localDb().runSync(
+    "INSERT INTO chat_messages (user_id, role, text, created_at, status, mode) VALUES ('gone', 'user', 'hi', 1, 'sent', 'chat');",
+  );
+  const listener = jest.fn();
+  const stop = subscribeTables(['episodes', 'medications', 'doses', 'checkins', 'chat_messages', 'outbox'], listener);
+
+  forgetUserRows('gone');
+
+  const count = (sql: string): number => localDb().getFirstSync<{ n: number }>(sql)?.n ?? -1;
+  for (const table of ['episodes', 'medications', 'doses', 'checkins', 'chat_messages', 'outbox']) {
+    // `table` comes from the fixed list above.
+    expect(count(`SELECT COUNT(*) AS n FROM ${table} WHERE user_id = 'gone';`)).toBe(0);
+  }
+  expect(count("SELECT COUNT(*) AS n FROM episodes WHERE user_id = 'kept';")).toBe(1);
+  expect(listener).toHaveBeenCalled();
+  stop();
 });

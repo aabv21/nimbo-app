@@ -1,6 +1,6 @@
 import { localDb } from '../../local/db';
 import { clearLocalDb, dirtyOf, insertEpisode } from '../../../test/localDbTest';
-import { enqueue, listOutbox, queuedAt, resetFailed } from '../outbox';
+import { clearOutbox, enqueue, listOutbox, queuedAt, resetFailed } from '../outbox';
 import { runOutbox } from '../runOutbox';
 import type { SendResult } from '../errors';
 
@@ -117,4 +117,17 @@ test('finishing onboarding queues with no mirror row and is found while unsent, 
   resetFailed('user-a');
   await runOutbox('user-a', { send: () => Promise.resolve<SendResult>({ ok: true }), sessionUserId: () => 'user-a' });
   expect(queuedAt('user-a', 'complete_onboarding')).toBeNull();
+});
+
+test("clearOutbox drops every operation of that user, failed ones included, and marks their rows clean, another user's untouched", () => {
+  logEpisode('user-a');
+  logEpisode('user-b', '00000000-0000-4000-8000-000000000002');
+  localDb().runSync("UPDATE outbox SET failed = 1 WHERE user_id = 'user-a';");
+
+  clearOutbox('user-a');
+
+  expect(listOutbox('user-a')).toEqual([]);
+  expect(dirtyOf('episodes', EPISODE)).toBe(0);
+  expect(listOutbox('user-b')).toHaveLength(1);
+  expect(dirtyOf('episodes', '00000000-0000-4000-8000-000000000002')).toBe(1);
 });

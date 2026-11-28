@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { ChevronRight } from 'lucide-react-native';
+import { ChevronRight, ExternalLink, Trash2 } from 'lucide-react-native';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { AccessibilityInfo, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -73,39 +73,68 @@ function CabinetRow({ userId }: { userId: string }): React.JSX.Element {
   );
 }
 
-/**
- * Opens the agent's notes, with the AI on or off: they are the user's data either way. The count shows once a cached
- * copy or a read exists.
- */
-function MemoryRow({ userId }: { userId: string }): React.JSX.Element {
-  const { t, tp } = useI18n();
+/** A row that opens a screen or a page; `danger` is the destructive one, set apart at the end. */
+function NavRow({
+  testID,
+  label,
+  trailing,
+  danger = false,
+  role = 'button',
+  onPress,
+}: {
+  testID: string;
+  label: string;
+  trailing?: string;
+  danger?: boolean;
+  role?: 'button' | 'link';
+  onPress: () => void;
+}): React.JSX.Element {
   const { color } = useTheme();
   const tones = useTones();
-  const { notes } = useAgentNotes(userId);
   const once = useOncePerFocus();
   const { scaleStyle, pressedStyle, onPressIn, onPressOut } = usePressFeedback();
+  const ink = danger ? color.danger : color.text;
   return (
     <Animated.View style={scaleStyle}>
       <Pressable
-        testID="profile-memory"
-        accessibilityRole="button"
+        testID={testID}
+        accessibilityRole={role}
+        accessibilityLabel={trailing === undefined ? label : `${label}, ${trailing}`}
         onPress={() => {
-          once(() => {
-            router.push('/memory');
-          });
+          // A link leaves the app, which never refocuses this screen, so only in-app navigation is once per visit.
+          if (role === 'link') onPress();
+          else once(onPress);
         }}
         onPressIn={onPressIn}
         onPressOut={onPressOut}
         style={[styles.navRow, { borderColor: color.border }]}
       >
         <Animated.View pointerEvents="none" style={[styles.pressed, { backgroundColor: tones.pressSecondary }, pressedStyle]} />
-        <Text style={[styles.body, styles.navLabel, { color: color.text }]}>{t('profile.memory')}</Text>
-        {notes === null ? null : (
-          <Text style={[styles.sub, { color: color.textMuted }]}>{tp('profile.memory.count', notes.length)}</Text>
-        )}
-        <ChevronRight size={20} color={color.textMuted} />
+        {danger ? <Trash2 size={20} color={ink} /> : null}
+        <Text style={[styles.body, styles.navLabel, { color: ink }]}>{label}</Text>
+        {trailing === undefined ? null : <Text style={[styles.sub, { color: color.textMuted }]}>{trailing}</Text>}
+        {role === 'link' ? <ExternalLink size={20} color={color.textMuted} /> : <ChevronRight size={20} color={danger ? ink : color.textMuted} />}
       </Pressable>
     </Animated.View>
+  );
+}
+
+/**
+ * Opens the agent's notes, with the AI on or off: they are the user's data either way. The count shows once a cached
+ * copy or a read exists.
+ */
+function MemoryRow({ userId }: { userId: string }): React.JSX.Element {
+  const { t, tp } = useI18n();
+  const { notes } = useAgentNotes(userId);
+  return (
+    <NavRow
+      testID="profile-memory"
+      label={t('profile.memory')}
+      {...(notes === null ? {} : { trailing: tp('profile.memory.count', notes.length) })}
+      onPress={() => {
+        router.push('/memory');
+      }}
+    />
   );
 }
 
@@ -258,7 +287,7 @@ function SignOutButton(): React.JSX.Element {
 }
 
 export default function Profile(): React.JSX.Element | null {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const { color } = useTheme();
   const { profile, email, userId } = useAuth();
   const { preference, setPreference } = useLocalePreference();
@@ -332,7 +361,25 @@ export default function Profile(): React.JSX.Element | null {
 
       <Section title={t('profile.companion')}>
         <CompanionSetting enabled={profile.aiEnabled} pending={needsAiReconsent(profile)} />
+      </Section>
+
+      <Section title={t('profile.sec.data')}>
         {userId === null ? null : <MemoryRow key={userId} userId={userId} />}
+        <NavRow
+          testID="profile-export"
+          label={t('profile.export')}
+          onPress={() => {
+            router.push('/export');
+          }}
+        />
+        <NavRow
+          testID="profile-privacy"
+          label={t('profile.privacy')}
+          role="link"
+          onPress={() => {
+            Linking.openURL(policyUrl(locale)).catch(() => undefined);
+          }}
+        />
       </Section>
 
       <Section title={t('profile.account')}>
@@ -341,6 +388,18 @@ export default function Profile(): React.JSX.Element | null {
         )}
         <SignOutButton />
       </Section>
+
+      {/* Set apart at the end, away from everyday settings. */}
+      <View style={styles.apart}>
+        <NavRow
+          testID="profile-delete"
+          label={t('profile.delete')}
+          danger
+          onPress={() => {
+            router.push('/delete-account');
+          }}
+        />
+      </View>
     </Screen>
   );
 }
@@ -357,4 +416,5 @@ const styles = StyleSheet.create({
   navLabel: { flex: 1 },
   pressed: { ...StyleSheet.absoluteFill, opacity: 0 },
   confirm: { gap: space[3], padding: space[3], borderRadius: radius.card, borderWidth: 1 },
+  apart: { marginTop: space[4] },
 });

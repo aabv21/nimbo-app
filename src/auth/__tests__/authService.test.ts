@@ -33,6 +33,7 @@ import {
   signInWithApple,
   signInWithEmail,
   signOut,
+  signOutLocally,
   signUpWithEmail,
 } from '../authService';
 import type { Client } from '../authService';
@@ -206,6 +207,34 @@ describe('signInWithEmail before the email is confirmed', () => {
       ok: false,
       error: 'auth.error.emailNotConfirmed',
     });
+  });
+});
+
+describe('signOutLocally (after an account deletion)', () => {
+  test('signs out with the local scope only, leaving storage alone when it works', async () => {
+    const client = fakeClient();
+    const clearStoredAuth = jest.fn();
+
+    await signOutLocally(asClient(client), clearStoredAuth);
+
+    expect(client.auth.signOut).toHaveBeenCalledTimes(1);
+    expect(client.auth.signOut).toHaveBeenCalledWith({ scope: 'local' });
+    expect(clearStoredAuth).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    ['answers an error', (client: { auth: FakeAuth }) => client.auth.signOut.mockResolvedValueOnce({ error: new AuthError('x', 500, 'unexpected_failure') })],
+    ['throws', (client: { auth: FakeAuth }) => client.auth.signOut.mockRejectedValueOnce(new TypeError('Network request failed'))],
+  ])('when the local sign-out %s, clears the stored session and signs out locally again, never throwing', async (_label, fail) => {
+    const client = fakeClient();
+    fail(client);
+    const clearStoredAuth = jest.fn();
+
+    await expect(signOutLocally(asClient(client), clearStoredAuth)).resolves.toBeUndefined();
+
+    expect(clearStoredAuth).toHaveBeenCalledTimes(1);
+    expect(client.auth.signOut).toHaveBeenCalledTimes(2);
+    expect(client.auth.signOut).toHaveBeenNthCalledWith(2, { scope: 'local' });
   });
 });
 

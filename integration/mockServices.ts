@@ -114,6 +114,16 @@ export function jevAnswersWith(request: unknown, overrides: Readonly<Record<stri
 
 const DEFAULT_JEV: JevReply = (body) => ({ status: 200, body: jevAnswersWith(body, {}) });
 
+let weatherHook: (() => Promise<void>) | null = null;
+
+/**
+ * Sets a step every following valid `GET /v1/forecast` awaits before it answers (null removes it), so a test can act
+ * while a function waits on the forecast. A hook that throws turns that answer into a 500.
+ */
+export function onWeatherRequest(hook: (() => Promise<void>) | null): void {
+  weatherHook = hook;
+}
+
 /** The hour in progress, in UTC. */
 function currentHour(): Date {
   const now = new Date();
@@ -268,7 +278,23 @@ export function startMockServices(port = 54518): Promise<MockServices> {
       if (request.method === 'GET' && path === FORECAST_PATH) {
         forecasts.push(url);
         const problem = forecastProblem(url);
-        send(response, problem === null ? replyOf(forecastReply, url) : { status: 400, body: { error: true, reason: problem } });
+        if (problem !== null) {
+          send(response, { status: 400, body: { error: true, reason: problem } });
+          return;
+        }
+        const hook = weatherHook;
+        if (hook === null) {
+          send(response, replyOf(forecastReply, url));
+          return;
+        }
+        hook().then(
+          () => {
+            send(response, replyOf(forecastReply, url));
+          },
+          (error: unknown) => {
+            send(response, { status: 500, body: { reason: error instanceof Error ? error.message : 'weather hook failed' } });
+          },
+        );
         return;
       }
       if (request.method === 'POST' && path === EXPO_SEND_PATH) {

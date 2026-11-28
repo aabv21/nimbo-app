@@ -1,6 +1,7 @@
 // Refreshes the local mirror from the server: every row of the user, table by table, then one local write.
 // NOTE: a full pull suits a few thousand rows per user; upgrade: incremental pull on `updated_at` plus tombstones once a pull takes seconds.
 import type { Client } from '../../auth/emailAuth';
+import { kvUserRefused } from '../kv';
 import { localDb, notifyChanged } from '../local/db';
 import { unsentRecordKeys } from '../outbox/outbox';
 import { toRequestErrorKind, toThrownErrorKind } from '../requestResult';
@@ -122,6 +123,8 @@ export async function pullAll(userId: string, client: Client = supabase): Promis
     return { ok: false, kind: toThrownErrorKind(error) };
   }
 
+  // The account was deleted on this phone while the pull was out: its rows must not come back.
+  if (kvUserRefused(userId)) return { ok: true, value: undefined };
   // Read after the fetch, in the same transaction as the write: an enqueue made while the pull was out is seen.
   localDb().withTransactionSync(() => {
     const unsent = unsentRecordKeys(userId);

@@ -3,6 +3,7 @@ import { act, renderHook } from '@testing-library/react-native';
 import { insertEpisode, clearLocalDb } from '../../test/localDbTest';
 import { SQLiteDatabase } from '../../test/sqliteNode';
 import { localDb, purgeOtherUsers, purgeUser, SCHEMA_V1, SCHEMA_V2 } from '../../lib/local/db';
+import { allowUserKeys, refuseUserKeys } from '../../lib/kv';
 import { enqueue } from '../../lib/outbox/outbox';
 import { appendMessage, CHAT_KEEP, updateMessage, useChat } from '../chatStore';
 import type { ChatMessage, ChatPayload } from '../chatStore';
@@ -207,4 +208,12 @@ test('a version 2 database with chat rows opens as version 3: old messages read 
     expect(chat.readMessage('user-a', id)?.input).toBe('voice');
     expect(opened.getFirstSync("SELECT name FROM sqlite_master WHERE type = 'trigger';")).toEqual({ name: 'chat_messages_keep' });
   });
+});
+
+test('a reply that lands after the account was deleted on this phone stores nothing', () => {
+  refuseUserKeys('user-a');
+
+  expect(appendMessage('user-a', message('late', { role: 'assistant', status: 'answered' }))).toBe(-1);
+  expect(chatCount('user-a')).toBe(0);
+  allowUserKeys('user-a');
 });

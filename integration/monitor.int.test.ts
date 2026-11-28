@@ -9,7 +9,7 @@ import { promisify } from 'node:util';
 import { signInWithEmail } from '../src/auth/emailAuth';
 import { cellKey } from '../supabase/functions/_shared/weather.ts';
 import { anonClient, createUser, deleteUser, loadIntegrationEnv, serviceClient, uniqueEmail } from './helpers';
-import { type MockServices, pressureForecast, startMockServices } from './mockServices';
+import { type MockServices, onWeatherRequest, pressureForecast, startMockServices } from './mockServices';
 
 loadIntegrationEnv();
 
@@ -24,6 +24,8 @@ const ZONE = 'America/Bogota';
 // A cell no other test uses.
 const CELL = { lat: 12.3, lon: -45.6 };
 const KEY = cellKey(CELL.lat, CELL.lon);
+// The account deleted mid-run gets a cell of its own, so its forecast is fetched (not cached) during that run.
+const DELETED_CELL = { lat: 23.4, lon: -56.7 };
 const POLL_INTERVAL_MS = 250;
 
 let services: MockServices;
@@ -65,7 +67,10 @@ function windowAroundNow(): { notify_start: string; notify_end: string } {
 }
 
 const clearCell = async (): Promise<void> => {
-  const { error } = await serviceClient().from('weather_cache').delete().eq('location_key', KEY);
+  const { error } = await serviceClient()
+    .from('weather_cache')
+    .delete()
+    .in('location_key', [KEY, cellKey(DELETED_CELL.lat, DELETED_CELL.lon)]);
   expect(error).toBeNull();
 };
 
@@ -78,13 +83,14 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  onWeatherRequest(null);
   await clearCell();
   for (const id of users) await deleteUser(id);
   await services.close();
 });
 
 /** An onboarded user in Bogotá who chose weather, in the test's cell, inside their window, with `pushToken` registered. */
-async function seedUser(pushToken: string): Promise<string> {
+async function seedUser(pushToken: string, cell: { lat: number; lon: number } = CELL): Promise<string> {
   const email = uniqueEmail('monitor');
   const id = await createUser(email, PASSWORD);
   users.push(id);
@@ -95,7 +101,7 @@ async function seedUser(pushToken: string): Promise<string> {
   expect((await client.rpc('complete_onboarding')).error).toBeNull();
   const { error } = await client
     .from('profiles')
-    .update({ timezone: ZONE, known_triggers: ['weather'], coarse_lat: CELL.lat, coarse_lon: CELL.lon, ...windowAroundNow() })
+    .update({ timezone: ZONE, known_triggers: ['weather'], coarse_lat: cell.lat, coarse_lon: cell.lon, ...windowAroundNow() })
     .eq('user_id', id);
   expect(error).toBeNull();
   const registered = await client.rpc('register_push_token', { p_token: pushToken, p_platform: 'android', p_device_secret: randomBytes(32).toString('hex') });
@@ -148,6 +154,31 @@ test('two runs at once push a fresh signal exactly once (the claim’s per-user 
   expect(data).toHaveLength(1);
   // The cell was already cached, so neither run asked the provider again.
   expect(forecastsForCell()).toHaveLength(1);
+});
+
+test('an account deleted while the run waits on its forecast gets no push, and the run answers 200 without a failure', async () => {
+  const deletedToken = `ExponentPushToken[int-monitor-${randomUUID()}]`;
+  const deleted = await seedUser(deletedToken, DELETED_CELL);
+  let deletions = 0;
+  onWeatherRequest(async () => {
+    deletions += 1;
+    if (deletions === 1) await deleteUser(deleted);
+  });
+
+  try {
+    const response = await postMonitor();
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ outcome: 'done', pushed: 0, failed: 0 });
+  } finally {
+    onWeatherRequest(null);
+  }
+  expect(deletions).toBe(1);
+  expect(pushesTo(deletedToken)).toHaveLength(0);
+  const { data, error } = await serviceClient().from('signals').select('id').eq('user_id', deleted);
+  expect(error).toBeNull();
+  expect(data).toEqual([]);
+  expect((await serviceClient().auth.admin.getUserById(deleted)).error).not.toBeNull();
 });
 
 test('a wrong secret is refused', async () => {

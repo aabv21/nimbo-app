@@ -13,9 +13,11 @@ interface NoticeProps {
   title: string;
   body?: string;
   action?: { label: string; onPress: () => void };
+  /** A stable English id for the Maestro flows; never copy. */
+  testID?: string;
 }
 
-export function Notice({ tone, title, body, action }: NoticeProps): React.JSX.Element {
+export function Notice({ tone, title, body, action, testID }: NoticeProps): React.JSX.Element {
   const { color } = useTheme();
   const tones = useTones();
   const danger = tone === 'danger';
@@ -25,6 +27,7 @@ export function Notice({ tone, title, body, action }: NoticeProps): React.JSX.El
 
   return (
     <View
+      testID={testID}
       // A danger notice interrupts a screen reader; the others wait their turn.
       accessibilityRole={danger ? 'alert' : 'summary'}
       accessibilityLiveRegion={danger ? 'assertive' : 'polite'}

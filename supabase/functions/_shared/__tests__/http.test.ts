@@ -171,6 +171,20 @@ describe('reply', () => {
       expect(response.headers.get('content-type')).toBe('application/json');
       expect(await response.json()).toEqual({ outcome: 'deleted' });
       expect(info.mock.calls).toEqual([[JSON.stringify({ outcome: 'deleted', revoke: 'skipped' })]]);
+      expect(response.headers.get('cache-control')).toBeNull();
+    } finally {
+      info.mockRestore();
+    }
+  });
+
+  test('adds extra headers without letting them replace the JSON content type or reach the log', async () => {
+    const info = jest.spyOn(console, 'info').mockImplementation(() => undefined);
+    try {
+      const response = reply('exported', 200, { ok: true }, {}, { 'cache-control': 'no-store', 'content-type': 'text/html' });
+      expect(response.headers.get('cache-control')).toBe('no-store');
+      expect(response.headers.get('content-type')).toBe('application/json');
+      expect(await response.json()).toEqual({ ok: true });
+      expect(info.mock.calls).toEqual([[JSON.stringify({ outcome: 'exported' })]]);
     } finally {
       info.mockRestore();
     }

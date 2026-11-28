@@ -50,6 +50,8 @@ interface OutboxRow {
 // The chat is never queued: it stays on the phone.
 type MirrorTable = Exclude<LocalTable, 'outbox' | 'chat_messages'>;
 
+const MIRROR_TABLES: readonly MirrorTable[] = ['episodes', 'medications', 'doses', 'checkins'];
+
 const CHECKIN_PREFIX = 'checkin:';
 const ONBOARDING_KEY = 'profile:onboarding';
 
@@ -230,6 +232,20 @@ export function completeOp(op: OutboxOp): void {
 export function wakeOffline(userId: string): void {
   localDb().runSync('UPDATE outbox SET next_attempt_at = 0 WHERE user_id = ? AND failed = 0 AND no_responses > 0;', [userId]);
   notifyChanged(['outbox']);
+}
+
+/**
+ * Drops every operation of `userId`, failed or not, and marks their rows clean: only for an account the server deleted,
+ * whose calls could never be sent.
+ */
+export function clearOutbox(userId: string): void {
+  const db = localDb();
+  db.withTransactionSync(() => {
+    db.runSync('DELETE FROM outbox WHERE user_id = ?;', [userId]);
+    // Each name comes from the fixed list, never input.
+    for (const table of MIRROR_TABLES) db.runSync(`UPDATE ${table} SET dirty = 0 WHERE user_id = ?;`, [userId]);
+  });
+  notifyChanged(['outbox', ...MIRROR_TABLES]);
 }
 
 /** "Try again": every operation of `userId`, failed or waiting out a backoff, is due now with fresh attempts. */

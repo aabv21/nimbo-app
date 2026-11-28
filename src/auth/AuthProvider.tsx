@@ -1,6 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 
+import { forgetInterruptedDeletions } from '../account/deletionMarker';
+import { allowUserKeys } from '../lib/kv';
 import { queuedAt } from '../lib/outbox/outbox';
 import { useOnResume } from '../lib/useOnResume';
 import { readStoredSession, startAuthAutoRefresh, supabase } from '../lib/supabase';
@@ -45,6 +47,15 @@ function initialState(): State {
   }
   const profile = readCachedProfileSync(stored.userId);
   return { status: profile === null ? 'loading' : 'signedIn', userId: stored.userId, email: stored.email, profile };
+}
+
+/** Best effort: a storage error must never block a sign-in or the signed-out state; the next one retries. */
+function forgetDeletionsSafely(activeUserId: string | null): void {
+  try {
+    forgetInterruptedDeletions(activeUserId);
+  } catch {
+    // Retried at the next sign-out or sign-in.
+  }
 }
 
 const SIGNED_OUT: State = { status: 'signedOut', userId: null, email: null, profile: null };
@@ -112,6 +123,8 @@ export function AuthProvider({ children }: { children: ReactNode }): React.JSX.E
       }
 
       if (nextUserId === null) {
+        // A session that ended mid-deletion (supabase-js signs out once the account is gone) leaves no data behind.
+        forgetDeletionsSafely(null);
         currentUserIdRef.current = null;
         setCurrentUserId(null);
         failedReadRef.current = false;
@@ -131,7 +144,10 @@ export function AuthProvider({ children }: { children: ReactNode }): React.JSX.E
       const userChanged = currentUserIdRef.current !== nextUserId;
       currentUserIdRef.current = nextUserId;
       setCurrentUserId(nextUserId);
+      if (userChanged || event === 'INITIAL_SESSION') forgetDeletionsSafely(nextUserId);
       if (userChanged) {
+        // A session proves the account still exists, so its kv writes are allowed again.
+        allowUserKeys(nextUserId);
         clearUrgentCare();
         const cached = readCachedProfileSync(nextUserId);
         setState({ status: cached === null ? 'loading' : 'signedIn', userId: nextUserId, email, profile: cached });

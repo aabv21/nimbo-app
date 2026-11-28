@@ -2,6 +2,7 @@
 // Each write is one statement with no transaction of its own, so a store transaction can include it.
 import { useCallback } from 'react';
 
+import { kvUserRefused } from '../lib/kv';
 import { localDb, notifyChanged } from '../lib/local/db';
 import { useLocalQuery } from '../lib/local/useLocalQuery';
 import type { Draft, Evidence, Guard, Mode, ReplacedReason } from './contract';
@@ -75,8 +76,12 @@ function announce(): void {
   });
 }
 
-/** Stores the message and returns its id; the table's trigger deletes the user's messages past `CHAT_KEEP`. */
+/**
+ * Stores the message and returns its id; the table's trigger deletes the user's messages past `CHAT_KEEP`. An account
+ * deleted on this phone stores nothing (a late reply), and gets `-1`, which no update matches.
+ */
 export function appendMessage(userId: string, message: Omit<ChatMessage, 'id'>): number {
+  if (kvUserRefused(userId)) return -1;
   const { lastInsertRowId } = localDb().runSync(
     'INSERT INTO chat_messages (user_id, role, input, text, template, created_at, status, mode, payload) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);',
     [

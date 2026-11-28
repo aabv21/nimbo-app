@@ -108,6 +108,21 @@ async function signOutWithScope(client: Client, scope?: 'local'): Promise<Result
 }
 
 /**
+ * The sign-out after an account deletion (Auth now rejects its tokens), so there is nothing to revoke. Never fails: when
+ * supabase-js can't finish, the stored session is deleted directly and the local sign-out retried, which emits SIGNED_OUT.
+ */
+export async function signOutLocally(client: Client = supabase, clearStoredAuth: () => void = clearPersistedAuth): Promise<void> {
+  const local = await signOutWithScope(client, 'local');
+  if (local.ok) return;
+  try {
+    clearStoredAuth();
+  } catch {
+    // The retry below still clears supabase-js's in-memory session.
+  }
+  await signOutWithScope(client, 'local');
+}
+
+/**
  * Global scope revokes the refresh tokens; offline it falls back to local. With an expired token
  * supabase-js gives up refreshing without clearing, so the stored session is deleted and the local
  * sign-out retried, which emits SIGNED_OUT (after up to ~30 s of refresh retries).

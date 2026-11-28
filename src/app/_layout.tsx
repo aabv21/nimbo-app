@@ -154,6 +154,8 @@ function GatedStack(): React.JSX.Element {
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="episode" />
           <Stack.Screen name="memory" />
+          <Stack.Screen name="export" />
+          <Stack.Screen name="delete-account" />
           {/* Draws its own scrim and sheet motion over Today, which stays visible below it. */}
           <Stack.Screen name="checkin" options={{ presentation: 'transparentModal', animation: 'none' }} />
           {/* Opens over anything at once and cannot be swiped away: leaving is a choice on the screen. */}

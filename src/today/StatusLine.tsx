@@ -108,8 +108,9 @@ export function AttackCard({ userId, episode }: { userId: string; episode: Episo
   );
 }
 
-function overKey(episodeId: string): string {
-  return `today.over.${episodeId}`;
+// The user id segment lets the sign-out and deletion sweeps find it.
+function overKey(userId: string, episodeId: string): string {
+  return `today.over.${userId}.${episodeId}`;
 }
 
 /**
@@ -119,7 +120,7 @@ function overKey(episodeId: string): string {
 export function OverQuestion({ userId, episode, now }: { userId: string; episode: Episode; now: Date }): React.JSX.Element | null {
   const { t, locale } = useI18n();
   const { color } = useTheme();
-  const [dismissed, setDismissed] = useState(() => Number(kvGet(overKey(episode.id)) ?? '0'));
+  const [dismissed, setDismissed] = useState(() => Number(kvGet(overKey(userId, episode.id)) ?? '0'));
   const started = new Date(episode.startedAt);
   const stretch = Math.floor((now.getTime() - started.getTime()) / LONG_MS);
   if (stretch < 1 || stretch <= dismissed) return null;
@@ -136,7 +137,7 @@ export function OverQuestion({ userId, episode, now }: { userId: string; episode
           variant="secondary"
           label={t('crisis.over.not_yet')}
           onPress={() => {
-            kvSet(overKey(episode.id), String(stretch));
+            kvSet(overKey(userId, episode.id), String(stretch));
             setDismissed(stretch);
           }}
           style={styles.action}

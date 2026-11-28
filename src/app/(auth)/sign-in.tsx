@@ -81,6 +81,7 @@ export default function SignIn(): React.JSX.Element {
         ) : null}
         <Text accessibilityRole="header" style={[styles.title, { color: color.text }]}>{t('auth.signIn.title')}</Text>
         <TextField
+          testID="sign-in-email"
           label={t('auth.signIn.email')}
           value={email}
           onChangeText={setEmail}

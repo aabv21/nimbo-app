@@ -3,14 +3,15 @@
 
 import { isRecord, UUID } from './guards.ts';
 
-export function json(status: number, body: unknown): Response {
-  return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+/** A JSON response; `headers` adds to the content type (`cache-control`, say), never replaces it. */
+export function json(status: number, body: unknown, headers: Record<string, string> = {}): Response {
+  return new Response(JSON.stringify(body), { status, headers: { ...headers, 'content-type': 'application/json' } });
 }
 
-/** Answers `body` and logs the outcome word, plus any `words` given; never anything the caller sent. */
-export function reply(outcome: string, status: number, body: unknown, words: Record<string, string> = {}): Response {
+/** Answers `body` (with any extra `headers`) and logs the outcome word, plus any `words` given; never anything the caller sent. */
+export function reply(outcome: string, status: number, body: unknown, words: Record<string, string> = {}, headers: Record<string, string> = {}): Response {
   console.info(JSON.stringify({ outcome, ...words }));
-  return json(status, body);
+  return json(status, body, headers);
 }
 
 /** Why a capped read gave no body: past `maxBytes`, or the stream broke off (the client went away mid-body). */
