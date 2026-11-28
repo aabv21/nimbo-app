@@ -102,9 +102,12 @@ function episodeIds(): string[] {
 }
 
 test('signing out with a record not uploaded asks first, then clears the session and keeps only that record', async () => {
-  insertEpisode('user-1', 'clean-episode');
+  // Open attacks from an hour ago: a fixed start date ages past the long-attack watch's hours as the calendar moves on,
+  // and the mounted watch would then open urgent care in the middle of this test.
+  const anHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  insertEpisode('user-1', 'clean-episode', anHourAgo);
   // Changed as crisis mode would, then left unsent: the phone is offline.
-  insertEpisode('user-1', 'pending-episode');
+  insertEpisode('user-1', 'pending-episode', anHourAgo);
   localDb().withTransactionSync(() => {
     localDb().runSync("UPDATE episodes SET intensity = 6 WHERE id = 'pending-episode';");
     enqueue('user-1', 'update_episode', { p_id: 'pending-episode', p_fields: { intensity: 6 } });
