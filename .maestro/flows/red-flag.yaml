@@ -1,0 +1,62 @@
+# A red flag in an edited note: open the attack crisis.yaml logged, write "worst headache of my life" in
+# its notes and save; the check on the saved notes opens urgent care, and "I'm safe" goes back.
+appId: com.aabv21.nimbo
+---
+- launchApp:
+    stopApp: true
+- extendedWaitUntil:
+    visible:
+      id: "tab-history"
+    timeout: 60000
+- tapOn:
+    id: "tab-history"
+- tapOn:
+    id: "history-view-list"
+- extendedWaitUntil:
+    visible:
+      id: "episode-row-.*"
+    timeout: 15000
+- tapOn:
+    id: "episode-row-.*"
+    index: 0
+
+# The editor: notes, then Save, which confirms for a second and goes back before the check runs.
+- extendedWaitUntil:
+    visible:
+      id: "episode-edit"
+    timeout: 10000
+- tapOn:
+    id: "episode-edit"
+- scrollUntilVisible:
+    element:
+      id: "episode-notes"
+    direction: DOWN
+    centerElement: true
+    timeout: 10000
+- tapOn:
+    id: "episode-notes"
+- inputText: "worst headache of my life"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: "episode-save"
+    direction: DOWN
+    centerElement: true
+    timeout: 10000
+- tapOn:
+    id: "episode-save"
+
+# Urgent care, with the sentence that hit, then back to the attack.
+- extendedWaitUntil:
+    visible:
+      id: "urgent-care-call"
+    timeout: 15000
+- assertVisible: ".*worst headache of my life.*"
+- tapOn:
+    id: "urgent-care-safe"
+- extendedWaitUntil:
+    visible:
+      id: "episode-edit"
+    timeout: 10000
+- assertNotVisible:
+    id: "urgent-care-call"

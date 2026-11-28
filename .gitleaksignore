@@ -1,0 +1,2 @@
+# A pgTAP literal in a feature-branch commit that gitleaks' generic-api-key rule misreads; renamed since.
+78a76323a28792b54835e7f7d5f7f5f3a9e3b92b:supabase/tests/monitor.test.sql:generic-api-key:147

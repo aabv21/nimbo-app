@@ -1,0 +1,16 @@
+{
+  "status": 200,
+  "body": {
+    "type": "message",
+    "role": "assistant",
+    "model": "claude-haiku-5-5",
+    "stop_reason": "end_turn",
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"thunderclap\":false,\"weakness\":false,\"fever_stiff_neck\":false,\"head_injury\":false,\"pregnancy\":false,\"long_aura\":false,\"long_attack\":false,\"intent\":\"data_question\"}"
+      }
+    ],
+    "usage": { "input_tokens": 900, "output_tokens": 40 }
+  }
+}
