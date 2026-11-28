@@ -1,0 +1,2 @@
+-- Nothing is seeded: profiles are created by the signup trigger, and the app has no reference data
+-- in the database.

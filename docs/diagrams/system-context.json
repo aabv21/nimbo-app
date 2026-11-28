@@ -1,0 +1,192 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Nimbo System Context",
+    "locale": "en",
+    "output": "docs/diagrams/system-context.html",
+    "quality_profile": "showcase"
+  },
+  "layout": {
+    "mode": "grid",
+    "cols": 5,
+    "cellW": 150,
+    "cellH": 64,
+    "gapX": 110,
+    "gapY": 90,
+    "origin": [
+      40,
+      80
+    ]
+  },
+  "components": [
+    {
+      "id": "idp",
+      "type": "external",
+      "label": "Apple \u00b7 Google",
+      "sublabel": "sign-in ID tokens",
+      "row": 2,
+      "col": 0
+    },
+    {
+      "id": "app",
+      "type": "frontend",
+      "label": "Nimbo app",
+      "sublabel": "nimbo.db \u00b7 outbox \u00b7 local notifications",
+      "row": 1,
+      "col": 0,
+      "size": [
+        210,
+        64
+      ]
+    },
+    {
+      "id": "auth",
+      "type": "security",
+      "label": "Auth",
+      "sublabel": "email code \u00b7 ID tokens",
+      "row": 0,
+      "col": 2
+    },
+    {
+      "id": "pg",
+      "type": "database",
+      "label": "Postgres 17",
+      "sublabel": "profiles \u00b7 tracking \u00b7 entitlements",
+      "row": 1,
+      "col": 2,
+      "size": [
+        180,
+        64
+      ]
+    },
+    {
+      "id": "fn",
+      "type": "backend",
+      "label": "Edge Functions",
+      "sublabel": "planned",
+      "row": 1,
+      "col": 3
+    },
+    {
+      "id": "smtp",
+      "type": "external",
+      "label": "Email relay",
+      "sublabel": "planned, hosted only",
+      "row": 0,
+      "col": 4
+    },
+    {
+      "id": "ai",
+      "type": "external",
+      "label": "AI and data APIs",
+      "sublabel": "planned",
+      "row": 1,
+      "col": 4
+    },
+    {
+      "id": "gh",
+      "type": "external",
+      "label": "GitHub Actions",
+      "sublabel": "keep-alive, planned",
+      "row": 2,
+      "col": 2,
+      "size": [
+        180,
+        64
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Supabase project (local stack today)",
+      "wraps": [
+        "auth",
+        "pg",
+        "fn"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "app-idp",
+      "from": "app",
+      "to": "idp",
+      "label": "native sign-in",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 24
+    },
+    {
+      "id": "app-auth",
+      "from": "app",
+      "to": "auth",
+      "label": "sign-in, code",
+      "variant": "emphasis",
+      "fromSide": "top",
+      "toSide": "left"
+    },
+    {
+      "id": "app-pg",
+      "from": "app",
+      "to": "pg",
+      "label": "REST + user JWT",
+      "variant": "emphasis"
+    },
+    {
+      "id": "auth-smtp",
+      "from": "auth",
+      "to": "smtp",
+      "label": "email codes",
+      "variant": "dashed"
+    },
+    {
+      "id": "fn-pg",
+      "from": "fn",
+      "to": "pg",
+      "variant": "dashed"
+    },
+    {
+      "id": "fn-ai",
+      "from": "fn",
+      "to": "ai",
+      "label": "model calls",
+      "variant": "dashed"
+    },
+    {
+      "id": "gh-pg",
+      "from": "gh",
+      "to": "pg",
+      "label": "keep_alive()",
+      "variant": "dashed"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Today",
+      "items": [
+        "The phone saves to nimbo.db first and queues each write",
+        "RLS and column grants scope every row; health writes go through RPCs",
+        "Consent is written only by two RPCs"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Planned",
+      "items": [
+        "Dashed boxes and lines arrive in later waves",
+        "Model calls will run only in Edge Functions"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Keys",
+      "items": [
+        "The app holds the URL and the anon key",
+        "The service-role key never reaches src/"
+      ]
+    }
+  ]
+}

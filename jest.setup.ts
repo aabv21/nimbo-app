@@ -1,6 +1,6 @@
 import { Dimensions } from 'react-native';
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return -- jest.mock()'s factory can only reference globals (incl. `require`), not a module-scoped import; see https://jestjs.io/docs/jest-object#jestmockmodulename-factory-options
+// jest.mock()'s factory can only reference globals (incl. `require`), not a module-scoped import: https://jestjs.io/docs/jest-object#jestmockmodulename-factory-options
 jest.mock('react-native-safe-area-context', () => require('react-native-safe-area-context/jest/mock').default);
 jest.mock('expo-localization', () => ({
   getLocales: () => [{ languageTag: 'en-US', languageCode: 'en', regionCode: 'US', currencyCode: 'USD' }],
@@ -20,6 +20,54 @@ jest.mock('expo-haptics', () => ({
   NotificationFeedbackType: { Success: 'success', Warning: 'warning', Error: 'error' },
 }));
 
+// The notifications module is native: every call settles at once with nothing scheduled and permission granted.
+jest.mock('expo-notifications', () => ({
+  SchedulableTriggerInputTypes: { DAILY: 'daily', DATE: 'date' },
+  AndroidImportance: { DEFAULT: 3 },
+  AndroidNotificationVisibility: { PRIVATE: 0 },
+  IosAuthorizationStatus: { PROVISIONAL: 3 },
+  setNotificationChannelAsync: jest.fn(() => Promise.resolve(null)),
+  getPermissionsAsync: jest.fn(() => Promise.resolve({ granted: true, canAskAgain: true })),
+  requestPermissionsAsync: jest.fn(() => Promise.resolve({ granted: true, canAskAgain: true })),
+  getAllScheduledNotificationsAsync: jest.fn(() => Promise.resolve([])),
+  cancelScheduledNotificationAsync: jest.fn(() => Promise.resolve()),
+  scheduleNotificationAsync: jest.fn((request: { identifier: string }) => Promise.resolve(request.identifier)),
+  getPresentedNotificationsAsync: jest.fn(() => Promise.resolve([])),
+  dismissNotificationAsync: jest.fn(() => Promise.resolve()),
+}));
+
+// Location is native: permission denied and no position unless a suite says otherwise.
+jest.mock('expo-location', () => ({
+  Accuracy: { Lowest: 1, Low: 2, Balanced: 3, High: 4, Highest: 5, BestForNavigation: 6 },
+  requestForegroundPermissionsAsync: jest.fn(() => Promise.resolve({ granted: false, status: 'denied', canAskAgain: true, expires: 'never' })),
+  getCurrentPositionAsync: jest.fn(() => Promise.reject(new Error('No position under Jest'))),
+  getLastKnownPositionAsync: jest.fn(() => Promise.resolve(null)),
+}));
+
+// The date-time picker is native too; a stand-in that exposes its props.
+jest.mock('@react-native-community/datetimepicker', () => require('./src/test/datetimepickerMock'));
+jest.mock('react-native-reanimated', () => require('./src/test/reanimatedMock'));
+// The worklets runtime is native; a callback scheduled back onto the JS thread runs at once.
+jest.mock('react-native-worklets', () => ({
+  scheduleOnRN: (fn: (...args: unknown[]) => void, ...args: unknown[]) => {
+    fn(...args);
+  },
+}));
+// The glass and blur views render as plain views; a suite flips `isLiquidGlassAvailable` to reach the iOS 26 branch.
+jest.mock('expo-glass-effect', () => {
+  const { View } = jest.requireActual<typeof import('react-native')>('react-native');
+  return {
+    GlassView: View,
+    GlassContainer: View,
+    isLiquidGlassAvailable: jest.fn(() => false),
+    isGlassEffectAPIAvailable: jest.fn(() => true),
+  };
+});
+jest.mock('expo-blur', () => {
+  const { View } = jest.requireActual<typeof import('react-native')>('react-native');
+  return { BlurView: View, BlurTargetView: View };
+});
+
 // `expo-sqlite/kv-store` wraps a native SQLite database; under Jest there is no native module to
 // back it, so replace it with a plain in-memory map that implements the same synchronous methods.
 jest.mock('expo-sqlite/kv-store', () => {
@@ -34,7 +82,6 @@ jest.mock('expo-sqlite/kv-store', () => {
       removeItemSync: (key: string): void => {
         store.delete(key);
       },
-      getAllKeysSync: (): string[] => [...store.keys()],
     },
   };
 });

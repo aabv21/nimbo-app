@@ -1,0 +1,37 @@
+# From the sign-up screen: create this run's account and confirm it with the 6-digit code the local
+# stack's Mailpit holds. Maestro's script runs on the host, so ${MAILPIT_URL} is the Mac's 127.0.0.1.
+appId: com.aabv21.nimbo
+---
+- extendedWaitUntil:
+    visible:
+      id: "sign-up-email"
+    timeout: 15000
+- tapOn:
+    id: "sign-up-email"
+- inputText: ${EMAIL}
+# Shown as plain text: typing into a secure field on iOS can drop characters.
+- tapOn:
+    id: "sign-up-show-password"
+- tapOn:
+    id: "sign-up-password"
+- inputText: ${PASSWORD}
+- hideKeyboard
+- tapOn:
+    id: "sign-up-submit"
+
+- extendedWaitUntil:
+    visible:
+      id: "confirm-code"
+    timeout: 30000
+# The newest message to this address (the list is newest first). No braces in the script: Maestro reads
+# `}` as the end of the expression, hence the arrows and the spelled-out six digits.
+- retry:
+    maxRetries: 3
+    commands:
+      - evalScript: ${output.code = json(http.get(MAILPIT_URL + '/api/v1/message/' + json(http.get(MAILPIT_URL + '/api/v1/messages').body).messages.filter((m) => m.To.some((to) => to.Address === EMAIL))[0].ID).body).Text.match(/\b\d\d\d\d\d\d\b/)[0]}
+- tapOn:
+    id: "confirm-code"
+- inputText: ${output.code}
+- hideKeyboard
+- tapOn:
+    id: "confirm-submit"
