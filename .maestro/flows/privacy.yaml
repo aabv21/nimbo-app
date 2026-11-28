@@ -1,0 +1,57 @@
+# Data rights end to end, last because it deletes the run's user: export the data from Profile (the file is written and
+# ready to share), then delete the account, which signs out to the signed-out screens. Runs after companion-draft.yaml.
+appId: com.aabv21.nimbo
+---
+- launchApp:
+    stopApp: true
+- extendedWaitUntil:
+    visible:
+      id: "tab-profile"
+    timeout: 60000
+
+# Export: the function's answer becomes a file in the cache directory; the share sheet itself is a live check.
+- tapOn:
+    id: "tab-profile"
+- scrollUntilVisible:
+    element:
+      id: "profile-export"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn:
+    id: "profile-export"
+- extendedWaitUntil:
+    visible:
+      id: "export-run"
+    timeout: 10000
+- tapOn:
+    id: "export-run"
+- extendedWaitUntil:
+    visible:
+      id: "export-ready"
+    timeout: 30000
+- tapOn:
+    id: "export-back"
+
+# Delete: the button stays disabled until the acknowledgement is ticked.
+- scrollUntilVisible:
+    element:
+      id: "profile-delete"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn:
+    id: "profile-delete"
+- extendedWaitUntil:
+    visible:
+      id: "delete-confirm"
+    timeout: 10000
+- tapOn:
+    id: "delete-confirm"
+- tapOn:
+    id: "delete-run"
+# The intro was seen at onboarding, so the signed-out gate lands on sign-in.
+- extendedWaitUntil:
+    visible:
+      id: "sign-in-email"
+    timeout: 45000

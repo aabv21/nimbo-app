@@ -1,0 +1,72 @@
+import { ChevronRight, Info, OctagonAlert, TriangleAlert } from 'lucide-react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+
+import { controlHeight, fonts, radius, space, type } from './theme';
+import { useTheme, useTones } from './themeContext';
+import { useAnnouncement } from './useAnnouncement';
+
+interface NoticeProps {
+  /**
+   * `info` is the accent (something changed, nothing is wrong); `warning` is amber (approaching a limit); `danger` is
+   * brick (at it). Each carries an icon and words, never colour alone.
+   */
+  tone: 'info' | 'warning' | 'danger';
+  title: string;
+  body?: string;
+  action?: { label: string; onPress: () => void };
+  /**
+   * Spoken on iOS when it appears (true, for a notice that answers a press: an error, "ready"). A standing status that
+   * is already there when its screen opens passes false: VoiceOver reads it in its turn, as part of the screen.
+   */
+  announce?: boolean;
+  /** A stable English id for the Maestro flows; never copy. */
+  testID?: string;
+}
+
+export function Notice({ tone, title, body, action, announce = true, testID }: NoticeProps): React.JSX.Element {
+  const { color } = useTheme();
+  const tones = useTones();
+  const danger = tone === 'danger';
+  const mark = danger ? color.danger : tone === 'warning' ? color.warning : color.accent;
+  const Icon = danger ? OctagonAlert : tone === 'warning' ? TriangleAlert : Info;
+  const fill = danger ? tones.noticeDanger : tone === 'warning' ? tones.noticeWarning : tones.opaquePill;
+  // The live region below is Android's; on iOS a notice that appears after a press (an error, "ready") is spoken here.
+  useAnnouncement(announce ? (body === undefined ? title : `${title}. ${body}`) : null);
+
+  return (
+    <View
+      testID={testID}
+      // A danger notice interrupts a screen reader; the others wait their turn.
+      accessibilityRole={danger ? 'alert' : 'summary'}
+      accessibilityLiveRegion={danger ? 'assertive' : 'polite'}
+      style={[styles.notice, { borderColor: mark, backgroundColor: fill }]}
+    >
+      <Icon size={24} color={mark} />
+      <View style={styles.content}>
+        <Text style={[styles.title, { color: color.text }]}>{title}</Text>
+        {body === undefined ? null : <Text style={[styles.body, { color: color.text }]}>{body}</Text>}
+        {action === undefined ? null : (
+          <Pressable accessibilityRole="button" onPress={action.onPress} style={styles.action} hitSlop={space[0]}>
+            <Text style={[styles.actionLabel, { color: color.accentText }]}>{action.label}</Text>
+            <ChevronRight size={20} color={color.accentText} />
+          </Pressable>
+        )}
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  notice: {
+    flexDirection: 'row',
+    gap: space[2],
+    padding: space[3],
+    borderRadius: radius.card,
+    borderWidth: 1,
+  },
+  content: { flex: 1, gap: space[0] },
+  title: { fontFamily: fonts.bodyBold, fontSize: type.body, lineHeight: 24 },
+  body: { fontFamily: fonts.body, fontSize: type.label, lineHeight: 21 },
+  action: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: space[0], minHeight: controlHeight },
+  actionLabel: { flexShrink: 1, fontFamily: fonts.bodyBold, fontSize: type.label, lineHeight: 20 },
+});

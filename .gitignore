@@ -30,8 +30,17 @@ yarn-error.*
 .DS_Store
 *.pem
 
-# local env files
+# Firebase / FCM credentials (never committed)
+*-firebase-adminsdk-*.json
+service-account*.json
+
+# local env files, and the CLI's function secrets file (`supabase secrets set --env-file`)
+.env
 .env*.local
+supabase/functions/.env
+
+# Android signing keys (a release keystore is never committed)
+*.keystore
 
 # Supabase local state
 supabase/.temp/

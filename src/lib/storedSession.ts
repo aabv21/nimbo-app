@@ -1,0 +1,37 @@
+import { isRecord } from './guards';
+import { parseJson } from './kv';
+
+export type StoredSession = { userId: string; email: string | null };
+
+/**
+ * The session supabase-js persisted (`sb-<ref>-auth-token`), read without the server. Only its user
+ * id and email are trusted, and only while it holds a refresh token: supabase-js keeps retrying
+ * that refresh, and a rejected token removes the entry and emits SIGNED_OUT.
+ */
+export function parseStoredSession(raw: string | null): StoredSession | null {
+  const parsed = parseJson(raw, isRecord);
+  if (parsed === null || typeof parsed['refresh_token'] !== 'string' || parsed['refresh_token'] === '') {
+    return null;
+  }
+  const user = parsed['user'];
+  if (!isRecord(user) || typeof user['id'] !== 'string' || user['id'] === '') {
+    return null;
+  }
+  const email = user['email'];
+  return { userId: user['id'], email: typeof email === 'string' ? email : null };
+}
+
+/** supabase-js's own default storage key for a project URL: `sb-<first host label>-auth-token`. */
+export function authStorageKeyFor(supabaseUrl: string): string {
+  return `sb-${new URL(supabaseUrl).hostname.split('.')[0] ?? ''}-auth-token`;
+}
+
+/**
+ * Removes every entry supabase-js persists for a session under `storageKey` (the session, its
+ * split-off user, and the PKCE code verifier), the same set its own sign-out removes.
+ */
+export function clearPersistedAuthIn(storage: { removeItem: (key: string) => void }, storageKey: string): void {
+  for (const key of [storageKey, `${storageKey}-user`, `${storageKey}-code-verifier`]) {
+    storage.removeItem(key);
+  }
+}

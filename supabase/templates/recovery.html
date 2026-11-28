@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="{{ if eq .Data.locale "es" }}es{{ else if eq .Data.locale "pt" }}pt{{ else }}en{{ end }}">
+  <body style="font-family: -apple-system, sans-serif; text-align: center; padding: 24px;">
+    {{ if eq .Data.locale "es" }}
+    <p>Tu código para restablecer la contraseña de Nimbo es:</p>
+    <p style="font-size: 36px; font-weight: bold; letter-spacing: 8px;">{{ .Token }}</p>
+    <p>Este código vence en 1 hora. Si no pediste restablecer tu contraseña, puedes ignorar este correo.</p>
+    {{ else if eq .Data.locale "pt" }}
+    <p>Seu código para redefinir a senha do Nimbo é:</p>
+    <p style="font-size: 36px; font-weight: bold; letter-spacing: 8px;">{{ .Token }}</p>
+    <p>Este código expira em 1 hora. Se você não pediu para redefinir sua senha, pode ignorar este e-mail.</p>
+    {{ else }}
+    <p>Your Nimbo password reset code is:</p>
+    <p style="font-size: 36px; font-weight: bold; letter-spacing: 8px;">{{ .Token }}</p>
+    <p>This code expires in 1 hour. If you didn't request a password reset, you can ignore this email.</p>
+    {{ end }}
+  </body>
+</html>

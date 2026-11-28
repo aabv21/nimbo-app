@@ -1,0 +1,15 @@
+# Workspace config for `pnpm e2e` (scripts/e2e.ts runs `maestro test --config .maestro/config.yaml
+# .maestro/flows`). The flows share one fresh user per run, so they run in this order and stop at
+# the first failure: the first signs up and onboards, the second logs an attack, the third edits it, the
+# fourth turns the AI on and confirms a companion draft (it needs both mocks serving), and the last exports
+# the data and deletes the account, so it must stay last.
+flows:
+  - "*"
+executionOrder:
+  continueOnFailure: false
+  flowsOrder:
+    - onboarding
+    - crisis
+    - red-flag
+    - companion-draft
+    - privacy

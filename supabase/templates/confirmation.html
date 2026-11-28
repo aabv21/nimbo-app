@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="{{ if eq .Data.locale "es" }}es{{ else if eq .Data.locale "pt" }}pt{{ else }}en{{ end }}">
+  <body style="font-family: -apple-system, sans-serif; text-align: center; padding: 24px;">
+    {{ if eq .Data.locale "es" }}
+    <p>Tu código de confirmación de Nimbo es:</p>
+    <p style="font-size: 36px; font-weight: bold; letter-spacing: 8px;">{{ .Token }}</p>
+    <p>Este código vence en 1 hora. Si no creaste una cuenta de Nimbo, puedes ignorar este correo.</p>
+    {{ else if eq .Data.locale "pt" }}
+    <p>Seu código de confirmação do Nimbo é:</p>
+    <p style="font-size: 36px; font-weight: bold; letter-spacing: 8px;">{{ .Token }}</p>
+    <p>Este código expira em 1 hora. Se você não criou uma conta no Nimbo, pode ignorar este e-mail.</p>
+    {{ else }}
+    <p>Your Nimbo confirmation code is:</p>
+    <p style="font-size: 36px; font-weight: bold; letter-spacing: 8px;">{{ .Token }}</p>
+    <p>This code expires in 1 hour. If you didn't create a Nimbo account, you can ignore this email.</p>
+    {{ end }}
+  </body>
+</html>

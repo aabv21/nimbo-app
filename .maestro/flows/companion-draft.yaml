@@ -1,0 +1,69 @@
+# The companion end to end: turn the AI on in Profile, type a check-in in the Companion tab, confirm its
+# draft, and Today shows the check-in done. Runs after red-flag.yaml, as the same user, with both mocks
+# serving: `node integration/mockServices.ts --serve` and `node integration/mockAnthropic.ts --serve companion-checkin`.
+appId: com.aabv21.nimbo
+---
+- launchApp:
+    stopApp: true
+- extendedWaitUntil:
+    visible:
+      id: "tab-profile"
+    timeout: 60000
+
+# The AI switch asks first; accepting it adds the Companion tab.
+- tapOn:
+    id: "tab-profile"
+- scrollUntilVisible:
+    element:
+      id: "profile-ai-switch"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn:
+    id: "profile-ai-switch"
+- scrollUntilVisible:
+    element:
+      id: "profile-ai-confirm"
+    direction: DOWN
+    centerElement: true
+    timeout: 10000
+- tapOn:
+    id: "profile-ai-confirm"
+- extendedWaitUntil:
+    visible:
+      id: "tab-companion"
+    timeout: 15000
+
+# One typed message; the mock Claude answers with a check-in draft (5–6 hours, high stress) and a short reply.
+- tapOn:
+    id: "tab-companion"
+- extendedWaitUntil:
+    visible:
+      id: "companion-input"
+    timeout: 10000
+- tapOn:
+    id: "companion-input"
+- inputText: "slept 5 hours, very stressed"
+- hideKeyboard
+- tapOn:
+    id: "companion-send"
+- extendedWaitUntil:
+    visible:
+      id: "draft-confirm"
+    timeout: 45000
+- tapOn:
+    id: "draft-confirm"
+- extendedWaitUntil:
+    visible:
+      id: "draft-confirmed"
+    timeout: 10000
+
+# Confirm wrote the check-in through its store, so Today shows it done.
+- tapOn:
+    id: "tab-today"
+- scrollUntilVisible:
+    element:
+      id: "today-checkin-done"
+    direction: DOWN
+    centerElement: true
+    timeout: 15000

@@ -1,0 +1,296 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Nimbo System Context",
+    "locale": "en",
+    "output": "docs/diagrams/system-context.html",
+    "quality_profile": "showcase"
+  },
+  "layout": {
+    "mode": "grid",
+    "cols": 5,
+    "cellW": 150,
+    "cellH": 64,
+    "gapX": 110,
+    "gapY": 80,
+    "origin": [
+      90,
+      80
+    ]
+  },
+  "components": [
+    {
+      "id": "idp",
+      "type": "external",
+      "label": "Apple · Google",
+      "sublabel": "sign-in ID tokens",
+      "row": 0,
+      "col": 0
+    },
+    {
+      "id": "app",
+      "type": "frontend",
+      "label": "Nimbo app",
+      "sublabel": "nimbo.db · outbox · chat",
+      "row": 1,
+      "col": 0,
+      "size": [
+        210,
+        64
+      ]
+    },
+    {
+      "id": "expo",
+      "type": "external",
+      "label": "Expo push",
+      "sublabel": "FCM · APNs behind it",
+      "row": 3,
+      "col": 0
+    },
+    {
+      "id": "auth",
+      "type": "security",
+      "label": "Auth",
+      "sublabel": "email code · ID tokens",
+      "row": 0,
+      "col": 2
+    },
+    {
+      "id": "fns",
+      "type": "backend",
+      "label": "Edge Functions",
+      "sublabel": "companion · push · export · delete",
+      "row": 1,
+      "col": 2,
+      "size": [
+        210,
+        64
+      ]
+    },
+    {
+      "id": "pg",
+      "type": "database",
+      "label": "Postgres 17",
+      "sublabel": "pg_cron · pg_net · Vault",
+      "row": 2,
+      "col": 2,
+      "size": [
+        210,
+        64
+      ]
+    },
+    {
+      "id": "monitor",
+      "type": "backend",
+      "label": "monitor",
+      "sublabel": "hourly Edge Function",
+      "row": 3,
+      "col": 2,
+      "size": [
+        210,
+        64
+      ]
+    },
+    {
+      "id": "smtp",
+      "type": "external",
+      "label": "Brevo SMTP",
+      "sublabel": "hosted only",
+      "row": 0,
+      "col": 3
+    },
+    {
+      "id": "jev",
+      "type": "external",
+      "label": "TypeSafe",
+      "sublabel": "Jev screens",
+      "row": 0,
+      "col": 4
+    },
+    {
+      "id": "claude",
+      "type": "external",
+      "label": "Anthropic",
+      "sublabel": "Sonnet 5.5 · Haiku 5.5",
+      "row": 1,
+      "col": 4
+    },
+    {
+      "id": "gh",
+      "type": "external",
+      "label": "GitHub Actions",
+      "sublabel": "keepalive.yml, daily",
+      "row": 2,
+      "col": 4
+    },
+    {
+      "id": "meteo",
+      "type": "external",
+      "label": "Open-Meteo",
+      "sublabel": "pressure_msl by cell",
+      "row": 3,
+      "col": 4
+    },
+    {
+      "id": "pages",
+      "type": "external",
+      "label": "GitHub Pages",
+      "sublabel": "privacy policy, en · es · pt",
+      "row": 2,
+      "col": 0,
+      "size": [
+        210,
+        64
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Supabase project (local stack today)",
+      "wraps": [
+        "auth",
+        "fns",
+        "pg",
+        "monitor"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "app-idp",
+      "from": "app",
+      "to": "idp",
+      "label": "native sign-in",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "app-auth",
+      "from": "app",
+      "to": "auth",
+      "label": "sign-in, code",
+      "variant": "emphasis",
+      "fromSide": "top",
+      "toSide": "left"
+    },
+    {
+      "id": "app-fns",
+      "from": "app",
+      "to": "fns",
+      "label": "requests + user JWT",
+      "variant": "emphasis"
+    },
+    {
+      "id": "app-pg",
+      "from": "app",
+      "to": "pg",
+      "label": "REST + user JWT",
+      "variant": "emphasis"
+    },
+    {
+      "id": "auth-smtp",
+      "from": "auth",
+      "to": "smtp",
+      "label": "email codes",
+      "variant": "dashed"
+    },
+    {
+      "id": "fns-pg",
+      "from": "fns",
+      "to": "pg",
+      "label": "caller's JWT",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 24
+    },
+    {
+      "id": "fns-claude",
+      "from": "fns",
+      "to": "claude",
+      "label": "tool loop, fallback"
+    },
+    {
+      "id": "fns-jev",
+      "from": "fns",
+      "to": "jev",
+      "label": "screens",
+      "toSide": "bottom"
+    },
+    {
+      "id": "gh-pg",
+      "from": "gh",
+      "to": "pg",
+      "label": "keep_alive()"
+    },
+    {
+      "id": "pg-monitor",
+      "from": "pg",
+      "to": "monitor",
+      "label": "cron :05, Vault secret",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 24
+    },
+    {
+      "id": "monitor-meteo",
+      "from": "monitor",
+      "to": "meteo",
+      "label": "forecast, coarse cell"
+    },
+    {
+      "id": "monitor-expo",
+      "from": "monitor",
+      "to": "expo",
+      "label": "neutral push"
+    },
+    {
+      "id": "expo-app",
+      "from": "expo",
+      "to": "app",
+      "label": "notification",
+      "fromSide": "left",
+      "toSide": "left",
+      "labelAt": [
+        66,
+        446
+      ]
+    },
+    {
+      "id": "app-pages",
+      "from": "app",
+      "to": "pages",
+      "label": "opens in browser",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 24
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "On the phone",
+      "items": [
+        "Health data goes to nimbo.db first, each write queued",
+        "Today's rows are computed here; only pressure is fetched"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "The functions",
+      "items": [
+        "Model calls only in companion; monitor makes none",
+        "Service role: monitor, export-data, delete-account"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Owner setup",
+      "items": [
+        "Dashed lines wait on the owner; Open-Meteo free is for testing",
+        "Push needs EAS and Firebase; a push stays neutral"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+import { Pressable, StyleSheet, Text } from 'react-native';
+import Animated from 'react-native-reanimated';
+
+import { controlHeight, crisisControlHeight, fonts, space, type } from './theme';
+import { useTheme, useTones } from './themeContext';
+import { usePressFeedback } from './usePressFeedback';
+
+interface TextLinkProps {
+  label: string;
+  onPress: () => void;
+  disabled?: boolean;
+  /** Where it sits in its column: at the start of the text (the default) or centred under a button. */
+  align?: 'start' | 'center';
+  /** A stable English id for the Maestro flows; never copy. */
+  testID?: string;
+  /** `crisis` is 56 pt tall, like every crisis-mode control. */
+  size?: 'regular' | 'crisis';
+  /** `link` when it leaves the app (a web page), so a screen reader says where it goes. */
+  role?: 'button' | 'link';
+}
+
+/** A quiet in-text action (forgot password, switch screen, a web page): 48 pt tall. */
+export function TextLink({ label, onPress, disabled = false, align = 'start', testID, size = 'regular', role = 'button' }: TextLinkProps): React.JSX.Element {
+  const { color } = useTheme();
+  const tones = useTones();
+  const { scaleStyle, pressedStyle, onPressIn, onPressOut } = usePressFeedback();
+  return (
+    <Animated.View style={[align === 'center' ? styles.center : styles.start, scaleStyle]}>
+      <Pressable
+        testID={testID}
+        accessibilityRole={role}
+        accessibilityLabel={label}
+        accessibilityState={{ disabled }}
+        disabled={disabled}
+        onPress={onPress}
+        onPressIn={onPressIn}
+        onPressOut={onPressOut}
+        style={[styles.link, size === 'crisis' && styles.crisis]}
+      >
+        <Animated.View pointerEvents="none" style={[styles.pressed, { backgroundColor: tones.pressSecondary }, pressedStyle]} />
+        <Text style={[styles.label, { color: disabled ? color.textMuted : color.accentText }]}>{label}</Text>
+      </Pressable>
+    </Animated.View>
+  );
+}
+
+const styles = StyleSheet.create({
+  start: { alignSelf: 'flex-start' },
+  center: { alignSelf: 'center' },
+  // A little side room, so the pressed tone reads as a shape around the words rather than a highlight.
+  link: { minHeight: controlHeight, justifyContent: 'center', paddingHorizontal: space[1], marginHorizontal: -space[1], borderRadius: 8, overflow: 'hidden' },
+  crisis: { minHeight: crisisControlHeight },
+  pressed: { ...StyleSheet.absoluteFill, opacity: 0 },
+  label: { fontFamily: fonts.bodyBold, fontSize: type.label, lineHeight: 20 },
+});

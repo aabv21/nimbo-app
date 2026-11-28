@@ -1,0 +1,219 @@
+// Shared setup for the `integration` Jest project: loads `.env.local` (plain Node, so nothing inlines
+// `EXPO_PUBLIC_*` as Metro does) and builds the anon/service-role clients for the local stack.
+
+import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+
+import { createClient } from '@supabase/supabase-js';
+import type { SupabaseClient, SupportedStorage } from '@supabase/supabase-js';
+
+import type { Database } from '../src/lib/database.types';
+
+const ENV_LOCAL_URL = new URL('../.env.local', import.meta.url);
+const REQUIRED_KEYS = ['EXPO_PUBLIC_SUPABASE_URL', 'EXPO_PUBLIC_SUPABASE_ANON_KEY', 'SUPABASE_SERVICE_ROLE_KEY'] as const;
+
+/** Parses simple `KEY=value` lines (same shape `scripts/env-local.ts` writes); no multi-line or `export` support needed. */
+function parseEnvFile(contents: string): Map<string, string> {
+  const env = new Map<string, string>();
+  for (const line of contents.split('\n')) {
+    const trimmed = line.trim();
+    if (trimmed === '' || trimmed.startsWith('#')) {
+      continue;
+    }
+    const separatorIndex = trimmed.indexOf('=');
+    if (separatorIndex === -1) {
+      continue;
+    }
+    const key = trimmed.slice(0, separatorIndex);
+    env.set(key, trimmed.slice(separatorIndex + 1));
+  }
+  return env;
+}
+
+/** A `Map`-backed view of `process.env`, so lookups by a non-literal key don't trip `security/detect-object-injection`. */
+function envMap(): Map<string, string | undefined> {
+  return new Map(Object.entries(process.env));
+}
+
+/**
+ * Loads `.env.local` into `process.env` unless the keys are set; throws naming the missing file or key.
+ * NOTE: hand-rolled, as `process.loadEnvFile` no-ops under Jest's node env; upgrade path: use it once Jest fixes it.
+ */
+export function loadIntegrationEnv(): void {
+  if (REQUIRED_KEYS.every((key) => envMap().get(key) !== undefined)) {
+    return;
+  }
+
+  let contents: string;
+  try {
+    // ENV_LOCAL_URL is this file's own fixed path, never user input.
+    contents = readFileSync(ENV_LOCAL_URL, 'utf8');
+  } catch (error) {
+    throw new Error(
+      'integration tests need .env.local (run `pnpm db:start && pnpm env:local` first): ' +
+        String(error instanceof Error ? error.message : error),
+    );
+  }
+
+  const parsed = parseEnvFile(contents);
+  const currentEnv = envMap();
+  const envUpdates = Object.fromEntries(
+    Array.from(parsed, ([key, value]) => [key, currentEnv.get(key) ?? value] as const),
+  );
+  Object.assign(process.env, envUpdates);
+
+  const stillMissing = REQUIRED_KEYS.find((key) => envMap().get(key) === undefined);
+  if (stillMissing !== undefined) {
+    throw new Error(`.env.local is missing ${stillMissing} — run \`pnpm db:start && pnpm env:local\` again`);
+  }
+}
+
+function requiredEnv(key: string): string {
+  const value = envMap().get(key);
+  if (value === undefined) {
+    throw new Error(`${key} is not set — call loadIntegrationEnv() before using Supabase clients`);
+  }
+  return value;
+}
+
+/** A plain in-memory `SupportedStorage`, so each client built in a test has an isolated session. */
+function memoryStorage(): SupportedStorage {
+  const store = new Map<string, string>();
+  return {
+    getItem: (key) => store.get(key) ?? null,
+    setItem: (key, value) => {
+      store.set(key, value);
+    },
+    removeItem: (key) => {
+      store.delete(key);
+    },
+  };
+}
+
+/** A service-role client (bypasses RLS): only seeds and cleans up test users and reads others' rows for assertions. */
+export function serviceClient(): SupabaseClient<Database> {
+  return createClient<Database>(requiredEnv('EXPO_PUBLIC_SUPABASE_URL'), requiredEnv('SUPABASE_SERVICE_ROLE_KEY'), {
+    auth: { storage: memoryStorage(), autoRefreshToken: false, persistSession: false },
+  });
+}
+
+/** An anon-key client, the same key shape the app ships — every auth/RLS assertion runs through this. */
+export function anonClient(): SupabaseClient<Database> {
+  return createClient<Database>(requiredEnv('EXPO_PUBLIC_SUPABASE_URL'), requiredEnv('EXPO_PUBLIC_SUPABASE_ANON_KEY'), {
+    auth: { storage: memoryStorage(), autoRefreshToken: false, persistSession: false },
+  });
+}
+
+/** Builds a unique local-part so repeated test runs never collide on an existing account. */
+export function uniqueEmail(label: string): string {
+  return `${label}-${randomUUID()}@example.com`;
+}
+
+/** Creates an already-confirmed user via the admin API, so tests never need the confirmation flow. */
+export async function createUser(email: string, password: string): Promise<string> {
+  const { data, error } = await serviceClient().auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+  });
+  if (error !== null) {
+    throw error;
+  }
+  return data.user.id;
+}
+
+/** Deletes a test user by id via the admin API; swallow "not found" so cleanup is idempotent. */
+export async function deleteUser(userId: string): Promise<void> {
+  const { error } = await serviceClient().auth.admin.deleteUser(userId);
+  if (error !== null && error.status !== 404) {
+    throw error;
+  }
+}
+
+/** Deletes the account for `email` if there is one: an unconfirmed sign-up has no session to read an id from. */
+export async function deleteUserByEmail(email: string): Promise<void> {
+  const { data, error } = await serviceClient().auth.admin.listUsers({ perPage: 1000 });
+  if (error !== null) {
+    throw error;
+  }
+  const user = data.users.find((candidate) => candidate.email === email);
+  if (user !== undefined) {
+    await deleteUser(user.id);
+  }
+}
+
+interface MailpitAddress {
+  Address: string;
+}
+
+interface MailpitMessageSummary {
+  ID: string;
+  To: MailpitAddress[];
+}
+
+interface MailpitMessagesResponse {
+  messages: MailpitMessageSummary[];
+}
+
+interface MailpitMessage {
+  Subject: string;
+  Text: string;
+}
+
+const MAILPIT_URL = 'http://127.0.0.1:54524';
+const MAILPIT_POLL_ATTEMPTS = 10;
+const MAILPIT_POLL_INTERVAL_MS = 200;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+async function findLatestMessageFor(email: string): Promise<MailpitMessageSummary | undefined> {
+  const listResponse = await fetch(`${MAILPIT_URL}/api/v1/messages`);
+  if (!listResponse.ok) {
+    throw new Error(`Mailpit /api/v1/messages returned ${String(listResponse.status)} — is \`pnpm db:start\` running?`);
+  }
+  const { messages } = (await listResponse.json()) as MailpitMessagesResponse;
+  return messages.find((message) => message.To.some((to) => to.Address === email));
+}
+
+/** The id of Mailpit's newest message to `email` right now, so a later `latestEmail` can wait past it. */
+export async function latestEmailId(email: string): Promise<string | undefined> {
+  return (await findLatestMessageFor(email))?.ID;
+}
+
+/**
+ * Mailpit's newest message to `email` (`GET /api/v1/messages` lists newest first), other than `previousId`. Polls up
+ * to ~2 s: `resetPasswordForEmail` can resolve before Mailpit has recorded the message.
+ */
+export async function latestEmail(email: string, previousId?: string): Promise<{ subject: string; text: string }> {
+  let latest: MailpitMessageSummary | undefined;
+  for (let attempt = 0; attempt < MAILPIT_POLL_ATTEMPTS && (latest === undefined || latest.ID === previousId); attempt += 1) {
+    if (attempt > 0) {
+      await sleep(MAILPIT_POLL_INTERVAL_MS);
+    }
+    latest = await findLatestMessageFor(email);
+  }
+  if (latest === undefined || latest.ID === previousId) {
+    throw new Error(`No new Mailpit message found addressed to ${email}`);
+  }
+
+  const messageResponse = await fetch(`${MAILPIT_URL}/api/v1/message/${latest.ID}`);
+  if (!messageResponse.ok) {
+    throw new Error(`Mailpit /api/v1/message/${latest.ID} returned ${String(messageResponse.status)}`);
+  }
+  const { Subject, Text } = (await messageResponse.json()) as MailpitMessage;
+  return { subject: Subject, text: Text };
+}
+
+/** The 6-digit code in Mailpit's newest message to `email`. */
+export async function latestEmailCode(email: string): Promise<string> {
+  const { text } = await latestEmail(email);
+  const match = /\b\d{6}\b/.exec(text);
+  if (match === null) {
+    throw new Error(`No 6-digit code found in the Mailpit message to ${email}`);
+  }
+  return match[0];
+}

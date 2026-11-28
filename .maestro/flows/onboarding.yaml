@@ -1,0 +1,90 @@
+# A fresh install: the intro, sign-up with the Mailpit code, both consent gates (all three boxes, AI declined), every
+# setup step skipped, and Today. Runs first; the next flows reuse this user.
+appId: com.aabv21.nimbo
+---
+- launchApp:
+    clearState: true
+    clearKeychain: true
+
+# The intro: two Next, then Get started opens sign-up.
+- extendedWaitUntil:
+    visible:
+      id: "intro-next"
+    timeout: 60000
+- tapOn:
+    id: "intro-next"
+- tapOn:
+    id: "intro-next"
+- extendedWaitUntil:
+    visible:
+      id: "intro-start"
+    timeout: 5000
+- tapOn:
+    id: "intro-start"
+- runFlow: ../subflows/sign-up.yaml
+
+# The two gates.
+- extendedWaitUntil:
+    visible:
+      id: "boundary-adult"
+    timeout: 30000
+- tapOn:
+    id: "boundary-adult"
+- tapOn:
+    id: "boundary-not-medical"
+# The health data consent and Continue sit below the fold on a small screen.
+- scrollUntilVisible:
+    element:
+      id: "boundary-health"
+    direction: DOWN
+- tapOn:
+    id: "boundary-health"
+- scrollUntilVisible:
+    element:
+      id: "boundary-continue"
+    direction: DOWN
+- tapOn:
+    id: "boundary-continue"
+- extendedWaitUntil:
+    visible:
+      id: "ai-consent-decline"
+    timeout: 15000
+- tapOn:
+    id: "ai-consent-decline"
+
+# Setup: Skip on triggers, priority and medications (each step has its own Skip, so wait out the push
+# before the next tap), then Not now on notifications and on location, which finishes onboarding.
+- extendedWaitUntil:
+    visible:
+      id: "onboarding-skip"
+    timeout: 15000
+- tapOn:
+    id: "onboarding-skip"
+- waitForAnimationToEnd
+- tapOn:
+    id: "onboarding-skip"
+- waitForAnimationToEnd
+- tapOn:
+    id: "onboarding-skip"
+- extendedWaitUntil:
+    visible:
+      id: "notifications-not-now"
+    timeout: 10000
+- tapOn:
+    id: "notifications-not-now"
+- extendedWaitUntil:
+    visible:
+      id: "location-not-now"
+    timeout: 10000
+- tapOn:
+    id: "location-not-now"
+
+# Today, with the AI off: three tabs.
+- extendedWaitUntil:
+    visible:
+      id: "today-start-attack"
+    timeout: 30000
+- assertVisible:
+    id: "tab-history"
+- assertNotVisible:
+    id: "tab-companion"
