@@ -1,0 +1,2140 @@
+{
+  "about": "Synthetic input for computeSignals(user, now, pack) and decidePush(signals, ctx, now, pack) with the proposed pack values in ../research.md section 7. 'expected.signals' is the full ordered output; 'expected.today' the rows Today shows; 'expected.push' the decision (causeKey null = no push, with the reason). 'selected: false' means the monitor skips the user. Times are UTC ISO; local dates and the window use user.timeZone.",
+  "pack": {
+    "sleepBandHours": {
+      "lt5": 4.5,
+      "5_6": 5.5,
+      "6_7": 6.5,
+      "7_8": 7.5,
+      "gt8": 8.5
+    },
+    "dayStartHour": 4,
+    "signals": {
+      "pressure": {
+        "dropHpa": 6.0,
+        "horizonHours": 24,
+        "minTaggedEpisodes": 3,
+        "maxForecastAgeHours": 3
+      },
+      "shortSleep": {
+        "minAttackNights": 5,
+        "minGapHours": 0.5
+      },
+      "longAttackHours": [
+        12,
+        72
+      ],
+      "quietTrackerDays": 3,
+      "maxOnToday": 3,
+      "suppressDuringAttack": [
+        "pressure",
+        "short_sleep",
+        "quiet_tracker"
+      ],
+      "priority": [
+        "long_attack",
+        "overuse_limit",
+        "debrief_due",
+        "overuse_warn",
+        "short_sleep",
+        "pressure",
+        "quiet_tracker"
+      ]
+    },
+    "push": {
+      "sameCauseHours": 24,
+      "perRunMax": 1
+    },
+    "overuse": {
+      "limits": {
+        "simple_analgesic": 15,
+        "triptan": 10,
+        "ergot": 10,
+        "opioid": 10,
+        "combination_analgesic": 10,
+        "gepant": null,
+        "other": null
+      },
+      "warnRatio": 0.8,
+      "combinedLimit": 10
+    }
+  },
+  "cases": [
+    {
+      "id": "S01-pressure-drop-weather-trigger",
+      "description": "Bogota 08:05, weather is a known trigger. Forecast falls 6.5 hPa from 13:00Z today to 13:00Z tomorrow (same hour, so the daily tide cancels). Signal and push.",
+      "input": {
+        "now": "2026-11-27T13:05:00Z",
+        "user": {
+          "timeZone": "America/Bogota",
+          "knownTriggers": [
+            "weather"
+          ],
+          "hasLocation": true,
+          "onboardedAt": "2026-09-01T15:00:00Z",
+          "episodes": [],
+          "checkins": [
+            {
+              "localDate": "2026-11-27",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            }
+          ],
+          "doses": [],
+          "medications": [],
+          "pressure": {
+            "fetchedAt": "2026-11-27T12:10:00Z",
+            "hours": [
+              "2026-11-27T13:00:00Z",
+              "2026-11-27T14:00:00Z",
+              "2026-11-27T15:00:00Z",
+              "2026-11-27T16:00:00Z",
+              "2026-11-27T17:00:00Z",
+              "2026-11-27T18:00:00Z",
+              "2026-11-27T19:00:00Z",
+              "2026-11-27T20:00:00Z",
+              "2026-11-27T21:00:00Z",
+              "2026-11-27T22:00:00Z",
+              "2026-11-27T23:00:00Z",
+              "2026-11-28T00:00:00Z",
+              "2026-11-28T01:00:00Z",
+              "2026-11-28T02:00:00Z",
+              "2026-11-28T03:00:00Z",
+              "2026-11-28T04:00:00Z",
+              "2026-11-28T05:00:00Z",
+              "2026-11-28T06:00:00Z",
+              "2026-11-28T07:00:00Z",
+              "2026-11-28T08:00:00Z",
+              "2026-11-28T09:00:00Z",
+              "2026-11-28T10:00:00Z",
+              "2026-11-28T11:00:00Z",
+              "2026-11-28T12:00:00Z",
+              "2026-11-28T13:00:00Z"
+            ],
+            "hPa": [
+              1012.4,
+              1011.5,
+              1010.8,
+              1010.4,
+              1010.3,
+              1010.4,
+              1010.8,
+              1011.1,
+              1011.3,
+              1011.2,
+              1010.7,
+              1010.0,
+              1009.1,
+              1008.3,
+              1007.6,
+              1007.1,
+              1007.0,
+              1007.2,
+              1007.5,
+              1007.9,
+              1008.0,
+              1007.9,
+              1007.5,
+              1006.8,
+              1005.9
+            ]
+          }
+        },
+        "notify": {
+          "notifyStart": "08:00",
+          "notifyEnd": "21:00",
+          "notifyDailyCap": 2,
+          "lockScreenDetail": false
+        },
+        "pushLog": []
+      },
+      "expected": {
+        "selected": true,
+        "signals": [
+          {
+            "kind": "pressure",
+            "cause": "pressure",
+            "causeKey": "pressure:2026-11-27",
+            "evidence": {
+              "nowHpa": 1012,
+              "laterHpa": 1006,
+              "laterAt": "2026-11-28T13:00:00Z",
+              "dropHpa": 6.5
+            }
+          }
+        ],
+        "today": [
+          "pressure:2026-11-27"
+        ],
+        "push": {
+          "causeKey": "pressure:2026-11-27",
+          "reason": "send"
+        }
+      }
+    },
+    {
+      "id": "S02-pressure-drop-below-threshold",
+      "description": "Same user, the forecast falls 5.4 hPa: under the 6 hPa threshold, no signal.",
+      "input": {
+        "now": "2026-11-27T13:05:00Z",
+        "user": {
+          "timeZone": "America/Bogota",
+          "knownTriggers": [
+            "weather"
+          ],
+          "hasLocation": true,
+          "onboardedAt": "2026-09-01T15:00:00Z",
+          "episodes": [],
+          "checkins": [
+            {
+              "localDate": "2026-11-27",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            }
+          ],
+          "doses": [],
+          "medications": [],
+          "pressure": {
+            "fetchedAt": "2026-11-27T12:10:00Z",
+            "hours": [
+              "2026-11-27T13:00:00Z",
+              "2026-11-27T14:00:00Z",
+              "2026-11-27T15:00:00Z",
+              "2026-11-27T16:00:00Z",
+              "2026-11-27T17:00:00Z",
+              "2026-11-27T18:00:00Z",
+              "2026-11-27T19:00:00Z",
+              "2026-11-27T20:00:00Z",
+              "2026-11-27T21:00:00Z",
+              "2026-11-27T22:00:00Z",
+              "2026-11-27T23:00:00Z",
+              "2026-11-28T00:00:00Z",
+              "2026-11-28T01:00:00Z",
+              "2026-11-28T02:00:00Z",
+              "2026-11-28T03:00:00Z",
+              "2026-11-28T04:00:00Z",
+              "2026-11-28T05:00:00Z",
+              "2026-11-28T06:00:00Z",
+              "2026-11-28T07:00:00Z",
+              "2026-11-28T08:00:00Z",
+              "2026-11-28T09:00:00Z",
+              "2026-11-28T10:00:00Z",
+              "2026-11-28T11:00:00Z",
+              "2026-11-28T12:00:00Z",
+              "2026-11-28T13:00:00Z"
+            ],
+            "hPa": [
+              1012.4,
+              1011.6,
+              1010.9,
+              1010.5,
+              1010.5,
+              1010.7,
+              1011.0,
+              1011.4,
+              1011.6,
+              1011.6,
+              1011.2,
+              1010.5,
+              1009.7,
+              1008.9,
+              1008.2,
+              1007.8,
+              1007.8,
+              1008.0,
+              1008.4,
+              1008.7,
+              1008.9,
+              1008.9,
+              1008.5,
+              1007.8,
+              1007.0
+            ]
+          }
+        },
+        "notify": {
+          "notifyStart": "08:00",
+          "notifyEnd": "21:00",
+          "notifyDailyCap": 2,
+          "lockScreenDetail": false
+        },
+        "pushLog": []
+      },
+      "expected": {
+        "selected": true,
+        "signals": [],
+        "today": [],
+        "push": {
+          "causeKey": null,
+          "reason": "no_signals"
+        }
+      }
+    },
+    {
+      "id": "S03-pressure-no-location",
+      "description": "Weather is a trigger but the user declined location: no forecast is fetched and no pressure signal exists (never a guess).",
+      "input": {
+        "now": "2026-11-27T13:05:00Z",
+        "user": {
+          "timeZone": "America/Bogota",
+          "knownTriggers": [
+            "weather"
+          ],
+          "hasLocation": false,
+          "onboardedAt": "2026-09-01T15:00:00Z",
+          "episodes": [],
+          "checkins": [
+            {
+              "localDate": "2026-11-27",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            }
+          ],
+          "doses": [],
+          "medications": [],
+          "pressure": null
+        },
+        "notify": {
+          "notifyStart": "08:00",
+          "notifyEnd": "21:00",
+          "notifyDailyCap": 2,
+          "lockScreenDetail": false
+        },
+        "pushLog": []
+      },
+      "expected": {
+        "selected": true,
+        "signals": [],
+        "today": [],
+        "push": {
+          "causeKey": null,
+          "reason": "no_signals"
+        }
+      }
+    },
+    {
+      "id": "S04-pressure-stale-forecast-and-tagged-history",
+      "description": "Weather is not in the onboarding triggers but was tagged on 3 attacks in 90 days, which qualifies. The cached forecast is 4 h old (over the 3 h limit), so the signal is skipped this run.",
+      "input": {
+        "now": "2026-11-27T13:05:00Z",
+        "user": {
+          "timeZone": "America/Bogota",
+          "knownTriggers": [],
+          "hasLocation": true,
+          "onboardedAt": "2026-09-01T15:00:00Z",
+          "episodes": [
+            {
+              "id": "w1",
+              "startedAt": "2026-10-02T19:00:00Z",
+              "endedAt": "2026-10-03T01:00:00Z",
+              "intensity": 6,
+              "triggers": [
+                "weather"
+              ],
+              "helped": [],
+              "didNotHelp": [],
+              "debriefedAt": null
+            },
+            {
+              "id": "w2",
+              "startedAt": "2026-10-30T19:00:00Z",
+              "endedAt": "2026-10-31T01:00:00Z",
+              "intensity": 6,
+              "triggers": [
+                "weather"
+              ],
+              "helped": [],
+              "didNotHelp": [],
+              "debriefedAt": null
+            },
+            {
+              "id": "w3",
+              "startedAt": "2026-11-14T19:00:00Z",
+              "endedAt": "2026-11-15T01:00:00Z",
+              "intensity": 6,
+              "triggers": [
+                "weather"
+              ],
+              "helped": [],
+              "didNotHelp": [],
+              "debriefedAt": null
+            }
+          ],
+          "checkins": [
+            {
+              "localDate": "2026-11-27",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            }
+          ],
+          "doses": [],
+          "medications": [],
+          "pressure": {
+            "fetchedAt": "2026-11-27T09:05:00Z",
+            "hours": [
+              "2026-11-27T13:00:00Z",
+              "2026-11-27T14:00:00Z",
+              "2026-11-27T15:00:00Z",
+              "2026-11-27T16:00:00Z",
+              "2026-11-27T17:00:00Z",
+              "2026-11-27T18:00:00Z",
+              "2026-11-27T19:00:00Z",
+              "2026-11-27T20:00:00Z",
+              "2026-11-27T21:00:00Z",
+              "2026-11-27T22:00:00Z",
+              "2026-11-27T23:00:00Z",
+              "2026-11-28T00:00:00Z",
+              "2026-11-28T01:00:00Z",
+              "2026-11-28T02:00:00Z",
+              "2026-11-28T03:00:00Z",
+              "2026-11-28T04:00:00Z",
+              "2026-11-28T05:00:00Z",
+              "2026-11-28T06:00:00Z",
+              "2026-11-28T07:00:00Z",
+              "2026-11-28T08:00:00Z",
+              "2026-11-28T09:00:00Z",
+              "2026-11-28T10:00:00Z",
+              "2026-11-28T11:00:00Z",
+              "2026-11-28T12:00:00Z",
+              "2026-11-28T13:00:00Z"
+            ],
+            "hPa": [
+              1012.4,
+              1011.4,
+              1010.7,
+              1010.1,
+              1010.0,
+              1010.0,
+              1010.3,
+              1010.5,
+              1010.6,
+              1010.5,
+              1009.9,
+              1009.1,
+              1008.2,
+              1007.2,
+              1006.5,
+              1005.9,
+              1005.8,
+              1005.9,
+              1006.1,
+              1006.4,
+              1006.4,
+              1006.2,
+              1005.7,
+              1005.0,
+              1004.0
+            ]
+          }
+        },
+        "notify": {
+          "notifyStart": "08:00",
+          "notifyEnd": "21:00",
+          "notifyDailyCap": 2,
+          "lockScreenDetail": false
+        },
+        "pushLog": []
+      },
+      "expected": {
+        "selected": true,
+        "signals": [],
+        "today": [],
+        "push": {
+          "causeKey": null,
+          "reason": "no_signals"
+        }
+      }
+    },
+    {
+      "id": "S05-short-sleep-under-attack-night-average",
+      "description": "5 attack nights in 90 days average 5.1 h (band midpoints), other nights 7.5 h. Today's check-in says under 5 h (4.5): under the attack-night average. Signal and push.",
+      "input": {
+        "now": "2026-11-27T13:05:00Z",
+        "user": {
+          "timeZone": "America/Bogota",
+          "knownTriggers": [],
+          "hasLocation": true,
+          "onboardedAt": "2026-09-01T15:00:00Z",
+          "episodes": [
+            {
+              "id": "s0",
+              "startedAt": "2026-11-03T20:00:00Z",
+              "endedAt": "2026-11-04T02:00:00Z",
+              "intensity": 6,
+              "triggers": [],
+              "helped": [],
+              "didNotHelp": [],
+              "debriefedAt": null
+            },
+            {
+              "id": "s1",
+              "startedAt": "2026-11-08T20:00:00Z",
+              "endedAt": "2026-11-09T02:00:00Z",
+              "intensity": 6,
+              "triggers": [],
+              "helped": [],
+              "didNotHelp": [],
+              "debriefedAt": null
+            },
+            {
+              "id": "s2",
+              "startedAt": "2026-11-13T20:00:00Z",
+              "endedAt": "2026-11-14T02:00:00Z",
+              "intensity": 6,
+              "triggers": [],
+              "helped": [],
+              "didNotHelp": [],
+              "debriefedAt": null
+            },
+            {
+              "id": "s3",
+              "startedAt": "2026-11-18T20:00:00Z",
+              "endedAt": "2026-11-19T02:00:00Z",
+              "intensity": 6,
+              "triggers": [],
+              "helped": [],
+              "didNotHelp": [],
+              "debriefedAt": null
+            },
+            {
+              "id": "s4",
+              "startedAt": "2026-11-22T20:00:00Z",
+              "endedAt": "2026-11-23T02:00:00Z",
+              "intensity": 6,
+              "triggers": [],
+              "helped": [],
+              "didNotHelp": [],
+              "debriefedAt": null
+            }
+          ],
+          "checkins": [
+            {
+              "localDate": "2026-11-01",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            },
+            {
+              "localDate": "2026-11-02",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            },
+            {
+              "localDate": "2026-11-03",
+              "sleepBand": "lt5",
+              "stress": "mid"
+            },
+            {
+              "localDate": "2026-11-04",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            },
+            {
+              "localDate": "2026-11-05",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            },
+            {
+              "localDate": "2026-11-06",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            },
+            {
+              "localDate": "2026-11-07",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            },
+            {
+              "localDate": "2026-11-08",
+              "sleepBand": "5_6",
+              "stress": "mid"
+            },
+            {
+              "localDate": "2026-11-09",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            },
+            {
+              "localDate": "2026-11-10",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            },
+            {
+              "localDate": "2026-11-11",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            },
+            {
+              "localDate": "2026-11-12",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            },
+            {
+              "localDate": "2026-11-13",
+              "sleepBand": "5_6",
+              "stress": "mid"
+            },
+            {
+              "localDate": "2026-11-14",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            },
+            {
+              "localDate": "2026-11-15",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            },
+            {
+              "localDate": "2026-11-16",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            },
+            {
+              "localDate": "2026-11-17",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            },
+            {
+              "localDate": "2026-11-18",
+              "sleepBand": "lt5",
+              "stress": "mid"
+            },
+            {
+              "localDate": "2026-11-19",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            },
+            {
+              "localDate": "2026-11-20",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            },
+            {
+              "localDate": "2026-11-21",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            },
+            {
+              "localDate": "2026-11-22",
+              "sleepBand": "5_6",
+              "stress": "mid"
+            },
+            {
+              "localDate": "2026-11-23",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            },
+            {
+              "localDate": "2026-11-24",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            },
+            {
+              "localDate": "2026-11-25",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            },
+            {
+              "localDate": "2026-11-26",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            },
+            {
+              "localDate": "2026-11-27",
+              "sleepBand": "lt5",
+              "stress": "mid"
+            }
+          ],
+          "doses": [],
+          "medications": [],
+          "pressure": null
+        },
+        "notify": {
+          "notifyStart": "08:00",
+          "notifyEnd": "21:00",
+          "notifyDailyCap": 2,
+          "lockScreenDetail": false
+        },
+        "pushLog": []
+      },
+      "expected": {
+        "selected": true,
+        "signals": [
+          {
+            "kind": "short_sleep",
+            "cause": "short_sleep",
+            "causeKey": "short_sleep:2026-11-27",
+            "evidence": {
+              "sleepBand": "lt5",
+              "avgAttackNightHours": 5.1,
+              "attackNights": 5,
+              "avgOtherNightHours": 7.5
+            }
+          }
+        ],
+        "today": [
+          "short_sleep:2026-11-27"
+        ],
+        "push": {
+          "causeKey": "short_sleep:2026-11-27",
+          "reason": "send"
+        }
+      }
+    },
+    {
+      "id": "S06-outside-window",
+      "description": "Same as S01 at 06:30 local, before the 08:00 window: the signal exists for Today, no push.",
+      "input": {
+        "now": "2026-11-27T11:30:00Z",
+        "user": {
+          "timeZone": "America/Bogota",
+          "knownTriggers": [
+            "weather"
+          ],
+          "hasLocation": true,
+          "onboardedAt": "2026-09-01T15:00:00Z",
+          "episodes": [],
+          "checkins": [
+            {
+              "localDate": "2026-11-27",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            }
+          ],
+          "doses": [],
+          "medications": [],
+          "pressure": {
+            "fetchedAt": "2026-11-27T10:10:00Z",
+            "hours": [
+              "2026-11-27T11:00:00Z",
+              "2026-11-27T12:00:00Z",
+              "2026-11-27T13:00:00Z",
+              "2026-11-27T14:00:00Z",
+              "2026-11-27T15:00:00Z",
+              "2026-11-27T16:00:00Z",
+              "2026-11-27T17:00:00Z",
+              "2026-11-27T18:00:00Z",
+              "2026-11-27T19:00:00Z",
+              "2026-11-27T20:00:00Z",
+              "2026-11-27T21:00:00Z",
+              "2026-11-27T22:00:00Z",
+              "2026-11-27T23:00:00Z",
+              "2026-11-28T00:00:00Z",
+              "2026-11-28T01:00:00Z",
+              "2026-11-28T02:00:00Z",
+              "2026-11-28T03:00:00Z",
+              "2026-11-28T04:00:00Z",
+              "2026-11-28T05:00:00Z",
+              "2026-11-28T06:00:00Z",
+              "2026-11-28T07:00:00Z",
+              "2026-11-28T08:00:00Z",
+              "2026-11-28T09:00:00Z",
+              "2026-11-28T10:00:00Z",
+              "2026-11-28T11:00:00Z"
+            ],
+            "hPa": [
+              1012.4,
+              1011.5,
+              1010.8,
+              1010.4,
+              1010.3,
+              1010.4,
+              1010.8,
+              1011.1,
+              1011.3,
+              1011.2,
+              1010.7,
+              1010.0,
+              1009.1,
+              1008.3,
+              1007.6,
+              1007.1,
+              1007.0,
+              1007.2,
+              1007.5,
+              1007.9,
+              1008.0,
+              1007.9,
+              1007.5,
+              1006.8,
+              1005.9
+            ]
+          }
+        },
+        "notify": {
+          "notifyStart": "08:00",
+          "notifyEnd": "21:00",
+          "notifyDailyCap": 2,
+          "lockScreenDetail": false
+        },
+        "pushLog": []
+      },
+      "expected": {
+        "selected": true,
+        "signals": [
+          {
+            "kind": "pressure",
+            "cause": "pressure",
+            "causeKey": "pressure:2026-11-27",
+            "evidence": {
+              "nowHpa": 1012,
+              "laterHpa": 1006,
+              "laterAt": "2026-11-28T11:00:00Z",
+              "dropHpa": 6.5
+            }
+          }
+        ],
+        "today": [
+          "pressure:2026-11-27"
+        ],
+        "push": {
+          "causeKey": null,
+          "reason": "outside_window"
+        }
+      }
+    },
+    {
+      "id": "S07-cap-reached",
+      "description": "15:05 local, two pushes already sent today (local day) for other causes, cap 2: no third push.",
+      "input": {
+        "now": "2026-11-27T20:05:00Z",
+        "user": {
+          "timeZone": "America/Bogota",
+          "knownTriggers": [
+            "weather"
+          ],
+          "hasLocation": true,
+          "onboardedAt": "2026-09-01T15:00:00Z",
+          "episodes": [],
+          "checkins": [
+            {
+              "localDate": "2026-11-27",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            }
+          ],
+          "doses": [],
+          "medications": [],
+          "pressure": {
+            "fetchedAt": "2026-11-27T19:10:00Z",
+            "hours": [
+              "2026-11-27T20:00:00Z",
+              "2026-11-27T21:00:00Z",
+              "2026-11-27T22:00:00Z",
+              "2026-11-27T23:00:00Z",
+              "2026-11-28T00:00:00Z",
+              "2026-11-28T01:00:00Z",
+              "2026-11-28T02:00:00Z",
+              "2026-11-28T03:00:00Z",
+              "2026-11-28T04:00:00Z",
+              "2026-11-28T05:00:00Z",
+              "2026-11-28T06:00:00Z",
+              "2026-11-28T07:00:00Z",
+              "2026-11-28T08:00:00Z",
+              "2026-11-28T09:00:00Z",
+              "2026-11-28T10:00:00Z",
+              "2026-11-28T11:00:00Z",
+              "2026-11-28T12:00:00Z",
+              "2026-11-28T13:00:00Z",
+              "2026-11-28T14:00:00Z",
+              "2026-11-28T15:00:00Z",
+              "2026-11-28T16:00:00Z",
+              "2026-11-28T17:00:00Z",
+              "2026-11-28T18:00:00Z",
+              "2026-11-28T19:00:00Z",
+              "2026-11-28T20:00:00Z"
+            ],
+            "hPa": [
+              1012.4,
+              1011.5,
+              1010.8,
+              1010.4,
+              1010.3,
+              1010.4,
+              1010.8,
+              1011.1,
+              1011.3,
+              1011.2,
+              1010.7,
+              1010.0,
+              1009.1,
+              1008.3,
+              1007.6,
+              1007.1,
+              1007.0,
+              1007.2,
+              1007.5,
+              1007.9,
+              1008.0,
+              1007.9,
+              1007.5,
+              1006.8,
+              1005.9
+            ]
+          }
+        },
+        "notify": {
+          "notifyStart": "08:00",
+          "notifyEnd": "21:00",
+          "notifyDailyCap": 2,
+          "lockScreenDetail": false
+        },
+        "pushLog": [
+          {
+            "causeKey": "debrief:x1",
+            "cause": "debrief:x1",
+            "pushedAt": "2026-11-27T13:05:00Z"
+          },
+          {
+            "causeKey": "short_sleep:2026-11-27",
+            "cause": "short_sleep",
+            "pushedAt": "2026-11-27T18:05:00Z"
+          }
+        ]
+      },
+      "expected": {
+        "selected": true,
+        "signals": [
+          {
+            "kind": "pressure",
+            "cause": "pressure",
+            "causeKey": "pressure:2026-11-27",
+            "evidence": {
+              "nowHpa": 1012,
+              "laterHpa": 1006,
+              "laterAt": "2026-11-28T20:00:00Z",
+              "dropHpa": 6.5
+            }
+          }
+        ],
+        "today": [
+          "pressure:2026-11-27"
+        ],
+        "push": {
+          "causeKey": null,
+          "reason": "cap_reached"
+        }
+      }
+    },
+    {
+      "id": "S08-same-cause-within-24h",
+      "description": "A pressure push went out yesterday at 10:05 local (22 h ago). Today's pressure signal is a new cause key but the same cause: no push until 24 h have passed. It still shows on Today.",
+      "input": {
+        "now": "2026-11-27T13:05:00Z",
+        "user": {
+          "timeZone": "America/Bogota",
+          "knownTriggers": [
+            "weather"
+          ],
+          "hasLocation": true,
+          "onboardedAt": "2026-09-01T15:00:00Z",
+          "episodes": [],
+          "checkins": [
+            {
+              "localDate": "2026-11-27",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            }
+          ],
+          "doses": [],
+          "medications": [],
+          "pressure": {
+            "fetchedAt": "2026-11-27T12:10:00Z",
+            "hours": [
+              "2026-11-27T13:00:00Z",
+              "2026-11-27T14:00:00Z",
+              "2026-11-27T15:00:00Z",
+              "2026-11-27T16:00:00Z",
+              "2026-11-27T17:00:00Z",
+              "2026-11-27T18:00:00Z",
+              "2026-11-27T19:00:00Z",
+              "2026-11-27T20:00:00Z",
+              "2026-11-27T21:00:00Z",
+              "2026-11-27T22:00:00Z",
+              "2026-11-27T23:00:00Z",
+              "2026-11-28T00:00:00Z",
+              "2026-11-28T01:00:00Z",
+              "2026-11-28T02:00:00Z",
+              "2026-11-28T03:00:00Z",
+              "2026-11-28T04:00:00Z",
+              "2026-11-28T05:00:00Z",
+              "2026-11-28T06:00:00Z",
+              "2026-11-28T07:00:00Z",
+              "2026-11-28T08:00:00Z",
+              "2026-11-28T09:00:00Z",
+              "2026-11-28T10:00:00Z",
+              "2026-11-28T11:00:00Z",
+              "2026-11-28T12:00:00Z",
+              "2026-11-28T13:00:00Z"
+            ],
+            "hPa": [
+              1012.4,
+              1011.5,
+              1010.8,
+              1010.4,
+              1010.3,
+              1010.4,
+              1010.8,
+              1011.1,
+              1011.3,
+              1011.2,
+              1010.7,
+              1010.0,
+              1009.1,
+              1008.3,
+              1007.6,
+              1007.1,
+              1007.0,
+              1007.2,
+              1007.5,
+              1007.9,
+              1008.0,
+              1007.9,
+              1007.5,
+              1006.8,
+              1005.9
+            ]
+          }
+        },
+        "notify": {
+          "notifyStart": "08:00",
+          "notifyEnd": "21:00",
+          "notifyDailyCap": 2,
+          "lockScreenDetail": false
+        },
+        "pushLog": [
+          {
+            "causeKey": "pressure:2026-11-26",
+            "cause": "pressure",
+            "pushedAt": "2026-11-26T15:05:00Z"
+          }
+        ]
+      },
+      "expected": {
+        "selected": true,
+        "signals": [
+          {
+            "kind": "pressure",
+            "cause": "pressure",
+            "causeKey": "pressure:2026-11-27",
+            "evidence": {
+              "nowHpa": 1012,
+              "laterHpa": 1006,
+              "laterAt": "2026-11-28T13:00:00Z",
+              "dropHpa": 6.5
+            }
+          }
+        ],
+        "today": [
+          "pressure:2026-11-27"
+        ],
+        "push": {
+          "causeKey": null,
+          "reason": "same_cause_24h"
+        }
+      }
+    },
+    {
+      "id": "S09-cause-key-pushed-once-next-signal-wins",
+      "description": "Triptan on 10 local days this month (limit). That exact key was pushed 3 days ago, so it is skipped for good; the debrief for yesterday's attack is pushed instead.",
+      "input": {
+        "now": "2026-11-27T13:05:00Z",
+        "user": {
+          "timeZone": "America/Bogota",
+          "knownTriggers": [],
+          "hasLocation": true,
+          "onboardedAt": "2026-09-01T15:00:00Z",
+          "episodes": [
+            {
+              "id": "e9",
+              "startedAt": "2026-11-26T17:00:00Z",
+              "endedAt": "2026-11-27T01:00:00Z",
+              "intensity": 6,
+              "triggers": [],
+              "helped": [],
+              "didNotHelp": [],
+              "debriefedAt": null
+            }
+          ],
+          "checkins": [
+            {
+              "localDate": "2026-11-27",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            }
+          ],
+          "doses": [
+            {
+              "id": "d0",
+              "medicationId": "m-tri",
+              "episodeId": null,
+              "takenAt": "2026-11-01T15:00:00Z",
+              "helped": null
+            },
+            {
+              "id": "d1",
+              "medicationId": "m-tri",
+              "episodeId": null,
+              "takenAt": "2026-11-03T15:00:00Z",
+              "helped": null
+            },
+            {
+              "id": "d2",
+              "medicationId": "m-tri",
+              "episodeId": null,
+              "takenAt": "2026-11-05T15:00:00Z",
+              "helped": null
+            },
+            {
+              "id": "d3",
+              "medicationId": "m-tri",
+              "episodeId": null,
+              "takenAt": "2026-11-07T15:00:00Z",
+              "helped": null
+            },
+            {
+              "id": "d4",
+              "medicationId": "m-tri",
+              "episodeId": null,
+              "takenAt": "2026-11-09T15:00:00Z",
+              "helped": null
+            },
+            {
+              "id": "d5",
+              "medicationId": "m-tri",
+              "episodeId": null,
+              "takenAt": "2026-11-11T15:00:00Z",
+              "helped": null
+            },
+            {
+              "id": "d6",
+              "medicationId": "m-tri",
+              "episodeId": null,
+              "takenAt": "2026-11-13T15:00:00Z",
+              "helped": null
+            },
+            {
+              "id": "d7",
+              "medicationId": "m-tri",
+              "episodeId": null,
+              "takenAt": "2026-11-15T15:00:00Z",
+              "helped": null
+            },
+            {
+              "id": "d8",
+              "medicationId": "m-tri",
+              "episodeId": null,
+              "takenAt": "2026-11-17T15:00:00Z",
+              "helped": null
+            },
+            {
+              "id": "d9",
+              "medicationId": "m-tri",
+              "episodeId": null,
+              "takenAt": "2026-11-19T15:00:00Z",
+              "helped": null
+            }
+          ],
+          "medications": [
+            {
+              "id": "m-tri",
+              "name": "Sumatriptan",
+              "kind": "acute",
+              "class": "triptan"
+            }
+          ],
+          "pressure": null
+        },
+        "notify": {
+          "notifyStart": "08:00",
+          "notifyEnd": "21:00",
+          "notifyDailyCap": 2,
+          "lockScreenDetail": false
+        },
+        "pushLog": [
+          {
+            "causeKey": "overuse:triptan:limit:2026-11",
+            "cause": "overuse:triptan",
+            "pushedAt": "2026-11-24T14:05:00Z"
+          }
+        ]
+      },
+      "expected": {
+        "selected": true,
+        "signals": [
+          {
+            "kind": "overuse_limit",
+            "cause": "overuse:triptan",
+            "causeKey": "overuse:triptan:limit:2026-11",
+            "evidence": {
+              "scope": "triptan",
+              "days": 10,
+              "limit": 10,
+              "level": "limit"
+            }
+          },
+          {
+            "kind": "debrief_due",
+            "cause": "debrief:e9",
+            "causeKey": "debrief:e9",
+            "evidence": {
+              "episodeId": "e9",
+              "endedAt": "2026-11-27T01:00:00Z"
+            }
+          }
+        ],
+        "today": [
+          "overuse:triptan:limit:2026-11",
+          "debrief:e9"
+        ],
+        "push": {
+          "causeKey": "debrief:e9",
+          "reason": "send"
+        }
+      }
+    },
+    {
+      "id": "S10-long-attack-suppresses-day-signals",
+      "description": "An attack open for 15 h. Long attack is signalled at the 12 h stage; pressure and quiet-tracker are suppressed while an attack is open.",
+      "input": {
+        "now": "2026-11-27T13:05:00Z",
+        "user": {
+          "timeZone": "America/Bogota",
+          "knownTriggers": [
+            "weather"
+          ],
+          "hasLocation": true,
+          "onboardedAt": "2026-09-01T15:00:00Z",
+          "episodes": [
+            {
+              "id": "e1",
+              "startedAt": "2026-11-26T22:00:00Z",
+              "endedAt": null,
+              "intensity": 6,
+              "triggers": [],
+              "helped": [],
+              "didNotHelp": [],
+              "debriefedAt": null
+            }
+          ],
+          "checkins": [],
+          "doses": [],
+          "medications": [],
+          "pressure": {
+            "fetchedAt": "2026-11-27T12:10:00Z",
+            "hours": [
+              "2026-11-27T13:00:00Z",
+              "2026-11-27T14:00:00Z",
+              "2026-11-27T15:00:00Z",
+              "2026-11-27T16:00:00Z",
+              "2026-11-27T17:00:00Z",
+              "2026-11-27T18:00:00Z",
+              "2026-11-27T19:00:00Z",
+              "2026-11-27T20:00:00Z",
+              "2026-11-27T21:00:00Z",
+              "2026-11-27T22:00:00Z",
+              "2026-11-27T23:00:00Z",
+              "2026-11-28T00:00:00Z",
+              "2026-11-28T01:00:00Z",
+              "2026-11-28T02:00:00Z",
+              "2026-11-28T03:00:00Z",
+              "2026-11-28T04:00:00Z",
+              "2026-11-28T05:00:00Z",
+              "2026-11-28T06:00:00Z",
+              "2026-11-28T07:00:00Z",
+              "2026-11-28T08:00:00Z",
+              "2026-11-28T09:00:00Z",
+              "2026-11-28T10:00:00Z",
+              "2026-11-28T11:00:00Z",
+              "2026-11-28T12:00:00Z",
+              "2026-11-28T13:00:00Z"
+            ],
+            "hPa": [
+              1012.4,
+              1011.5,
+              1010.8,
+              1010.4,
+              1010.3,
+              1010.4,
+              1010.8,
+              1011.1,
+              1011.3,
+              1011.2,
+              1010.7,
+              1010.0,
+              1009.1,
+              1008.3,
+              1007.6,
+              1007.1,
+              1007.0,
+              1007.2,
+              1007.5,
+              1007.9,
+              1008.0,
+              1007.9,
+              1007.5,
+              1006.8,
+              1005.9
+            ]
+          }
+        },
+        "notify": {
+          "notifyStart": "08:00",
+          "notifyEnd": "21:00",
+          "notifyDailyCap": 2,
+          "lockScreenDetail": false
+        },
+        "pushLog": []
+      },
+      "expected": {
+        "selected": true,
+        "signals": [
+          {
+            "kind": "long_attack",
+            "cause": "long_attack:e1",
+            "causeKey": "long_attack:e1:12",
+            "evidence": {
+              "episodeId": "e1",
+              "hoursOpen": 15,
+              "stage": 12
+            }
+          }
+        ],
+        "today": [
+          "long_attack:e1:12"
+        ],
+        "push": {
+          "causeKey": "long_attack:e1:12",
+          "reason": "send"
+        }
+      }
+    },
+    {
+      "id": "S11-quiet-tracker",
+      "description": "Last check-in on Nov 23; none on Nov 24, 25, 26 or today. One signal per quiet stretch (the key carries the last check-in date).",
+      "input": {
+        "now": "2026-11-27T13:05:00Z",
+        "user": {
+          "timeZone": "America/Bogota",
+          "knownTriggers": [],
+          "hasLocation": true,
+          "onboardedAt": "2026-09-01T15:00:00Z",
+          "episodes": [],
+          "checkins": [
+            {
+              "localDate": "2026-11-15",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            },
+            {
+              "localDate": "2026-11-16",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            },
+            {
+              "localDate": "2026-11-17",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            },
+            {
+              "localDate": "2026-11-18",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            },
+            {
+              "localDate": "2026-11-19",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            },
+            {
+              "localDate": "2026-11-20",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            },
+            {
+              "localDate": "2026-11-21",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            },
+            {
+              "localDate": "2026-11-22",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            },
+            {
+              "localDate": "2026-11-23",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            }
+          ],
+          "doses": [],
+          "medications": [],
+          "pressure": null
+        },
+        "notify": {
+          "notifyStart": "08:00",
+          "notifyEnd": "21:00",
+          "notifyDailyCap": 2,
+          "lockScreenDetail": false
+        },
+        "pushLog": []
+      },
+      "expected": {
+        "selected": true,
+        "signals": [
+          {
+            "kind": "quiet_tracker",
+            "cause": "quiet_tracker",
+            "causeKey": "quiet:2026-11-23",
+            "evidence": {
+              "lastCheckinDate": "2026-11-23"
+            }
+          }
+        ],
+        "today": [
+          "quiet:2026-11-23"
+        ],
+        "push": {
+          "causeKey": "quiet:2026-11-23",
+          "reason": "send"
+        }
+      }
+    },
+    {
+      "id": "S12-quiet-tracker-new-user",
+      "description": "Onboarded 2 days ago with no check-ins yet: too new to be quiet. Nothing.",
+      "input": {
+        "now": "2026-11-27T13:05:00Z",
+        "user": {
+          "timeZone": "America/Bogota",
+          "knownTriggers": [],
+          "hasLocation": true,
+          "onboardedAt": "2026-11-25T15:00:00Z",
+          "episodes": [],
+          "checkins": [],
+          "doses": [],
+          "medications": [],
+          "pressure": null
+        },
+        "notify": {
+          "notifyStart": "08:00",
+          "notifyEnd": "21:00",
+          "notifyDailyCap": 2,
+          "lockScreenDetail": false
+        },
+        "pushLog": []
+      },
+      "expected": {
+        "selected": true,
+        "signals": [],
+        "today": [],
+        "push": {
+          "causeKey": null,
+          "reason": "no_signals"
+        }
+      }
+    },
+    {
+      "id": "S13-overnight-window-dst-zone",
+      "description": "Santiago in November is on DST (UTC-3). 04:30Z is 01:30 local, inside a 22:00-07:00 window that crosses midnight. The attack ended at 21:00 local yesterday (Nov 26): debrief due, pushed.",
+      "input": {
+        "now": "2026-11-27T04:30:00Z",
+        "user": {
+          "timeZone": "America/Santiago",
+          "knownTriggers": [],
+          "hasLocation": true,
+          "onboardedAt": "2026-09-01T15:00:00Z",
+          "episodes": [
+            {
+              "id": "e1",
+              "startedAt": "2026-11-26T16:00:00Z",
+              "endedAt": "2026-11-27T00:00:00Z",
+              "intensity": 6,
+              "triggers": [],
+              "helped": [],
+              "didNotHelp": [],
+              "debriefedAt": null
+            }
+          ],
+          "checkins": [
+            {
+              "localDate": "2026-11-26",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            }
+          ],
+          "doses": [],
+          "medications": [],
+          "pressure": null
+        },
+        "notify": {
+          "notifyStart": "22:00",
+          "notifyEnd": "07:00",
+          "notifyDailyCap": 1,
+          "lockScreenDetail": true
+        },
+        "pushLog": []
+      },
+      "expected": {
+        "selected": true,
+        "signals": [
+          {
+            "kind": "debrief_due",
+            "cause": "debrief:e1",
+            "causeKey": "debrief:e1",
+            "evidence": {
+              "episodeId": "e1",
+              "endedAt": "2026-11-27T00:00:00Z"
+            }
+          }
+        ],
+        "today": [
+          "debrief:e1"
+        ],
+        "push": {
+          "causeKey": "debrief:e1",
+          "reason": "send"
+        }
+      }
+    },
+    {
+      "id": "S14-cap-zero",
+      "description": "The user set notifications to zero a day. The debrief signal shows on Today; no push ever.",
+      "input": {
+        "now": "2026-11-27T13:05:00Z",
+        "user": {
+          "timeZone": "America/Bogota",
+          "knownTriggers": [],
+          "hasLocation": true,
+          "onboardedAt": "2026-09-01T15:00:00Z",
+          "episodes": [
+            {
+              "id": "e1",
+              "startedAt": "2026-11-26T17:00:00Z",
+              "endedAt": "2026-11-27T01:00:00Z",
+              "intensity": 6,
+              "triggers": [],
+              "helped": [],
+              "didNotHelp": [],
+              "debriefedAt": null
+            }
+          ],
+          "checkins": [
+            {
+              "localDate": "2026-11-27",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            }
+          ],
+          "doses": [],
+          "medications": [],
+          "pressure": null
+        },
+        "notify": {
+          "notifyStart": "08:00",
+          "notifyEnd": "21:00",
+          "notifyDailyCap": 0,
+          "lockScreenDetail": false
+        },
+        "pushLog": []
+      },
+      "expected": {
+        "selected": true,
+        "signals": [
+          {
+            "kind": "debrief_due",
+            "cause": "debrief:e1",
+            "causeKey": "debrief:e1",
+            "evidence": {
+              "episodeId": "e1",
+              "endedAt": "2026-11-27T01:00:00Z"
+            }
+          }
+        ],
+        "today": [
+          "debrief:e1"
+        ],
+        "push": {
+          "causeKey": null,
+          "reason": "cap_zero"
+        }
+      }
+    },
+    {
+      "id": "S15-no-timezone",
+      "description": "profiles.timezone is null (never synced or rejected by validation). The monitor cannot place the user's window, so it skips the user.",
+      "input": {
+        "now": "2026-11-27T13:05:00Z",
+        "user": {
+          "timeZone": null,
+          "knownTriggers": [],
+          "hasLocation": true,
+          "onboardedAt": "2026-09-01T15:00:00Z",
+          "episodes": [],
+          "checkins": [
+            {
+              "localDate": "2026-11-27",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            }
+          ],
+          "doses": [],
+          "medications": [],
+          "pressure": null
+        },
+        "notify": {
+          "notifyStart": "08:00",
+          "notifyEnd": "21:00",
+          "notifyDailyCap": 2,
+          "lockScreenDetail": false
+        },
+        "pushLog": []
+      },
+      "expected": {
+        "selected": false,
+        "signals": [],
+        "push": {
+          "causeKey": null,
+          "reason": "no_timezone"
+        }
+      }
+    },
+    {
+      "id": "S16-combined-overuse-and-month-edge",
+      "description": "Triptan on 5 days and ibuprofen on 4 other days in November: neither class is near its own limit, but 9 combined days of 10 is a warning (ICHD-3 8.2.7). A dose at 23:50 local on Oct 31 (Nov 1 in UTC) counts for October, not November.",
+      "input": {
+        "now": "2026-11-27T13:05:00Z",
+        "user": {
+          "timeZone": "America/Bogota",
+          "knownTriggers": [],
+          "hasLocation": true,
+          "onboardedAt": "2026-09-01T15:00:00Z",
+          "episodes": [],
+          "checkins": [
+            {
+              "localDate": "2026-11-27",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            }
+          ],
+          "doses": [
+            {
+              "id": "t0",
+              "medicationId": "m-tri",
+              "episodeId": null,
+              "takenAt": "2026-11-02T14:00:00Z",
+              "helped": null
+            },
+            {
+              "id": "t1",
+              "medicationId": "m-tri",
+              "episodeId": null,
+              "takenAt": "2026-11-05T14:00:00Z",
+              "helped": null
+            },
+            {
+              "id": "t2",
+              "medicationId": "m-tri",
+              "episodeId": null,
+              "takenAt": "2026-11-08T14:00:00Z",
+              "helped": null
+            },
+            {
+              "id": "t3",
+              "medicationId": "m-tri",
+              "episodeId": null,
+              "takenAt": "2026-11-11T14:00:00Z",
+              "helped": null
+            },
+            {
+              "id": "t4",
+              "medicationId": "m-tri",
+              "episodeId": null,
+              "takenAt": "2026-11-14T14:00:00Z",
+              "helped": null
+            },
+            {
+              "id": "i0",
+              "medicationId": "m-ibu",
+              "episodeId": null,
+              "takenAt": "2026-11-04T01:00:00Z",
+              "helped": null
+            },
+            {
+              "id": "i1",
+              "medicationId": "m-ibu",
+              "episodeId": null,
+              "takenAt": "2026-11-07T01:00:00Z",
+              "helped": null
+            },
+            {
+              "id": "i2",
+              "medicationId": "m-ibu",
+              "episodeId": null,
+              "takenAt": "2026-11-10T01:00:00Z",
+              "helped": null
+            },
+            {
+              "id": "i3",
+              "medicationId": "m-ibu",
+              "episodeId": null,
+              "takenAt": "2026-11-13T01:00:00Z",
+              "helped": null
+            },
+            {
+              "id": "i9",
+              "medicationId": "m-ibu",
+              "episodeId": null,
+              "takenAt": "2026-11-01T04:50:00Z",
+              "helped": null
+            }
+          ],
+          "medications": [
+            {
+              "id": "m-tri",
+              "name": "Sumatriptan",
+              "kind": "acute",
+              "class": "triptan"
+            },
+            {
+              "id": "m-ibu",
+              "name": "Ibuprofen",
+              "kind": "acute",
+              "class": "simple_analgesic"
+            }
+          ],
+          "pressure": null
+        },
+        "notify": {
+          "notifyStart": "08:00",
+          "notifyEnd": "21:00",
+          "notifyDailyCap": 2,
+          "lockScreenDetail": false
+        },
+        "pushLog": []
+      },
+      "expected": {
+        "selected": true,
+        "signals": [
+          {
+            "kind": "overuse_warn",
+            "cause": "overuse:combined",
+            "causeKey": "overuse:combined:warn:2026-11",
+            "evidence": {
+              "scope": "combined",
+              "days": 9,
+              "limit": 10,
+              "level": "warn"
+            }
+          }
+        ],
+        "today": [
+          "overuse:combined:warn:2026-11"
+        ],
+        "push": {
+          "causeKey": "overuse:combined:warn:2026-11",
+          "reason": "send"
+        }
+      }
+    },
+    {
+      "id": "S17-more-than-three-signals",
+      "description": "Four signals at once. Today shows the first three by priority; the push takes the first one.",
+      "input": {
+        "now": "2026-11-27T13:05:00Z",
+        "user": {
+          "timeZone": "America/Bogota",
+          "knownTriggers": [
+            "weather"
+          ],
+          "hasLocation": true,
+          "onboardedAt": "2026-09-01T15:00:00Z",
+          "episodes": [
+            {
+              "id": "s0",
+              "startedAt": "2026-11-03T20:00:00Z",
+              "endedAt": "2026-11-04T02:00:00Z",
+              "intensity": 6,
+              "triggers": [],
+              "helped": [],
+              "didNotHelp": [],
+              "debriefedAt": null
+            },
+            {
+              "id": "s1",
+              "startedAt": "2026-11-08T20:00:00Z",
+              "endedAt": "2026-11-09T02:00:00Z",
+              "intensity": 6,
+              "triggers": [],
+              "helped": [],
+              "didNotHelp": [],
+              "debriefedAt": null
+            },
+            {
+              "id": "s2",
+              "startedAt": "2026-11-13T20:00:00Z",
+              "endedAt": "2026-11-14T02:00:00Z",
+              "intensity": 6,
+              "triggers": [],
+              "helped": [],
+              "didNotHelp": [],
+              "debriefedAt": null
+            },
+            {
+              "id": "s3",
+              "startedAt": "2026-11-18T20:00:00Z",
+              "endedAt": "2026-11-19T02:00:00Z",
+              "intensity": 6,
+              "triggers": [],
+              "helped": [],
+              "didNotHelp": [],
+              "debriefedAt": null
+            },
+            {
+              "id": "s4",
+              "startedAt": "2026-11-22T20:00:00Z",
+              "endedAt": "2026-11-23T02:00:00Z",
+              "intensity": 6,
+              "triggers": [],
+              "helped": [],
+              "didNotHelp": [],
+              "debriefedAt": null
+            },
+            {
+              "id": "e9",
+              "startedAt": "2026-11-26T17:00:00Z",
+              "endedAt": "2026-11-27T01:00:00Z",
+              "intensity": 6,
+              "triggers": [],
+              "helped": [],
+              "didNotHelp": [],
+              "debriefedAt": null
+            }
+          ],
+          "checkins": [
+            {
+              "localDate": "2026-11-01",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            },
+            {
+              "localDate": "2026-11-02",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            },
+            {
+              "localDate": "2026-11-03",
+              "sleepBand": "lt5",
+              "stress": "mid"
+            },
+            {
+              "localDate": "2026-11-04",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            },
+            {
+              "localDate": "2026-11-05",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            },
+            {
+              "localDate": "2026-11-06",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            },
+            {
+              "localDate": "2026-11-07",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            },
+            {
+              "localDate": "2026-11-08",
+              "sleepBand": "5_6",
+              "stress": "mid"
+            },
+            {
+              "localDate": "2026-11-09",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            },
+            {
+              "localDate": "2026-11-10",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            },
+            {
+              "localDate": "2026-11-11",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            },
+            {
+              "localDate": "2026-11-12",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            },
+            {
+              "localDate": "2026-11-13",
+              "sleepBand": "5_6",
+              "stress": "mid"
+            },
+            {
+              "localDate": "2026-11-14",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            },
+            {
+              "localDate": "2026-11-15",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            },
+            {
+              "localDate": "2026-11-16",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            },
+            {
+              "localDate": "2026-11-17",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            },
+            {
+              "localDate": "2026-11-18",
+              "sleepBand": "lt5",
+              "stress": "mid"
+            },
+            {
+              "localDate": "2026-11-19",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            },
+            {
+              "localDate": "2026-11-20",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            },
+            {
+              "localDate": "2026-11-21",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            },
+            {
+              "localDate": "2026-11-22",
+              "sleepBand": "5_6",
+              "stress": "mid"
+            },
+            {
+              "localDate": "2026-11-23",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            },
+            {
+              "localDate": "2026-11-24",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            },
+            {
+              "localDate": "2026-11-25",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            },
+            {
+              "localDate": "2026-11-26",
+              "sleepBand": "7_8",
+              "stress": "mid"
+            },
+            {
+              "localDate": "2026-11-27",
+              "sleepBand": "lt5",
+              "stress": "mid"
+            }
+          ],
+          "doses": [
+            {
+              "id": "d0",
+              "medicationId": "m-tri",
+              "episodeId": null,
+              "takenAt": "2026-11-01T15:00:00Z",
+              "helped": null
+            },
+            {
+              "id": "d1",
+              "medicationId": "m-tri",
+              "episodeId": null,
+              "takenAt": "2026-11-03T15:00:00Z",
+              "helped": null
+            },
+            {
+              "id": "d2",
+              "medicationId": "m-tri",
+              "episodeId": null,
+              "takenAt": "2026-11-05T15:00:00Z",
+              "helped": null
+            },
+            {
+              "id": "d3",
+              "medicationId": "m-tri",
+              "episodeId": null,
+              "takenAt": "2026-11-07T15:00:00Z",
+              "helped": null
+            },
+            {
+              "id": "d4",
+              "medicationId": "m-tri",
+              "episodeId": null,
+              "takenAt": "2026-11-09T15:00:00Z",
+              "helped": null
+            },
+            {
+              "id": "d5",
+              "medicationId": "m-tri",
+              "episodeId": null,
+              "takenAt": "2026-11-11T15:00:00Z",
+              "helped": null
+            },
+            {
+              "id": "d6",
+              "medicationId": "m-tri",
+              "episodeId": null,
+              "takenAt": "2026-11-13T15:00:00Z",
+              "helped": null
+            },
+            {
+              "id": "d7",
+              "medicationId": "m-tri",
+              "episodeId": null,
+              "takenAt": "2026-11-15T15:00:00Z",
+              "helped": null
+            }
+          ],
+          "medications": [
+            {
+              "id": "m-tri",
+              "name": "Sumatriptan",
+              "kind": "acute",
+              "class": "triptan"
+            }
+          ],
+          "pressure": {
+            "fetchedAt": "2026-11-27T12:10:00Z",
+            "hours": [
+              "2026-11-27T13:00:00Z",
+              "2026-11-27T14:00:00Z",
+              "2026-11-27T15:00:00Z",
+              "2026-11-27T16:00:00Z",
+              "2026-11-27T17:00:00Z",
+              "2026-11-27T18:00:00Z",
+              "2026-11-27T19:00:00Z",
+              "2026-11-27T20:00:00Z",
+              "2026-11-27T21:00:00Z",
+              "2026-11-27T22:00:00Z",
+              "2026-11-27T23:00:00Z",
+              "2026-11-28T00:00:00Z",
+              "2026-11-28T01:00:00Z",
+              "2026-11-28T02:00:00Z",
+              "2026-11-28T03:00:00Z",
+              "2026-11-28T04:00:00Z",
+              "2026-11-28T05:00:00Z",
+              "2026-11-28T06:00:00Z",
+              "2026-11-28T07:00:00Z",
+              "2026-11-28T08:00:00Z",
+              "2026-11-28T09:00:00Z",
+              "2026-11-28T10:00:00Z",
+              "2026-11-28T11:00:00Z",
+              "2026-11-28T12:00:00Z",
+              "2026-11-28T13:00:00Z"
+            ],
+            "hPa": [
+              1012.4,
+              1011.5,
+              1010.8,
+              1010.4,
+              1010.3,
+              1010.4,
+              1010.8,
+              1011.1,
+              1011.3,
+              1011.2,
+              1010.7,
+              1010.0,
+              1009.1,
+              1008.3,
+              1007.6,
+              1007.1,
+              1007.0,
+              1007.2,
+              1007.5,
+              1007.9,
+              1008.0,
+              1007.9,
+              1007.5,
+              1006.8,
+              1005.9
+            ]
+          }
+        },
+        "notify": {
+          "notifyStart": "08:00",
+          "notifyEnd": "21:00",
+          "notifyDailyCap": 2,
+          "lockScreenDetail": false
+        },
+        "pushLog": []
+      },
+      "expected": {
+        "selected": true,
+        "signals": [
+          {
+            "kind": "debrief_due",
+            "cause": "debrief:e9",
+            "causeKey": "debrief:e9",
+            "evidence": {
+              "episodeId": "e9",
+              "endedAt": "2026-11-27T01:00:00Z"
+            }
+          },
+          {
+            "kind": "overuse_warn",
+            "cause": "overuse:triptan",
+            "causeKey": "overuse:triptan:warn:2026-11",
+            "evidence": {
+              "scope": "triptan",
+              "days": 8,
+              "limit": 10,
+              "level": "warn"
+            }
+          },
+          {
+            "kind": "short_sleep",
+            "cause": "short_sleep",
+            "causeKey": "short_sleep:2026-11-27",
+            "evidence": {
+              "sleepBand": "lt5",
+              "avgAttackNightHours": 5.5,
+              "attackNights": 6,
+              "avgOtherNightHours": 7.5
+            }
+          },
+          {
+            "kind": "pressure",
+            "cause": "pressure",
+            "causeKey": "pressure:2026-11-27",
+            "evidence": {
+              "nowHpa": 1012,
+              "laterHpa": 1006,
+              "laterAt": "2026-11-28T13:00:00Z",
+              "dropHpa": 6.5
+            }
+          }
+        ],
+        "today": [
+          "debrief:e9",
+          "overuse:triptan:warn:2026-11",
+          "short_sleep:2026-11-27"
+        ],
+        "push": {
+          "causeKey": "debrief:e9",
+          "reason": "send"
+        }
+      }
+    }
+  ]
+}

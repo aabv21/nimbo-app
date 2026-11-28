@@ -24,7 +24,8 @@ The types are in `supabase/functions/_shared/companion/contract.ts` (`CompanionR
   "messages": [
     { "role": "user", "text": "How many attacks did I have this month?" }
   ],
-  "episodeId": "3f0c1d9e-7a2b-4c55-9b1e-2d4f6a8c0e11"
+  "episodeId": "3f0c1d9e-7a2b-4c55-9b1e-2d4f6a8c0e11",
+  "timeZone": "America/Bogota"
 }
 ```
 
@@ -32,10 +33,11 @@ The types are in `supabase/functions/_shared/companion/contract.ts` (`CompanionR
 | --- | --- |
 | `mode` | `chat` (the Companion tab), `crisis` ("Tell me" in crisis mode) or `debrief` (the day-after debrief). |
 | `locale` | `en`, `es` or `pt`: the language on screen. The reply comes in it; the function never reads `profiles.language`. |
-| `localDate` | The phone's day, a real `YYYY-MM-DD` from 2000 on. It is the quota's day and the tools' day (`get_episodes`' default end, the check-in window); the prompt's "today" and "now" come from the server's clock on the profile's zone, the clock the tools' times use. |
+| `localDate` | The phone's day, a real `YYYY-MM-DD` from 2000 on. It is the quota's day, the tools' day (`get_episodes`' default end, the check-in window) and the prompt's "today". |
 | `input` | `text` (typed) or `voice` (dictated). A voice message spends a dictation unit and a companion unit. |
 | `messages` | 1 to 12 turns, the first and last from the user. Each `text` is 1 to 500 characters after trimming, 4,000 in all. The app sends the last turns of the chat it keeps on the phone. |
 | `episodeId` | Optional: the attack the conversation is about. An id that is not the caller's reads as absent. Null is the same as leaving it out. |
+| `timeZone` | Optional: the phone's IANA zone, a string of 1 to 64 characters (longer, empty or not a string is `400`). When the runtime knows it, the whole request uses it (the prompt's "now", the tools' times, the drafts); an unknown zone (`Mars/Base`) is ignored, not refused, and the profile's zone is used, so older builds keep working. Null is the same as leaving it out. |
 
 ### Response (200)
 

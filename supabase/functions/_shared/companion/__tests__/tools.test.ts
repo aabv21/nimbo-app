@@ -4,6 +4,7 @@
 import { doseDaysForMonth, MAX_AHEAD_MS, overuseStatus, packs } from '../../condition/index.ts';
 import { json } from '../../__tests__/fakeFetch.ts';
 import type { SupabaseEnv } from '../../env.ts';
+import type { RecordEpisode, RecordInputs } from '../../records.ts';
 import { createRefs } from '../refs.ts';
 import { runTool, type ToolEnv, type ToolOutcome } from '../tools.ts';
 import { fakePostgrest, type Row, SUPABASE_URL, type Tables, USER_AUTH } from './fakePostgrest.ts';
@@ -13,6 +14,7 @@ const TZ = 'America/Bogota';
 // 12:00 in Bogotá on Friday 27 November 2026.
 const NOW = Date.parse('2026-11-27T17:00:00.000Z');
 const SUPABASE: SupabaseEnv = { supabaseUrl: SUPABASE_URL, anonKey: 'anon-key', serviceRoleKey: 'service-key' };
+const USER_ID = '11111111-1111-4111-8111-111111111111';
 
 const id = (n: number): string => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const SUMATRIPTAN = id(101);
@@ -85,6 +87,7 @@ function setup(tables: Partial<Tables> = {}, options: { open?: boolean; notes?: 
     fetch,
     auth: USER_AUTH,
     timeoutMs: () => 3_000,
+    userId: USER_ID,
     pack,
     refs,
     timeZone: TZ,
@@ -293,14 +296,116 @@ test('the cabinet and crisis-plan reads each name an order and a bound, so a cut
   }
 });
 
-describe('not available yet', () => {
-  test.each([
-    ['get_insights', { status: 'not_available_yet', insights: [] }],
-    ['get_signals', { status: 'not_available_yet', signals: [] }],
-  ])('%s', async (name, expected) => {
-    const { run, calls } = setup();
-    expect((await run(name, {})).content).toEqual(expected);
+test('get_signals is not available yet and reads nothing', async () => {
+  const { run, calls } = setup();
+  expect((await run('get_signals', {})).content).toEqual({ status: 'not_available_yet', signals: [] });
+  expect(calls).toHaveLength(0);
+});
+
+describe('get_insights', () => {
+  const UUID_TEXT = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+  /** An attack at 15:00 local on day `day` of November 2026, two hours long. */
+  const attack = (n: number, day: number, fields: Partial<RecordEpisode> = {}): RecordEpisode => ({
+    id: id(600 + n),
+    startedAt: `2026-11-${String(day).padStart(2, '0')}T20:00:00.000Z`,
+    endedAt: `2026-11-${String(day).padStart(2, '0')}T22:00:00.000Z`,
+    intensity: 5,
+    triggers: [],
+    helped: [],
+    didNotHelp: [],
+    debriefedAt: null,
+    ...fields,
+  });
+  const inputsOf = (records: Partial<RecordInputs>): RecordInputs => ({
+    timeZone: TZ,
+    knownTriggers: [],
+    onboardedAt: '2026-11-01T12:00:00.000Z',
+    hasLocation: true,
+    episodes: [],
+    checkins: [],
+    doses: [],
+    medications: MEDICATIONS.map((row) => ({ id: String(row.id), name: String(row.name), kind: row.kind as 'acute', class: row.class as 'triptan' })),
+    ...records,
+  });
+  function insightsSetup(records: Partial<RecordInputs>, options: { timeZone?: string; answer?: () => Response } = {}) {
+    const args: Record<string, unknown>[] = [];
+    const rpc = {
+      record_inputs: (body: Record<string, unknown>) => {
+        args.push(body);
+        return options.answer?.() ?? json(200, inputsOf(records));
+      },
+    };
+    const world = setup({}, { rpc });
+    if (options.timeZone !== undefined) world.env.timeZone = options.timeZone;
+    return { ...world, args };
+  }
+  const STRESSED = [1, 4, 8, 12, 16].map((day, i) => attack(i, day, { triggers: i < 3 ? ['stress'] : ['alcohol'].slice(0, i - 3) }));
+
+  test('posts to rpc/record_inputs with the caller token, its own id and p_since 366 days back', async () => {
+    const { run, calls, args } = insightsSetup({ episodes: STRESSED });
+    await run('get_insights', {});
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.url.pathname).toBe('/rest/v1/rpc/record_inputs');
+    expect(calls[0]?.headers.get('authorization')).toBe(USER_AUTH);
+    expect(args).toEqual([{ p_user_id: USER_ID, p_since: new Date(NOW - 366 * 86_400_000).toISOString() }]);
+  });
+
+  test('5 attacks tagged stress 3 times give a trigger_frequency of 3 of 5 over 90 days, with one insight evidence item', async () => {
+    const { run, refs } = insightsSetup({ episodes: STRESSED });
+    const outcome = await run('get_insights', { kind: 'trigger_frequency' });
+    expect(outcome.isError).toBe(false);
+    expect(outcome.content).toEqual({
+      status: 'ok',
+      insights: [{ ref: 'i1', kind: 'trigger_frequency', key: 'stress', count: 3, of: 5, window_days: 90 }],
+      needs: [],
+    });
+    expect(outcome.evidence).toEqual([{ ref: 'i1', source: 'insight', count: 3, of: 5, episodeIds: [id(600), id(601), id(602)], doseIds: [] }]);
+    expect(refs.idOf('i1')).not.toBeNull();
+  });
+
+  test("kind 'weekday' keeps only the weekday entries", async () => {
+    const { run } = insightsSetup({ episodes: STRESSED });
+    const content = (await run('get_insights', { kind: 'weekday' })).content as { insights: Row[]; needs: Row[] };
+    expect(content.insights).toEqual([]);
+    expect(content.needs).toEqual([{ kind: 'weekday', unit: 'attacks', min: 12, have: 5 }]);
+    const all = (await run('get_insights', {})).content as { insights: Row[]; needs: Row[] };
+    expect(new Set(all.needs.map((need) => need.kind)).size).toBeGreaterThan(1);
+  });
+
+  test("kind 'timing' (the old enum) is an invalid_value error and reads nothing", async () => {
+    const { run, calls } = insightsSetup({ episodes: STRESSED });
+    const outcome = await run('get_insights', { kind: 'timing' });
+    expect(outcome).toEqual({ isError: true, content: { error: 'invalid_value' } });
     expect(calls).toHaveLength(0);
+  });
+
+  test('a helped medication entry carries medication_ref and name, and no UUID reaches the model', async () => {
+    const debriefed = { debriefedAt: '2026-11-20T12:00:00.000Z', helped: ['dark_room'] };
+    const episodes = [attack(1, 3, debriefed), attack(2, 6, debriefed), attack(3, 9, { ...debriefed, didNotHelp: ['caffeine'], helped: [] })];
+    const doses = episodes.map((episode, i) => ({ id: id(700 + i), medicationId: SUMATRIPTAN, episodeId: episode.id, takenAt: episode.startedAt, helped: i < 2 }));
+    const { run, refs } = insightsSetup({ episodes, doses });
+    const outcome = await run('get_insights', { kind: 'helped' });
+    const content = outcome.content as { insights: Row[] };
+    const medication = content.insights.find((entry) => entry.source === 'medication');
+    expect(medication).toEqual({ ref: expect.stringMatching(/^i\d+$/) as unknown, kind: 'helped', source: 'medication', medication_ref: 'm1', name: 'Sumatriptan', count: 2, of: 3, window_days: 90 });
+    expect(refs.idOf('m1')).toBe(SUMATRIPTAN);
+    expect(content.insights.find((entry) => entry.source === 'relief')).toMatchObject({ key: 'dark_room', count: 2, of: 2 });
+    expect(JSON.stringify(outcome.content)).not.toMatch(UUID_TEXT);
+    expect(JSON.stringify(outcome.content)).not.toContain('chance');
+  });
+
+  test('an unknown zone reads as UTC instead of throwing', async () => {
+    const { run } = insightsSetup({ episodes: STRESSED, timeZone: 'Mars/Base' });
+    const outcome = await run('get_insights', {});
+    expect(outcome.isError).toBe(false);
+    expect((outcome.content as { status: string }).status).toBe('ok');
+  });
+
+  test('a failed or malformed read is unavailable', async () => {
+    const failed = insightsSetup({}, { answer: () => json(500, { message: 'down' }) });
+    expect(await failed.run('get_insights', {})).toEqual({ isError: true, content: { error: 'unavailable' } });
+    const malformed = insightsSetup({}, { answer: () => json(200, { episodes: 'none' }) });
+    expect(await malformed.run('get_insights', {})).toEqual({ isError: true, content: { error: 'unavailable' } });
   });
 });
 

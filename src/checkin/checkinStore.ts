@@ -1,12 +1,13 @@
 // The daily check-in on the phone: one mirror row per local date, written together with its outbox operation.
 import { useCallback } from 'react';
 
+import type { SleepBand } from '../condition';
 import type { Json } from '../lib/database.types';
 import { localDb } from '../lib/local/db';
 import { useLocalQuery } from '../lib/local/useLocalQuery';
 import { enqueue } from '../lib/outbox/outbox';
 
-export type SleepBand = 'lt5' | '5_6' | '6_7' | '7_8' | 'gt8';
+export type { SleepBand } from '../condition';
 
 export interface Checkin {
   localDate: string;
@@ -147,6 +148,22 @@ export function useCheckinDates(userId: string, fromDate: string, toDate: string
           )
           .map((row) => row.local_date),
       ),
+    [userId, fromDate, toDate],
+  );
+  return useLocalQuery(['checkins'], read);
+}
+
+/** The user's check-ins from `fromDate` to `toDate` inclusive, oldest first. */
+export function useCheckins(userId: string, fromDate: string, toDate: string): readonly Checkin[] {
+  const read = useCallback(
+    () =>
+      localDb()
+        .getAllSync<CheckinRow>(`SELECT ${COLUMNS} FROM checkins WHERE user_id = ? AND local_date >= ? AND local_date <= ? ORDER BY local_date;`, [
+          userId,
+          fromDate,
+          toDate,
+        ])
+        .map(toCheckin),
     [userId, fromDate, toDate],
   );
   return useLocalQuery(['checkins'], read);

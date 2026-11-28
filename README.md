@@ -14,7 +14,7 @@ Nimbo is not a medical device. It does not diagnose, prescribe or replace a clin
 - Today: the status line, the daily check-in in two taps, the month's medication days and Start an attack, ordered by what the user said matters most.
 - Crisis mode: a dim, calm screen with 56 pt controls for intensity, symptoms, where it hurts and doses, with the countdown to the next dose. Every time stays editable, the start included.
 - A medicine cabinet with a medication-overuse guard on the ICHD-3 limits, and private local reminders for preventive medications.
-- History as a calendar and a searchable, filtered list, and an editor for each attack.
+- History as a calendar, a searchable, filtered list and Patterns: counts from your own records (attacks per month, days without an attack, triggers, time of day, weekday, what helped and sleep the night before), never a percentage, and what is still needed below each minimum. The companion reads the same counts.
 - Red flags: what the user writes is checked on the phone in all three languages, offline and with the AI off, and an attack open for 72 hours is flagged too; urgent care offers the official emergency number of the phone's region.
 - Everything is logged offline first and synced when the network returns, exactly once.
 - The companion: a chat that answers from your own records and shows where each number comes from, turns what you say into drafts you confirm, keeps short notes on how you like things ("What I know about you"), and asks a day-after debrief that builds your crisis plan. Every message and reply is screened for warning signs, dose advice, diagnosis and invented numbers; it never prescribes. The chat stays on the phone.
@@ -23,7 +23,7 @@ Nimbo is not a medical device. It does not diagnose, prescribe or replace a clin
 - Four tabs (Today, Companion, History, Profile) with a Liquid Glass tab bar; English, Spanish and Portuguese; three appearances (Day, Dark, Dim) plus Automatic.
 - A local Supabase stack with row-level security on every table and RPC-only health writes, tested with pgTAP and integration suites, and Maestro flows for onboarding, crisis mode, a red flag and a companion draft.
 
-Insights are planned. How it works: [`docs/architecture.md`](docs/architecture.md).
+Signals and push notifications are planned. How it works: [`docs/architecture.md`](docs/architecture.md).
 
 ## Quick start
 

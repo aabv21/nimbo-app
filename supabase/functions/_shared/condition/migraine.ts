@@ -205,4 +205,30 @@ export const migraine: ConditionPack = Object.freeze({
   combinedClasses: Object.freeze(['ergot', 'triptan', 'simple_analgesic', 'opioid'] as const),
   limits: Object.freeze({ longEpisodeHours: 12, statusHours: 72, auraMinutes: 60 }),
   redFlags,
+  sleepBandHours: Object.freeze({ lt5: 4.5, '5_6': 5.5, '6_7': 6.5, '7_8': 7.5, gt8: 8.5 }),
+  dayStartHour: 4,
+  // About three months keeps the counts recent and still leaves room for the minimums; below one a card shows what is needed.
+  insights: Object.freeze({
+    windowDays: 90,
+    patternChanceMax: 0.1,
+    monthlyFrequency: Object.freeze({ minTrackedDays: 60, months: 6 }),
+    streak: Object.freeze({ minTrackedDays: 14, staleAfterDays: 7, maxDays: 365 }),
+    triggerFrequency: Object.freeze({ minEpisodes: 5, minCount: 2, top: 3 }),
+    timeOfDay: Object.freeze({ minEpisodes: 8 }),
+    weekday: Object.freeze({ minEpisodes: 12 }),
+    helped: Object.freeze({ minDebriefs: 3, minMarked: 2, top: 5 }),
+    sleepBefore: Object.freeze({
+      minCheckins: 14,
+      minShortNights: 5,
+      minOtherNights: 5,
+      minAttackDays: 3,
+      shortBands: Object.freeze(['lt5', '5_6'] as const),
+    }),
+    timeOfDayBuckets: Object.freeze({
+      night: Object.freeze([0, 6] as const),
+      morning: Object.freeze([6, 12] as const),
+      afternoon: Object.freeze([12, 18] as const),
+      evening: Object.freeze([18, 24] as const),
+    }),
+  }),
 });

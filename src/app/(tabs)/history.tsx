@@ -1,4 +1,4 @@
-// Calendar and list of the attacks on this phone. "Patterns" joins the switch with the insights.
+// Calendar, list and patterns (the insights) of the attacks on this phone, behind one switch.
 import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -15,6 +15,9 @@ import { HistoryCalendar } from '../../history/HistoryCalendar';
 import { HistoryList } from '../../history/HistoryList';
 import { useI18n } from '../../i18n';
 import type { MessageKey } from '../../i18n';
+import { trackingSinceOf } from '../../insights';
+import { InsightCards } from '../../insights/InsightCards';
+import { useRecords } from '../../insights/useRecords';
 import { Screen } from '../../ui/Screen';
 import { useTabBarInset } from '../../ui/TabBar';
 import { TextLink } from '../../ui/TextLink';
@@ -22,12 +25,14 @@ import { controlHeight, fonts, radius, space, type } from '../../ui/theme';
 import { useTheme, useTones } from '../../ui/themeContext';
 import { usePressFeedback } from '../../ui/usePressFeedback';
 
-type ViewName = 'calendar' | 'list';
+type ViewName = 'calendar' | 'list' | 'insights';
 
 const VIEWS: readonly { name: ViewName; label: MessageKey }[] = [
   { name: 'calendar', label: 'history.view.calendar' },
   { name: 'list', label: 'history.view.list' },
+  { name: 'insights', label: 'history.view.insights' },
 ];
+const HOUR_MS = 3_600_000;
 // The overuse notice's action: the attacks that had a dose this month, near enough as the last 30 days.
 const DOSES_FILTER: EpisodeFilter = { ...EMPTY_FILTER, doses: 'with', period: '30d' };
 
@@ -52,6 +57,18 @@ function Segment({ name, label, selected, onPress }: { name: ViewName; label: st
       </Pressable>
     </Animated.View>
   );
+}
+
+/** The insights over this phone's records, recomputed when a record changes or the hour turns. */
+function Patterns({ userId, now }: { userId: string; now: Date }): React.JSX.Element {
+  const records = useRecords(userId);
+  const hour = Math.floor(now.getTime() / HOUR_MS);
+  const data = useMemo(() => {
+    const at = new Date(hour * HOUR_MS);
+    return { ...records, timeZone: records.timeZone ?? 'UTC', now: at, trackingSince: trackingSinceOf(records, records.timeZone ?? 'UTC', at) };
+  }, [records, hour]);
+  const names = useMemo(() => new Map(records.medications.map((medication) => [medication.id, medication.name])), [records.medications]);
+  return <InsightCards data={data} medicationName={(id) => names.get(id) ?? null} />;
 }
 
 function HistoryBody({ userId }: { userId: string }): React.JSX.Element {
@@ -113,6 +130,11 @@ function HistoryBody({ userId }: { userId: string }): React.JSX.Element {
           {header}
           <HistoryCalendar userId={userId} episodes={episodes} now={now} onOpen={open} />
           {episodes.length === 0 ? emptyText : null}
+        </Screen>
+      ) : view === 'insights' ? (
+        <Screen bottomInset={bottomInset}>
+          {header}
+          <Patterns userId={userId} now={now} />
         </Screen>
       ) : (
         <Screen scroll={false}>

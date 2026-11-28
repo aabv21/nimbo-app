@@ -33,6 +33,12 @@ export default defineConfig(
     rules: { 'security/detect-object-injection': 'off' },
   },
   {
+    // The insights index a bucket record by a day part, weekday or rule kind from a fixed tuple, and count arrays by position;
+    // their card text reads the same records with the same keys, and its test walks the catalogs by locale.
+    files: ['supabase/functions/_shared/insights.ts', 'src/insights/insightText.ts', 'src/insights/__tests__/insightText.test.ts'],
+    rules: { 'security/detect-object-injection': 'off' },
+  },
+  {
     // The calibration script and its test index a record by a guard key, a red-flag key or a fixture's position, and read
     // one environment variable by its name.
     files: ['scripts/calibrate.ts', 'scripts/__tests__/calibration.test.ts'],
@@ -94,6 +100,7 @@ export default defineConfig(
       'src/profile/__tests__/{useTimezoneSync,useLanguageSync,useProfileChange,profileRepository}.test.ts',
       'src/auth/__tests__/AuthProvider.test.tsx',
       'src/lib/{local,outbox,sync}/__tests__/*.test.{ts,tsx}',
+      'src/insights/__tests__/*.test.{ts,tsx}',
     ],
     rules: {
       '@typescript-eslint/no-require-imports': 'off',

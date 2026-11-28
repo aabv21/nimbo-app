@@ -30,7 +30,7 @@ exports[`the tools the definitions are stable (any change also changes the cache
   },
   {
     "name": "get_insights",
-    "description": "Patterns the app computed from the person’s records, with their counts and refs. Not available yet: it says so.",
+    "description": "Patterns the app computed from the person’s own records: attacks per month, days without an attack, their most tagged triggers, time of day, day of the week, what helped in debriefed attacks, and sleep the night before. Each gives count out of of, window_days and a ref to cite; pattern says whether a time or weekday spread stands out from chance. needs lists the patterns that still need more records, with how many they need and have.",
     "strict": true,
     "input_schema": {
       "type": "object",
@@ -39,12 +39,15 @@ exports[`the tools the definitions are stable (any change also changes the cache
         "kind": {
           "type": "string",
           "enum": [
-            "medications",
-            "reliefs",
-            "timing",
-            "triggers"
+            "attack_free_streak",
+            "helped",
+            "monthly_frequency",
+            "sleep_before",
+            "time_of_day",
+            "trigger_frequency",
+            "weekday"
           ],
-          "description": "Which kind of pattern."
+          "description": "Only this kind of pattern; all kinds if left out."
         }
       },
       "required": []
@@ -63,7 +66,7 @@ exports[`the tools the definitions are stable (any change also changes the cache
   },
   {
     "name": "get_signals",
-    "description": "Today’s signals and their reasons. Not available yet: it says so.",
+    "description": "Today’s signals and their reasons.",
     "strict": true,
     "input_schema": {
       "type": "object",

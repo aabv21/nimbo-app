@@ -1,6 +1,7 @@
 // A stand-in for react-native-reanimated under Jest, mapped for every suite in jest.setup.ts: its own
 // mock loads react-native-worklets' native module and crashes under jest-expo.
 import { useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
 import { Text, View } from 'react-native';
 
 // What it models (anything else the app imports must be added here):
@@ -12,6 +13,7 @@ import { Text, View } from 'react-native';
 //   `withTiming` also calls its completion callback with `finished: true`.
 // - `interpolate`, `interpolateColor`: linear and nearest-stop, enough to assert a settled style.
 // - `FadeIn`, `FadeOut`: layout-animation builders whose modifiers chain and do nothing; the view mounts settled.
+// - `LayoutAnimationConfig`: renders its children; no entering animation runs here anyway.
 
 export function useReducedMotion(): boolean {
   return false;
@@ -129,6 +131,10 @@ export const FadeIn = layoutAnimation();
 export const FadeOut = layoutAnimation();
 
 export const ReduceMotion = { System: 'system', Always: 'always', Never: 'never' } as const;
+
+export function LayoutAnimationConfig({ children }: { children: ReactNode }): ReactNode {
+  return children;
+}
 
 export function createAnimatedComponent<C>(component: C): C {
   return component;

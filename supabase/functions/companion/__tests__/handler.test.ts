@@ -16,6 +16,7 @@ import {
   DB_TIMEOUT_MS,
   handleCompanion,
   MAX_TOOL_ROUNDS,
+  requestZone,
   MIN_CALL_MS,
   REPLY_SCREEN_MIN_MS,
   REQUEST_DEADLINE_MS,
@@ -528,16 +529,50 @@ describe('the tool loop', () => {
     expect(system[1]?.text).toContain('e1');
   });
 
-  test("block 2 gives the person's local time with the profile's offset, and today on that clock", async () => {
-    // The phone's day is already the 28th; the person's zone still reads the 27th, as the tools do.
+  test("block 2 gives the person's local time with the profile's offset, and the request's day as today", async () => {
+    // The phone's day is already the 28th while the profile zone still reads the 27th: the phone's day wins.
     const w = world({ sonnet: [() => answer('Hello.')] });
     await call(w, chat('hi', { localDate: '2026-11-28' }));
     const block = (w.sonnetBodies()[0]?.system as { text: string }[])[1]?.text ?? '';
     expect(block).toContain("It is now 2026-11-27T12:00:00-05:00 (the person's local time).");
-    expect(block).toContain('Today is Friday, 2026-11-27');
+    expect(block).toContain('Today is Saturday, 2026-11-28');
     const utc = world({ profile: { user_id: USER_ID, timezone: null, ai_enabled: true }, sonnet: [() => answer('Hello.')] });
     await call(utc, chat('hi'));
     expect((utc.sonnetBodies()[0]?.system as { text: string }[])[1]?.text).toContain("It is now 2026-11-27T17:00:00+00:00 (the person's local time).");
+  });
+
+  test("the request's timeZone drives the tools' times over the profile's", async () => {
+    const episodes = [episode(PAST_EPISODE, '2026-11-20T13:30:00.000Z', '2026-11-20T18:00:00.000Z')];
+    let toolResult = '';
+    const w = world({
+      episodes,
+      sonnet: [
+        () => toolRound(['get_episodes', {}]),
+        (body) => {
+          toolResult = JSON.stringify(body.messages);
+          return answer('You had 1 attack [r1].');
+        },
+      ],
+    });
+    const result = await call(w, chat('How was my week?', { timeZone: 'America/Santiago' }));
+    expect(result.status).toBe(200);
+    // Santiago is on summer time (UTC−3) in November; Bogotá would read −05:00.
+    expect(toolResult).toContain('2026-11-20T10:30:00-03:00');
+    expect(toolResult).not.toContain('-05:00');
+    const block = (w.sonnetBodies()[0]?.system as { text: string }[])[1]?.text ?? '';
+    expect(block).toContain("It is now 2026-11-27T14:00:00-03:00 (the person's local time).");
+  });
+
+  test('an unknown request timeZone falls back to the profile zone, with status 200', async () => {
+    const w = world({ sonnet: [() => answer('Hello.')] });
+    const result = await call(w, chat('hi', { timeZone: 'Mars/Base' }));
+    expect(result.status).toBe(200);
+    const block = (w.sonnetBodies()[0]?.system as { text: string }[])[1]?.text ?? '';
+    expect(block).toContain("It is now 2026-11-27T12:00:00-05:00 (the person's local time).");
+    expect(requestZone('Mars/Base')).toBeNull();
+    expect(requestZone(undefined)).toBeNull();
+    expect(requestZone('UTC')).toBe('UTC');
+    expect(requestZone('America/Santiago')).toBe('America/Santiago');
   });
 
   test('a dose taken "just now" round-trips through propose_dose at the current instant', async () => {

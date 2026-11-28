@@ -66,7 +66,7 @@ export type Draft = EpisodeDraft | DoseDraft | CheckinDraft;
 /** What a number in a reply rests on: `count` of `of` (null when it is a plain count) and the records behind it. */
 export type Evidence = {
   ref: string;
-  source: 'episodes' | 'crisis_plan' | 'overuse';
+  source: 'episodes' | 'crisis_plan' | 'overuse' | 'insight';
   count: number;
   of: number | null;
   episodeIds: string[];
@@ -99,7 +99,10 @@ export const NOTE_MAX_CHARS = 200;
 
 export type Turn = { role: 'user' | 'assistant'; text: string };
 
-/** `localDate` is the app's day; `input: 'voice'` also spends a dictation unit. */
+/**
+ * `localDate` is the app's day and `timeZone` the phone's zone (the server checks it before using it);
+ * `input: 'voice'` also spends a dictation unit.
+ */
 export interface CompanionRequest {
   mode: Mode;
   locale: Locale;
@@ -107,7 +110,11 @@ export interface CompanionRequest {
   input: 'text' | 'voice';
   messages: Turn[];
   episodeId?: string;
+  timeZone?: string;
 }
+
+/** `profiles.timezone`'s own bound. */
+export const TIME_ZONE_MAX_CHARS = 64;
 
 /**
  * `reply` is null when a red flag stopped the request or the guard replaced the reply; the app then renders a
@@ -158,7 +165,7 @@ export function isLocalDate(value: unknown): value is string {
 
 const oneOf = <T extends string>(options: readonly T[], value: unknown): T | undefined => options.find((option) => option === value);
 
-/** The request, or null when anything is off; an `episodeId` that is null or absent is left out. */
+/** The request, or null when anything is off; an `episodeId` or `timeZone` that is null or absent is left out. */
 export function parseCompanionRequest(body: unknown): CompanionRequest | null {
   if (!isRecord(body)) return null;
   const mode = oneOf(MODES, body.mode);
@@ -168,8 +175,11 @@ export function parseCompanionRequest(body: unknown): CompanionRequest | null {
   if (mode === undefined || locale === undefined || input === undefined || messages === null || !isLocalDate(body.localDate)) return null;
   const { episodeId } = body;
   if (episodeId !== undefined && episodeId !== null && (typeof episodeId !== 'string' || !UUID.test(episodeId))) return null;
+  const { timeZone } = body;
+  if (timeZone !== undefined && timeZone !== null && (typeof timeZone !== 'string' || timeZone.length === 0 || timeZone.length > TIME_ZONE_MAX_CHARS)) return null;
   const request: CompanionRequest = { mode, locale, localDate: body.localDate, input, messages };
   if (typeof episodeId === 'string') request.episodeId = episodeId.toLowerCase();
+  if (typeof timeZone === 'string') request.timeZone = timeZone;
   return request;
 }
 
@@ -215,7 +225,7 @@ function isEvidence(value: unknown): value is Evidence {
   return (
     isRecord(value) &&
     isString(value.ref) &&
-    isIn(['episodes', 'crisis_plan', 'overuse'])(value.source) &&
+    isIn(['episodes', 'crisis_plan', 'overuse', 'insight'])(value.source) &&
     isNumber(value.count) &&
     isNullable(value.of, isNumber) &&
     isStrings(value.episodeIds) &&

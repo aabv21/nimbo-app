@@ -14,9 +14,11 @@ import {
   packs,
 } from '../condition/index.ts';
 import { isRecord, UUID } from '../guards.ts';
+import { computeInsights, type Insight, INSIGHT_KINDS, insightNeeds } from '../insights.ts';
+import { INSIGHT_SINCE_DAYS, parseRecordInputs, trackingSinceOf } from '../records.ts';
 import { rpcClient } from '../rest.ts';
 import { type CheckinDraft, type Draft, type DoseDraft, type EpisodeDraft, type Evidence, isLocalDate, NOTE_MAX_CHARS } from './contract.ts';
-import { addDays, type Caller, type EpisodeSpan, localIso, parseZonedTime, readCountedRows, readRows, type Row, zonedMidnight } from './data.ts';
+import { addDays, type Caller, type EpisodeSpan, localIso, parseZonedTime, readCountedRows, readRows, type Row, zonedMidnight, zoneOrUtc } from './data.ts';
 import type { RefPrefix, Refs } from './refs.ts';
 import { spaceInvisible, type ToolCall } from './turns.ts';
 
@@ -42,7 +44,7 @@ const EARLIEST = Date.UTC(2000, 0, 1);
 const SLEEP_BANDS = ['lt5', '5_6', '6_7', '7_8', 'gt8'] as const;
 const SLEEP_QUALITIES = ['bad', 'ok', 'good'] as const;
 const STRESS_LEVELS = ['low', 'mid', 'high'] as const;
-const INSIGHT_KINDS = ['medications', 'reliefs', 'timing', 'triggers'] as const;
+const DAY_MS = 86_400_000;
 
 // --- Definitions --------------------------------------------------------------------------------
 
@@ -81,14 +83,16 @@ export const COMPANION_TOOLS: readonly ToolDefinition[] = Object.freeze([
       limit: { type: 'integer', description: 'How many attacks to return, 1 to 20; 10 if left out.' },
     },
   ),
-  tool('get_insights', 'Patterns the app computed from the person’s records, with their counts and refs. Not available yet: it says so.', {
-    kind: choice(INSIGHT_KINDS, 'Which kind of pattern.'),
-  }),
+  tool(
+    'get_insights',
+    'Patterns the app computed from the person’s own records: attacks per month, days without an attack, their most tagged triggers, time of day, day of the week, what helped in debriefed attacks, and sleep the night before. Each gives count out of of, window_days and a ref to cite; pattern says whether a time or weekday spread stands out from chance. needs lists the patterns that still need more records, with how many they need and have.',
+    { kind: choice(INSIGHT_KINDS, 'Only this kind of pattern; all kinds if left out.') },
+  ),
   tool(
     'get_cabinet',
     'Lists the person’s active medications (name, kind, class, form, the dose text they saved themselves, and whether they set a minimum interval) and this calendar month’s overuse counts: days with an acute dose per class and for the classes combined, each against its limit, with a ref to cite.',
   ),
-  tool('get_signals', 'Today’s signals and their reasons. Not available yet: it says so.'),
+  tool('get_signals', 'Today’s signals and their reasons.'),
   tool(
     'get_crisis_plan',
     'What helped the person in attacks they debriefed: comfort measures and their own medications, best first, at most five, each with how many times it helped out of how many tries and a ref to cite.',
@@ -163,6 +167,8 @@ export const COMPANION_TOOLS: readonly ToolDefinition[] = Object.freeze([
 export type ToolState = { drafts: number; spans: Map<string, { start: number; end: number | null }> };
 
 export type ToolEnv = Caller & {
+  /** The caller's own id, for the RPCs that take it; RLS still limits every read to their rows. */
+  userId: string;
   pack: ConditionPack;
   refs: Refs;
   timeZone: string;
@@ -439,6 +445,60 @@ async function getCrisisPlan(env: ToolEnv): Promise<ToolOutcome> {
   return { content: { plan: entries }, isError: false, evidence };
 }
 
+/** An insight's own fields, snake_case; `chance` stays out, as a probability invites a percentage. */
+function insightFields(insight: Insight, env: ToolEnv, names: ReadonlyMap<string, string>): Record<string, unknown> | null {
+  switch (insight.kind) {
+    case 'monthly_frequency':
+      return { key: insight.key, avg_intensity: insight.avgIntensity, partial: insight.partial };
+    case 'attack_free_streak':
+      return { key: insight.key, best_days: insight.bestDays };
+    case 'trigger_frequency':
+      return { key: insight.key };
+    case 'time_of_day':
+    case 'weekday':
+      return { key: insight.key, buckets: insight.buckets, pattern: insight.pattern };
+    case 'helped': {
+      if (insight.source === 'relief') return { source: 'relief', key: insight.key };
+      // The medication by ref and name, never its id.
+      const name = textUpTo(names.get(insight.key), NAME_MAX_CHARS);
+      return name === null ? null : { source: 'medication', medication_ref: env.refs.add('m', insight.key), name };
+    }
+    case 'sleep_before':
+      return {
+        key: insight.key,
+        baseline: insight.baseline,
+        avg_hours: { attack_nights: insight.avgHours.attackNights, other_nights: insight.avgHours.otherNights },
+        checkins: insight.checkins,
+      };
+  }
+}
+
+async function getInsights(input: Record<string, unknown>, env: ToolEnv): Promise<ToolOutcome> {
+  const kind = optionalOf(INSIGHT_KINDS, input.kind);
+  const now = new Date(env.now());
+  const { data, error } = await rpcClient(env.supabase, env.fetch, env.auth, env.timeoutMs()).rpc('record_inputs', {
+    p_user_id: env.userId,
+    p_since: new Date(now.getTime() - INSIGHT_SINCE_DAYS * DAY_MS).toISOString(),
+  });
+  const records = error === null ? parseRecordInputs(data) : null;
+  if (records === null) throw new Error('record_inputs failed');
+  // Insight dates are local dates, and an unknown zone would throw: the handler's zone, checked again.
+  const timeZone = zoneOrUtc(env.timeZone);
+  const insightData = { ...records, now, timeZone, trackingSince: trackingSinceOf(records, timeZone, now) };
+  const wanted = <T extends { kind: string }>(items: readonly T[]): T[] => items.filter((item) => kind === null || item.kind === kind);
+  const names = new Map(records.medications.map((med) => [med.id, med.name]));
+  const evidence: Evidence[] = [];
+  const insights = wanted(computeInsights(insightData, env.pack)).flatMap((insight) => {
+    const fields = insightFields(insight, env, names);
+    if (fields === null) return [];
+    const ref = env.refs.add('i', `${insight.kind}:${insight.kind === 'helped' ? insight.source : ''}:${insight.key}`);
+    evidence.push({ ref, source: 'insight', count: insight.count, of: insight.of, episodeIds: [...insight.episodeIds], doseIds: [] });
+    return [{ ref, kind: insight.kind, ...fields, count: insight.count, of: insight.of, window_days: insight.windowDays }];
+  });
+  const needs = wanted(insightNeeds(insightData, env.pack)).map((need) => ({ kind: need.kind, unit: need.unit, min: need.min, have: need.have }));
+  return { content: { status: 'ok', insights, needs }, isError: false, evidence };
+}
+
 /** The ref the model gave and the id behind it; both null when it gave none. */
 function optionalRef(env: ToolEnv, prefix: RefPrefix, value: unknown): { ref: string; id: string } | { ref: null; id: null } {
   if (absent(value)) return { ref: null, id: null };
@@ -594,8 +654,7 @@ export async function runTool(call: ToolCall, env: ToolEnv): Promise<ToolOutcome
       case 'get_episodes':
         return await getEpisodes(call, input, env);
       case 'get_insights':
-        optionalOf(INSIGHT_KINDS, input.kind);
-        return { content: { status: 'not_available_yet', insights: [] }, isError: false };
+        return await getInsights(input, env);
       case 'get_cabinet':
         return await getCabinet(env);
       case 'get_signals':

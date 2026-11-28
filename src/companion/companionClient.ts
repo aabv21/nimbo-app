@@ -4,6 +4,7 @@ import { FunctionsFetchError, FunctionsHttpError, FunctionsRelayError } from '@s
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import type { Database } from '../lib/database.types';
+import { deviceTimeZone } from '../lib/localDate';
 import { supabase } from '../lib/supabase';
 import type { ChatMessage } from './chatStore';
 import { isCompanionResponse, isRecord, MAX_TURNS, RED_FLAG_KEYS, TOTAL_MAX_CHARS, TURN_MAX_CHARS } from './contract';
@@ -96,7 +97,8 @@ function redFlagsOnly(body: unknown): CompanionOutcome | null {
 /** Never throws: every failure is an outcome, and a body this app version cannot check is `unknown` unless it names red flags. */
 export async function askCompanion(input: CompanionRequest, client: Client = supabase): Promise<CompanionOutcome> {
   try {
-    const response = await client.functions.invoke<unknown>('companion', { body: input });
+    // The phone's zone rides along, so the server's "today" and the drafts follow the phone, not a stale profile.
+    const response = await client.functions.invoke<unknown>('companion', { body: { ...input, timeZone: input.timeZone ?? deviceTimeZone() } });
     if (response.error !== null) return await failure(response.error);
     if (isCompanionResponse(response.data)) return { ok: true, result: response.data };
     return redFlagsOnly(response.data) ?? { ok: false, error: 'unknown' };

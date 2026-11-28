@@ -42,6 +42,9 @@ export interface I18n {
   tp: (key: PluralKey, count: number, params?: Params) => string;
 }
 
+export type Translate = I18n['t'];
+export type TranslatePlural = I18n['tp'];
+
 export function useI18n(): I18n {
   // NOTE: reads device languages once per mount, not on an OS change; upgrade: expo-localization's `useLocales()`.
   const device = useMemo(() => deviceLocale(), []);

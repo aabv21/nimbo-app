@@ -10,6 +10,12 @@ export type MedicationClass =
   | 'gepant'
   | 'other';
 
+export type SleepBand = 'lt5' | '5_6' | '6_7' | '7_8' | 'gt8';
+
+export type DayPart = 'night' | 'morning' | 'afternoon' | 'evening';
+
+export type Weekday = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
+
 export interface CatalogItem {
   readonly key: string;
   readonly labelKey: string;
@@ -62,4 +68,29 @@ export interface ConditionPack {
   };
   /** In the order the urgent-care screen lists them. */
   readonly redFlags: readonly RedFlag[];
+  /** Hours a check-in's sleep band stands for, at the band's midpoint. */
+  readonly sleepBandHours: Readonly<Record<SleepBand, number>>;
+  /** Local hour a record day starts: an attack at 02:30 belongs to the night before. */
+  readonly dayStartHour: number;
+  /** The insights' window and minimum samples: below a minimum a card shows what is still needed. */
+  readonly insights: {
+    readonly windowDays: number;
+    /** Highest chance of the top count under an even spread that still reads as a pattern. */
+    readonly patternChanceMax: number;
+    readonly monthlyFrequency: { readonly minTrackedDays: number; readonly months: number };
+    readonly streak: { readonly minTrackedDays: number; readonly staleAfterDays: number; readonly maxDays: number };
+    readonly triggerFrequency: { readonly minEpisodes: number; readonly minCount: number; readonly top: number };
+    readonly timeOfDay: { readonly minEpisodes: number };
+    readonly weekday: { readonly minEpisodes: number };
+    readonly helped: { readonly minDebriefs: number; readonly minMarked: number; readonly top: number };
+    readonly sleepBefore: {
+      readonly minCheckins: number;
+      readonly minShortNights: number;
+      readonly minOtherNights: number;
+      readonly minAttackDays: number;
+      readonly shortBands: readonly SleepBand[];
+    };
+    /** Local hours `[from, to)` of each day part. */
+    readonly timeOfDayBuckets: Readonly<Record<DayPart, readonly [number, number]>>;
+  };
 }

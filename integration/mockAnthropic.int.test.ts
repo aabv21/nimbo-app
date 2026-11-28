@@ -61,7 +61,7 @@ test('a reply function answers from each call body', async () => {
 });
 
 test('the companion-checkin scenario proposes a check-in on the request day, then answers once the result is back', () => {
-  const context: PromptContext = { locale: 'en', mode: 'chat', now: Date.parse('2026-11-27T17:00:00.000Z'), timeZone: 'America/Bogota', notes: [], openEpisodeRef: null };
+  const context: PromptContext = { locale: 'en', mode: 'chat', now: Date.parse('2026-11-27T17:00:00.000Z'), timeZone: 'America/Bogota', localDate: '2026-11-27', notes: [], openEpisodeRef: null };
   const first = [{ role: 'user', content: 'slept 5 hours, very stressed' }];
   const round = companionCheckinReply(buildCompanionRequest(context, first, { final: false }));
   expect(round).toMatchObject({

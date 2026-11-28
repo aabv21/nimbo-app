@@ -192,6 +192,9 @@ isOneToOne: false
 "log_episode":
 { Args: { "p_fields": Json,"p_id": string,"p_started_at": string }; Returns: undefined
                            },
+"record_inputs":
+{ Args: { "p_since": string,"p_user_id": string }; Returns: Json
+                           },
 "save_agent_note":
 { Args: { "p_text": string }; Returns: string
                            },

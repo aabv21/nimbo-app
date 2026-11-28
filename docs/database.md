@@ -2,7 +2,7 @@
 
 The backend is Supabase (Postgres 17), run locally through the `db:*` scripts ([`local-stack.md`](local-stack.md)).
 This document covers what the migrations create: `public.profiles`, its policies and grants, the
-signup trigger, the consent RPCs, the tracking tables with their RPCs, entitlements, the AI quotas and the companion's data (the debrief columns, `set_dose_helped` and `agent_notes`). Schema changes are new migration files in
+signup trigger, the consent RPCs, the tracking tables with their RPCs, entitlements, the AI quotas, the companion's data (the debrief columns, `set_dose_helped` and `agent_notes`) and `record_inputs`, the read the insights run on. Schema changes are new migration files in
 `supabase/migrations/`; a merged migration is never edited. The diagram [`diagrams/data-model.svg`](diagrams/data-model.svg) shows how the pieces relate, and [`architecture.md`](architecture.md#the-consent-model) explains why consent is RPC-only.
 
 ## `public.profiles`
@@ -186,12 +186,37 @@ it takes this rule rather than `private.client_time`.
 All three new RPCs are `security definer` with `search_path = ''`, `42501` when signed out, revoked from `public` and `anon`
 and granted to `authenticated`.
 
+## Records for the insights
+
+`20261129120000_record_inputs.sql` adds one read of everything the insights (`supabase/functions/_shared/insights.ts`) need, in the
+shape `parseRecordInputs` (`_shared/records.ts`) takes, so the companion's `get_insights` reads it in one call.
+
+`record_inputs(p_user_id uuid, p_since timestamptz) returns jsonb` is `language sql stable security invoker` with `search_path = ''`.
+It returns `{ timeZone, knownTriggers, onboardedAt, hasLocation, episodes, checkins, doses, medications }`:
+
+| Field | Rows |
+| --- | --- |
+| `timeZone`, `knownTriggers`, `onboardedAt` | The profile's `timezone`, `known_triggers` (`[]` without a row) and `onboarding_completed_at`. |
+| `hasLocation` | `coarse_lat is not null`; the coordinates themselves never leave. |
+| `episodes` | `{ id, startedAt, endedAt, intensity, triggers, helped, didNotHelp, debriefedAt }`, oldest first: started at or after `p_since`, or still open. |
+| `checkins` | `{ localDate, sleepBand, stress }`, oldest first, from the day before `p_since`'s UTC date, so a zone behind UTC keeps its first day. |
+| `doses` | `{ id, medicationId, episodeId, takenAt, helped }`, taken at or after `p_since`. |
+| `medications` | `{ id, name, kind, class }`, every one, archived included (their past doses still name them). |
+
+Every list is filtered by `user_id = p_user_id`, and as a security invoker it reads through RLS: a signed-in caller who passes another
+user's id gets four empty lists, a null `timeZone` and `onboardedAt`, and `hasLocation` false. The service role reads anyone (the
+hourly monitor will). Revoked from `public` and `anon`, granted to `authenticated` and `service_role`. The window
+(`INSIGHT_SINCE_DAYS`, 366 days) covers six months of monthly counts and the year-long attack-free stretch.
+
 ## Tests
 
-pgTAP files in `supabase/tests/`, run by `pnpm db:test`. `profiles.test.sql` (37 assertions), `tracking.test.sql` (106), `onboarding_profile.test.sql` (13), `entitlements.test.sql` (29), `quota.test.sql` (20) and `companion_data.test.sql` (55). `profiles.test.sql` covers
+pgTAP files in `supabase/tests/`, run by `pnpm db:test`. `profiles.test.sql` (37 assertions), `tracking.test.sql` (106), `onboarding_profile.test.sql` (13), `entitlements.test.sql` (29), `quota.test.sql` (20), `companion_data.test.sql` (55) and `record_inputs.test.sql` (22). `profiles.test.sql` covers
 the signup row and its defaults, own-row visibility, the update grants and each refused column,
 both RPCs including the repeat and withdrawal cases, the value checks, function privileges for
-`anon` and `authenticated`, and the refused insert and delete. `tracking.test.sql` covers RLS and the refused direct writes on the four tables, each RPC's idempotency, patch semantics (including a moved start, a start after the end as `23514`, times ten minutes ahead stored as now, a clamped start stopping at the stored end, and times two days ahead as `22023`), ownership (`P0002`), catalog and range errors, and `anon` privileges. `onboarding_profile.test.sql` covers `complete_onboarding`, the trigger catalog check, the priorities and `track_period`. `entitlements.test.sql` covers own-row reads, the `updated_at` trigger, each refused write, the boundary at exactly now, `service_role`, the grant and purchase time cases (an expired purchase beside a grant and the reverse), the `42501` for another user, and `anon`. `quota.test.sql` covers the 41st `companion` call refused, `dictation` counted apart, another user's own budget, the day rule (a day three days off and a null day count on the UTC day, one day ahead gets its own counter), a zero or null limit, RLS with no policy, and no execute or select for `anon` or `authenticated`. `companion_data.test.sql` covers the relief checks on `helped` and `did_not_help`, `debriefed` stamping once (a repeat keeps an earlier stamp) and `false` clearing it, a non-boolean `debriefed` as `22023`, a replayed debrief, `set_dose_helped` set, repeated, cleared by omitting `p_helped` and refused on another user's dose, `agent_notes` read-own and its refused direct writes, the 200-character, blank and control-character notes, the 21st note, `delete_agent_note` leaving another user's note, the signed-out `42501`s and `anon`.
+`anon` and `authenticated`, and the refused insert and delete. `tracking.test.sql` covers RLS and the refused direct writes on the four tables, each RPC's idempotency, patch semantics (including a moved start, a start after the end as `23514`, times ten minutes ahead stored as now, a clamped start stopping at the stored end, and times two days ahead as `22023`), ownership (`P0002`), catalog and range errors, and `anon` privileges. `onboarding_profile.test.sql` covers `complete_onboarding`, the trigger catalog check, the priorities and `track_period`. `entitlements.test.sql` covers own-row reads, the `updated_at` trigger, each refused write, the boundary at exactly now, `service_role`, the grant and purchase time cases (an expired purchase beside a grant and the reverse), the `42501` for another user, and `anon`. `quota.test.sql` covers the 41st `companion` call refused, `dictation` counted apart, another user's own budget, the day rule (a day three days off and a null day count on the UTC day, one day ahead gets its own counter), a zero or null limit, RLS with no policy, and no execute or select for `anon` or `authenticated`. `companion_data.test.sql` covers the relief checks on `helped` and `did_not_help`, `debriefed` stamping once (a repeat keeps an earlier stamp) and `false` clearing it, a non-boolean `debriefed` as `22023`, a replayed debrief, `set_dose_helped` set, repeated, cleared by omitting `p_helped` and refused on another user's dose, `agent_notes` read-own and its refused direct writes, the 200-character, blank and control-character notes, the 21st note, `delete_agent_note` leaving another user's note, the signed-out `42501`s and `anon`. `record_inputs.test.sql` covers the caller's own episodes, check-ins, doses and medications
+(archived included), `hasLocation` turning true once an area is saved, another user's id giving empty lists and a null zone, the
+`p_since` cut (an ended attack before it dropped, an open one kept, an older dose dropped, the check-in day before kept), no
+`coarse_lat` or `coarse_lon` key or value in the output, `anon` refused and `service_role` granted.
 
 ## New table checklist
 

@@ -20,6 +20,8 @@ export function evidenceLabel(evidence: Evidence, { t, tp }: Pick<I18n, 't' | 't
       return t('crisis.helped.row', { n: count, of: of ?? count });
     case 'overuse':
       return of === null ? tp('today.med.days_nolimit', count, { used: count }) : t('today.med.days', { used: count, limit: of });
+    case 'insight':
+      return t('evidence.insight', { count, of: of ?? count });
   }
 }
 
@@ -50,11 +52,17 @@ function Chip({ evidence, onOpen }: { evidence: Evidence; onOpen: (evidence: Evi
   );
 }
 
+/** An insight resting on no attack (a stretch with none, a month with none) would open an empty sheet: no chip. */
+export function hasRecords(evidence: Evidence): boolean {
+  return evidence.source !== 'insight' || evidence.episodeIds.length > 0;
+}
+
 export function EvidenceChips({ evidence, onOpen }: { evidence: readonly Evidence[]; onOpen: (evidence: Evidence) => void }): React.JSX.Element | null {
-  if (evidence.length === 0) return null;
+  const shown = evidence.filter(hasRecords);
+  if (shown.length === 0) return null;
   return (
     <View style={styles.row}>
-      {evidence.map((item) => (
+      {shown.map((item) => (
         <Chip key={item.ref} evidence={item} onOpen={onOpen} />
       ))}
     </View>

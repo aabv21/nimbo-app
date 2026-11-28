@@ -208,7 +208,8 @@ the attacks behind it (`episodeIds`) as evidence.
   `askCompanion(request)` calls the `companion` function (45 s deadline from `fetchWithTimeout`) and never throws: a body
   that fails `isCompanionResponse` is `unknown` unless it holds a non-empty `redFlags` list of strings (a newer server's
   draft, intent or flag key): that answer is kept as a red flag, with the keys this version knows (`unchecked`), and
-  urgent care opens even with none known. 429 is `over_quota` with the `quota` and `limit` its body names, 403
+  urgent care opens even with none known. The body carries `timeZone: deviceTimeZone()`, so the server's "today", tool
+  times and drafts follow the phone rather than a stale profile zone. 429 is `over_quota` with the `quota` and `limit` its body names, 403
   `ai_off`, any 5xx or a relay error `unavailable`, another 4xx `unknown`, and a failed or aborted fetch `network`.
 - `useCompanion.ts`: `useCompanion(mode, { episodeId? })` runs a conversation. `send(text, input)` returns the stored
   message's id (null for a red flag or empty text) and runs
@@ -261,7 +262,7 @@ the attacks behind it (`episodeIds`) as evidence.
   red-flag check; during its saved confirmation they go in `chat` mode),
   and its parts: `MessageList` (an inverted `FlatList` with day dividers; new
   items rise in and nothing else moves, and the typing line mounts only after 300 ms), `EvidenceChips` and
-  `EvidenceSheet` (the attacks behind a number from the local mirror, each opening `/episode/<id>`, or the doses behind
+  `EvidenceSheet` (the attacks behind a number from the local mirror, an insight's included (an insight resting on no attack gets no chip), each opening `/episode/<id>`, or the doses behind
   an overuse count), `DraftCard` (the draft field by field, "You didn't say" for a missing core field, the cabinet's dose
   text with its attribution, and `draft.error` when Confirm was refused), `DraftEditor` (a sheet that edits the draft,
   never a record), `Composer` (grows with its text, 500 characters, with the hold-to-dictate mic: a transcript fills the
@@ -439,7 +440,8 @@ Medications and doses live in the local mirrors and reach the server through the
 - `checkin/checkinStore.ts`: `saveCheckin(userId, localDate, fields)` merges only the keys given into the day's mirror row
   and queues one `save_checkin` with those keys, in one transaction (`saveCheckinTx` is the same inside a caller's). A date the server would refuse (before 2000, more than
   a day past the UTC date, not a real day) is a `RangeError` before anything is written. `useCheckin`, `isCheckinDone` (sleep
-  band and stress both set) and `useCheckinDates` (local dates with a check-in, inclusive) feed Today and History.
+  band and stress both set) and `useCheckinDates` (local dates with a check-in, inclusive) feed Today and History;
+  `useCheckins(userId, from, to)` (the rows, oldest first, inclusive) feeds the insights.
 - `checkin/CheckinCard.tsx`: Today's two questions. The sleep tap saves nothing; the second answer, in either order, saves
   both with a success haptic and the card turns into the done line, with Change (reopens the questions with the saved answers
   marked) and More details (opens `/checkin`). `checkin/Chip.tsx` is the 48 pt answer chip.
@@ -497,8 +499,30 @@ Medications and doses live in the local mirrors and reach the server through the
   own scrim and bottom sheet inside a transparent `Modal` (no native sheet) with `ui/useSheetMotion.ts`, which
   `app/checkin.tsx` shares: the sheet slides in Day and Dark, and fades in Dim and with reduced motion. Only triggers the
   user has logged are offered.
-- The History tab switches between Calendar and List. `?filter=doses` (the overuse notice's action) opens the list with
-  doses and the last 30 days. "Patterns" joins the switch with the insights.
+- The History tab switches between Calendar, List and Patterns (`history-view-insights`, the insights below). `?filter=doses`
+  (the overuse notice's action) opens the list with doses and the last 30 days. Patterns recomputes when a record changes
+  or the hour turns.
+
+## Insights (`src/insights/`)
+
+- `index.ts` re-exports `supabase/functions/_shared/insights.ts` (`computeInsights`, `insightNeeds`, `INSIGHT_KINDS`) and
+  `_shared/records.ts` (`Records`, `RecordInputs`, `parseRecordInputs`, `trackingSinceOf`), so the phone and the companion's
+  `get_insights` count with the same code.
+- `useRecords.ts`: `useRecords(userId)` turns the local mirror into `RecordInputs`, cut to the window `record_inputs` gives
+  the server (366 days, open attacks kept), archived medications included, with the profile's known triggers and onboarding
+  time. Its zone is the device's (`deviceTimeZone()`), or UTC when the runtime does not know it (`usableZone`), since the
+  insights' date maths throws on an unknown zone; it is read on every render, so Patterns follows a trip. `hasLocation` is false: the phone never reads its saved area back.
+- `insightText.ts` chooses every word of a card, pure, so it is tested without rendering: `cardLines(insights, ctx)` gives a
+  kind's title, labelled bars, rows to read aloud, the pattern sentence (only when `pattern` is true), the caution under
+  triggers and sleep, and the basis line; `insightLines(insight, ctx)` is the same for one insight and `needLine(need, t)`
+  says what a kind still needs (with the plural helper, the noun following its own count). Months come from `Intl`, hours from the pack's buckets, averages in the locale's decimal
+  separator, counts through the plural helper; never a percentage.
+- `InsightCards.tsx` renders the kinds in `INSIGHT_KINDS` order, each as its counts (months, parts of the day and weekdays
+  as labelled columns, the rest as labelled meters) or as `NeedCard.tsx` (its title and what it needs, no number of its
+  own), with `insight.need.hint` once under the needs, or `insight.empty` when there is neither (a guard: real records
+  always give the monthly card or its need). The streak's large figure is hidden from screen readers, as its sentence says
+  the number; column labels may take two lines. Sections present on mount snap in; one that appears later rises
+  once (`LayoutAnimationConfig skipEntering`), with no looping motion.
 - `app/episode/[id].tsx` shows every field of an attack, its doses and Edit and Delete (an `Alert` first), with the
   debrief's rows: "Helped, from your debrief" and "Didn't help", each with the reliefs and then the medications whose
   doses were marked. `app/episode/[id]/edit.tsx` edits the times (`history/DateTimeField.tsx`: the native picker

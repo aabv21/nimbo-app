@@ -5,6 +5,7 @@ jest.mock('../../lib/supabase', () => ({
 import { FunctionsFetchError, FunctionsHttpError, FunctionsRelayError } from '@supabase/supabase-js';
 
 import type { ChatMessage, ChatStatus } from '../chatStore';
+import { deviceTimeZone } from '../../lib/localDate';
 import { askCompanion, historyForRequest } from '../companionClient';
 import type { CompanionRequest, CompanionResponse } from '../contract';
 
@@ -24,10 +25,10 @@ function message(role: ChatMessage['role'], text: string, status: ChatStatus = '
 }
 
 describe('askCompanion', () => {
-  test('sends the request and answers a checked body', async () => {
+  test('sends the request with the device zone and answers a checked body', async () => {
     const invoke = jest.fn(() => Promise.resolve({ data: OK, error: null }));
     expect(await askCompanion(REQUEST, fakeClient(invoke))).toEqual({ ok: true, result: OK });
-    expect(invoke).toHaveBeenCalledWith('companion', { body: REQUEST });
+    expect(invoke).toHaveBeenCalledWith('companion', { body: { ...REQUEST, timeZone: deviceTimeZone() } });
   });
 
   test('a 429 is over_quota with the kind and limit its body names', async () => {

@@ -255,6 +255,49 @@ test(
   FUNCTION_TIMEOUT_MS,
 );
 
+test(
+  'a get_insights round over seeded records answers, and round 2 carries the count and of the tool computed',
+  async () => {
+    const user = await seededUser('companion-insights');
+    const daysAgo = (days: number) => new Date(Date.now() - days * 86_400_000).toISOString();
+    // With the seeded attack, 6 in the window; stress is tagged on 3 of them.
+    const seeded: [number, string[]][] = [[10, ['stress']], [14, ['stress']], [18, ['stress']], [22, ['alcohol']], [26, []]];
+    for (const [days, triggers] of seeded) {
+      const { error } = await user.client.rpc('log_episode', { p_id: randomUUID(), p_started_at: daysAgo(days), p_fields: { ended_at: daysAgo(days - 0.1), triggers } });
+      expect(error).toBeNull();
+    }
+    claude.respondWithSequence([fixture('tool-insights'), fixture('answer')]);
+    const result = await invoke(user.client, message('What sets off my attacks?'));
+    expect(result.status).toBe(200);
+    const round2 = claude.requests().at(-1) as { messages: { role: string; content: unknown }[] };
+    const results = round2.messages.flatMap((turn) =>
+      Array.isArray(turn.content) ? (turn.content as { type: string; content?: string }[]).filter((block) => block.type === 'tool_result') : [],
+    );
+    const insights = JSON.parse(results[0]?.content ?? '{}') as { status?: string; insights?: Record<string, unknown>[] };
+    expect(insights.status).toBe('ok');
+    expect(insights.insights).toEqual([{ ref: 'i1', kind: 'trigger_frequency', key: 'stress', count: 3, of: 6, window_days: 90 }]);
+    expect(JSON.stringify(round2)).not.toContain(user.episodeId);
+  },
+  FUNCTION_TIMEOUT_MS,
+);
+
+test(
+  "a request's timeZone makes the second system block print the request's localDate on that zone's clock",
+  async () => {
+    const user = await seededUser('companion-zone');
+    // UTC+14 all year: its day is usually ahead of the server's UTC day.
+    const zone = 'Pacific/Kiritimati';
+    const localDate = new Intl.DateTimeFormat('en-CA', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+    claude.respondWithSequence([fixture('answer')]);
+    expect((await invoke(user.client, message('Hello there', { localDate, timeZone: zone }))).status).toBe(200);
+    const block = (claude.requests().at(-1) as { system: { text: string }[] }).system[1]?.text ?? '';
+    expect(block).toContain(`, ${localDate}, in the person's time zone.`);
+    expect(block).toMatch(/^Today is \w+, /m);
+    expect(block).toMatch(/It is now \S+\+14:00 \(the person's local time\)\./);
+  },
+  FUNCTION_TIMEOUT_MS,
+);
+
 const COARSE = { lat: 4.6097, lon: -74.0817 };
 
 test(

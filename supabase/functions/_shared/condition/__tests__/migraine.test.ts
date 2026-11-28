@@ -42,6 +42,11 @@ test('duration limits', () => {
   expect(pack.limits).toEqual({ longEpisodeHours: 12, statusHours: 72, auraMinutes: 60 });
 });
 
+test('sleepBandHours holds exactly the five bands, and every short band is one of them', () => {
+  expect(Object.keys(pack.sleepBandHours).sort()).toEqual(['5_6', '6_7', '7_8', 'gt8', 'lt5']);
+  for (const band of pack.insights.sleepBefore.shortBands) expect(Object.keys(pack.sleepBandHours)).toContain(band);
+});
+
 test('red flags are frozen, in a fixed order, and only fever_stiff_neck needs terms together', () => {
   expect(Object.isFrozen(pack.redFlags)).toBe(true);
   expect(pack.redFlags.map((flag) => flag.key)).toEqual([

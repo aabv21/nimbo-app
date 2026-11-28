@@ -2,7 +2,7 @@
 // own rows and screens the reply before the app sees it (docs/architecture.md#the-companion-function).
 
 import { type ClientQuotaKind, type Draft, type Evidence, type Guard, parseCompanionRequest, type CompanionResponse } from '../_shared/companion/contract.ts';
-import { clockNumbers, readNotes, readOpenEpisode, readOwnEpisode, readProfile } from '../_shared/companion/data.ts';
+import { clockNumbers, readNotes, readOpenEpisode, readOwnEpisode, readProfile, zoneOrUtc } from '../_shared/companion/data.ts';
 import { buildCompanionRequest, COMPANION_EFFORT, COMPANION_MAX_TOKENS, type PromptContext, routingMessage } from '../_shared/companion/prompt.ts';
 import { createRefs } from '../_shared/companion/refs.ts';
 import { runTool, type ToolEnv } from '../_shared/companion/tools.ts';
@@ -57,6 +57,11 @@ export type CompanionDeps = {
 
 const pack = packs.migraine;
 
+/** The phone's zone when the runtime knows it, else null: an unknown one is ignored, so older builds keep working. */
+export function requestZone(timeZone: string | undefined): string | null {
+  return timeZone !== undefined && zoneOrUtc(timeZone) === timeZone ? timeZone : null;
+}
+
 /** The numbers a reply may use to read a draft's times back on the person's clock. */
 function draftClockNumbers(drafts: readonly Draft[], timeZone: string): string[] {
   const times = drafts.flatMap((draft) => {
@@ -98,7 +103,9 @@ export async function handleCompanion(request: Request, deps: CompanionDeps): Pr
   }
   const screenWord = { screen_quota: screenAllowed ? 'ok' : 'out' };
   if (profile === null || !profile.aiEnabled) return reply('ai_off', 403, { error: 'ai_off' });
-  const { timeZone } = profile;
+  // One zone for the whole request (prompt clock, tools, drafts): the phone's, so a stale profile zone cannot
+  // move a "today" the phone already sees.
+  const timeZone = requestZone(input.timeZone) ?? profile.timeZone;
 
   const userText = input.messages.at(-1)?.text ?? '';
   const screenDeps = (deadline: number): ScreenDeps => ({ env, fetch: fetchFn, pack, now, deadline, ...(deps.rand === undefined ? {} : { rand: deps.rand }) });
@@ -148,7 +155,7 @@ export async function handleCompanion(request: Request, deps: CompanionDeps): Pr
     if (episode !== null) state.spans.set(episode.id, { start: Date.parse(episode.startedAt), end: episode.endedAt === null ? null : Date.parse(episode.endedAt) });
   }
   const focusRef = focus === null ? null : refs.add('e', focus.id);
-  const context: PromptContext = { locale: input.locale, mode: input.mode, now: now(), timeZone, notes, openEpisodeRef: focusRef };
+  const context: PromptContext = { locale: input.locale, mode: input.mode, now: now(), timeZone, localDate: input.localDate, notes, openEpisodeRef: focusRef };
 
   const messages: unknown[] = input.messages.map((turn) => ({ role: turn.role, content: turn.text }));
   const routing = routingMessage(screened.intent, screened.intentP, input.mode, focusRef);
@@ -191,7 +198,18 @@ export async function handleCompanion(request: Request, deps: CompanionDeps): Pr
   };
 
   const loopDeadline = Math.min(now() + COMPANION_DEADLINE_MS, requestDeadline - SCREEN_DEADLINE_MS);
-  const tools: ToolEnv = { ...reader, timeoutMs: () => dbTimeout(loopDeadline), pack, refs, timeZone, localDate: input.localDate, now, openEpisode, state };
+  const tools: ToolEnv = {
+    ...reader,
+    timeoutMs: () => dbTimeout(loopDeadline),
+    userId: caller.userId,
+    pack,
+    refs,
+    timeZone,
+    localDate: input.localDate,
+    now,
+    openEpisode,
+    state,
+  };
   for (let round = 0; round <= MAX_TOOL_ROUNDS; round += 1) {
     const left = loopDeadline - now() - TOOL_ROUND_RESERVE_MS;
     if (left < MIN_CALL_MS) return fail(round, 'deadline');

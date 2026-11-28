@@ -55,12 +55,24 @@ describe('parseCompanionRequest', () => {
     ['a localDate that is not a real day', { localDate: '2026-02-30' }],
     ['a localDate before 2000', { localDate: '1999-12-31' }],
     ['an episode id that is not a uuid', { episodeId: 'e1' }],
+    ['a 65-character timeZone', { timeZone: `Zone/${'x'.repeat(60)}` }],
+    ['an empty timeZone', { timeZone: '' }],
+    ['a timeZone that is not a string', { timeZone: -5 }],
   ])('rejects %s', (_label, change) => {
     expect(parseCompanionRequest({ ...valid, ...change })).toBeNull();
   });
 
   test('an episode id of null is left out', () => {
     expect(parseCompanionRequest({ ...valid, episodeId: null })).toEqual(valid);
+  });
+
+  test('a timeZone of up to 64 characters is kept as given, and a missing or null one left out', () => {
+    expect(parseCompanionRequest({ ...valid, timeZone: 'America/Santiago' })).toEqual({ ...valid, timeZone: 'America/Santiago' });
+    // Checked against the runtime's zones by the function, not here: an unknown zone is ignored there, not refused.
+    expect(parseCompanionRequest({ ...valid, timeZone: 'Mars/Base' })).toEqual({ ...valid, timeZone: 'Mars/Base' });
+    expect(parseCompanionRequest({ ...valid, timeZone: `Zone/${'x'.repeat(59)}` })?.timeZone).toHaveLength(64);
+    expect(parseCompanionRequest(valid)).toEqual(valid);
+    expect(parseCompanionRequest({ ...valid, timeZone: null })).toEqual(valid);
   });
 
   test('rejects a body that is not an object', () => {
@@ -115,7 +127,10 @@ describe('isCompanionResponse', () => {
           doses: [],
         },
       ],
-      evidence: [{ ref: 'r1', source: 'episodes', count: 3, of: null, episodeIds: ['a'], doseIds: [] }],
+      evidence: [
+        { ref: 'r1', source: 'episodes', count: 3, of: null, episodeIds: ['a'], doseIds: [] },
+        { ref: 'i1', source: 'insight', count: 3, of: 5, episodeIds: ['a'], doseIds: [] },
+      ],
       redFlags: [],
       intent: 'data_question',
       guard: 'degraded',

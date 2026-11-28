@@ -1,7 +1,18 @@
 import { migraine } from './migraine.ts';
 import type { CatalogItem, CatalogName, ConditionPack } from './types.ts';
 
-export type { CatalogItem, CatalogName, ConditionPack, Locale, MedicationClass, RedFlag, RedFlagKey } from './types.ts';
+export type {
+  CatalogItem,
+  CatalogName,
+  ConditionPack,
+  DayPart,
+  Locale,
+  MedicationClass,
+  RedFlag,
+  RedFlagKey,
+  SleepBand,
+  Weekday,
+} from './types.ts';
 export { MAX_AHEAD_MS } from './clock.ts';
 export { crisisPlan } from './crisisPlan.ts';
 export type { PlanDose, PlanEntry, PlanEpisode } from './crisisPlan.ts';
