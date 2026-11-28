@@ -168,6 +168,8 @@ const redFlags: readonly RedFlag[] = Object.freeze([
   flag('long_attack', 'redflag.why.long', 'Does `message` say the attack has lasted more than 72 hours?', { en: [], es: [], pt: [] }),
 ]);
 
+const LIMITS = Object.freeze({ longEpisodeHours: 12, statusHours: 72, auraMinutes: 60 });
+
 export const migraine: ConditionPack = Object.freeze({
   id: 'migraine',
   painAreas: items('painAreas', [
@@ -203,7 +205,7 @@ export const migraine: ConditionPack = Object.freeze({
   overuseWarnRatio: 0.8,
   combinedClassDayLimit: 10,
   combinedClasses: Object.freeze(['ergot', 'triptan', 'simple_analgesic', 'opioid'] as const),
-  limits: Object.freeze({ longEpisodeHours: 12, statusHours: 72, auraMinutes: 60 }),
+  limits: LIMITS,
   redFlags,
   sleepBandHours: Object.freeze({ lt5: 4.5, '5_6': 5.5, '6_7': 6.5, '7_8': 7.5, gt8: 8.5 }),
   dayStartHour: 4,
@@ -231,4 +233,17 @@ export const migraine: ConditionPack = Object.freeze({
       evening: Object.freeze([18, 24] as const),
     }),
   }),
+  signals: Object.freeze({
+    pressure: Object.freeze({ dropHpa: 6.0, horizonHours: 24, minTaggedEpisodes: 3, maxForecastAgeHours: 3 }),
+    // A night "under your average" is noise unless attack nights run clearly shorter than the others.
+    shortSleep: Object.freeze({ minAttackNights: 5, minGapHours: 0.5 }),
+    longAttackHours: Object.freeze([LIMITS.longEpisodeHours, LIMITS.statusHours]),
+    quietTrackerDays: 3,
+    maxOnToday: 3,
+    suppressDuringAttack: Object.freeze(['pressure', 'short_sleep', 'quiet_tracker'] as const),
+    priority: Object.freeze([
+      'long_attack', 'overuse_limit', 'debrief_due', 'overuse_warn', 'short_sleep', 'pressure', 'quiet_tracker',
+    ] as const),
+  }),
+  push: Object.freeze({ sameCauseHours: 24, perRunMax: 1 }),
 });

@@ -109,6 +109,8 @@ describe('the function secrets', () => {
     );
     expect(secrets.get('TYPESAFE_BASE_URL')).toBe(`http://host.docker.internal:${String(MOCK_JEV_PORT)}`);
     expect(secrets.get('ANTHROPIC_BASE_URL')).toBe(`http://host.docker.internal:${String(MOCK_CLAUDE_PORT)}`);
+    // The Open-Meteo route shares the Jev mock's server.
+    expect(secrets.get('OPEN_METEO_URL')).toBe(`http://host.docker.internal:${String(MOCK_JEV_PORT)}`);
     expect(secrets.get('TYPESAFE_API_KEY')).toBe('local-only-not-a-key');
     expect(secrets.get('ANTHROPIC_API_KEY')).toBe('local-only-not-a-key');
   });

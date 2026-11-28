@@ -263,7 +263,8 @@ the attacks behind it (`episodeIds`) as evidence.
   and its parts: `MessageList` (an inverted `FlatList` with day dividers; new
   items rise in and nothing else moves, and the typing line mounts only after 300 ms), `EvidenceChips` and
   `EvidenceSheet` (the attacks behind a number from the local mirror, an insight's included (an insight resting on no attack gets no chip), each opening `/episode/<id>`, or the doses behind
-  an overuse count), `DraftCard` (the draft field by field, "You didn't say" for a missing core field, the cabinet's dose
+  an overuse count, an overuse signal's included; a signal's chip reads its medicine days against the limit, or
+  `evidence.attack_nights` for short sleep), `DraftCard` (the draft field by field, "You didn't say" for a missing core field, the cabinet's dose
   text with its attribution, and `draft.error` when Confirm was refused), `DraftEditor` (a sheet that edits the draft,
   never a record), `Composer` (grows with its text, 500 characters, with the hold-to-dictate mic: a transcript fills the
   field and waits for Send, which then spends a dictation unit and a companion unit; a transcript holding a red flag is

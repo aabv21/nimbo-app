@@ -66,7 +66,7 @@ exports[`the tools the definitions are stable (any change also changes the cache
   },
   {
     "name": "get_signals",
-    "description": "Today’s signals and their reasons.",
+    "description": "Today’s signals, which the app computed from the person’s records, highest priority first: an attack that has gone on long, medicine days near or at the limit, a debrief due for yesterday’s attack, a night shorter than on the nights before their attacks, a pressure drop over the next 24 hours, and no check-in for a few days. Each gives its kind, local_date, evidence (the numbers behind it) and a ref; cite the ref with medicine days and with nights before an attack. A signal is a reminder, never a forecast of an attack.",
     "strict": true,
     "input_schema": {
       "type": "object",

@@ -4,11 +4,14 @@
 export type SupabaseEnv = { supabaseUrl: string; anonKey: string; serviceRoleKey: string };
 export type JevEnv = { typesafeApiKey: string; typesafeBaseUrl: string };
 export type ClaudeEnv = { anthropicApiKey: string; anthropicBaseUrl: string };
+/** The key is empty on the free API and set on the commercial one (docs/architecture.md#signals-and-the-pressure-forecast). */
+export type WeatherEnv = { openMeteoUrl: string; openMeteoApiKey: string };
 
 type Capabilities = {
   supabase: SupabaseEnv;
   jev: JevEnv;
   claude: ClaudeEnv;
+  weather: WeatherEnv;
 };
 export type Capability = keyof Capabilities;
 
@@ -31,6 +34,10 @@ const VARIABLES: { [C in Capability]: Record<keyof Capabilities[C], Variable> } 
   claude: {
     anthropicApiKey: { name: 'ANTHROPIC_API_KEY' },
     anthropicBaseUrl: { name: 'ANTHROPIC_BASE_URL', fallback: 'https://api.anthropic.com', url: true },
+  },
+  weather: {
+    openMeteoUrl: { name: 'OPEN_METEO_URL', fallback: 'https://api.open-meteo.com', url: true },
+    openMeteoApiKey: { name: 'OPEN_METEO_API_KEY', fallback: '' },
   },
 };
 

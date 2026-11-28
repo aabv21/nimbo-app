@@ -1,6 +1,6 @@
-// The mock Jev's answers and routes; it needs no local stack, only its own port.
+// The mock Jev's and Open-Meteo's answers and routes; it needs no local stack, only its own port.
 
-import { jevAnswersWith, type MockServices, startMockServices } from './mockServices';
+import { jevAnswersWith, type MockServices, pressureForecast, startMockServices } from './mockServices';
 
 const REQUEST = {
   model: 'jev-latest',
@@ -114,9 +114,56 @@ describe('startMockServices', () => {
     expect(headers.at(before)).toMatchObject({ authorization: 'Bearer local-only-not-a-key', 'content-type': 'application/json' });
   });
 
-  test('any other path is a 404 and is not recorded', async () => {
+  test('any other path or method is a 404 and is not recorded', async () => {
     const before = mock.jevRequests().length;
+    const forecasts = mock.forecastRequests().length;
+    expect((await post('/v1/other', {})).status).toBe(404);
     expect((await post('/v1/forecast', {})).status).toBe(404);
     expect(mock.jevRequests()).toHaveLength(before);
+    expect(mock.forecastRequests()).toHaveLength(forecasts);
+  });
+
+  describe('the Open-Meteo forecast route', () => {
+    const FORECAST = 'http://127.0.0.1:54518/v1/forecast?latitude=4.6&longitude=-74.1&hourly=pressure_msl&forecast_hours=28&timezone=GMT';
+
+    type Forecast = { utc_offset_seconds: number; timezone: string; hourly: { time: string[]; pressure_msl: (number | null)[] } };
+
+    test('answers 28 hours of 1013.0 hPa from the current UTC hour by default, and records the URL', async () => {
+      const hour = new Date().toISOString().slice(0, 13);
+      const response = await fetch(FORECAST);
+      expect(response.status).toBe(200);
+      const body = (await response.json()) as Forecast;
+      expect(body.utc_offset_seconds).toBe(0);
+      expect(body.timezone).toBe('GMT');
+      expect(body.hourly.time).toHaveLength(28);
+      expect(body.hourly.pressure_msl).toEqual(Array.from({ length: 28 }, () => 1013));
+      // Unless the test straddles an hour boundary, the first hour is the one in progress.
+      expect([hour, new Date().toISOString().slice(0, 13)]).toContain(body.hourly.time[0]?.slice(0, 13));
+      expect(body.hourly.time[0]).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:00$/);
+      expect(mock.forecastRequests().at(-1)?.searchParams.get('latitude')).toBe('4.6');
+    });
+
+    test('respondForecast sets a fixed reply or one computed from the URL', async () => {
+      mock.respondForecast({ status: 429, body: { error: true, reason: 'Daily API request limit exceeded' } });
+      expect((await fetch(FORECAST)).status).toBe(429);
+      mock.respondForecast((url) => ({ status: 200, body: pressureForecast([1012.4, null], new Date('2026-11-27T13:00:00Z'), url) }));
+      const body = (await (await fetch(FORECAST)).json()) as Forecast & { latitude: number };
+      expect(body.hourly).toEqual({ time: ['2026-11-27T13:00', '2026-11-27T14:00'], pressure_msl: [1012.4, null] });
+      expect(body.latitude).toBe(4.6);
+    });
+
+    test.each([
+      ['no latitude', 'longitude=-74.1&hourly=pressure_msl'],
+      ['a latitude past the pole', 'latitude=91&longitude=-74.1&hourly=pressure_msl'],
+      ['a longitude that is no number', 'latitude=4.6&longitude=west&hourly=pressure_msl'],
+      ['an unknown hourly variable', 'latitude=4.6&longitude=-74.1&hourly=pressure'],
+      ['forecast_hours past 16 days', 'latitude=4.6&longitude=-74.1&hourly=pressure_msl&forecast_hours=400'],
+      ['an unknown time zone', 'latitude=4.6&longitude=-74.1&hourly=pressure_msl&timezone=Mars/Base'],
+    ])('%s is a 400 with a reason, as Open-Meteo answers', async (_label, query) => {
+      mock.respondForecast({ status: 200, body: {} });
+      const response = await fetch(`http://127.0.0.1:54518/v1/forecast?${query}`);
+      expect(response.status).toBe(400);
+      expect(await response.json()).toEqual({ error: true, reason: expect.any(String) as string });
+    });
   });
 });

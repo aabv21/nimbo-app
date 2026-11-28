@@ -24,11 +24,11 @@ test("insights-cases.json's pack is the pack's slice", () => {
 });
 
 test("signals-cases.json's pack matches the pack's slice, overuse under the pack's names", () => {
-  // The `signals` and `push` slices join the pack with the signal rules.
-  const rest = Object.fromEntries(Object.entries(signals.pack).filter(([key]) => key !== 'signals' && key !== 'push'));
-  expect(rest).toEqual({
+  expect(signals.pack).toEqual({
     sleepBandHours: pack.sleepBandHours,
     dayStartHour: pack.dayStartHour,
+    signals: pack.signals,
+    push: pack.push,
     overuse: {
       limits: pack.overuseDayLimits,
       warnRatio: pack.overuseWarnRatio,

@@ -41,7 +41,8 @@ export function EvidenceSheet({ evidence, episodes, doses, medications, now, onO
   // Records deleted since, or not yet on this phone, are simply not listed.
   const counted = evidence.source === 'overuse' ? [] : episodes.filter((episode) => episodeIds.has(episode.id));
   const nameOf = new Map(medications.map((medication) => [medication.id, medication.name]));
-  const doseRows = evidence.source === 'overuse' ? doses.filter((dose) => doseIds.has(dose.id)) : [];
+  // An overuse signal lists its doses too; every other source names none.
+  const doseRows = evidence.source === 'overuse' || evidence.source === 'signal' ? doses.filter((dose) => doseIds.has(dose.id)) : [];
 
   return (
     <Modal transparent animationType="none" statusBarTranslucent onRequestClose={close}>

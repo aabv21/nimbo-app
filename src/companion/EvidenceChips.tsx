@@ -22,6 +22,9 @@ export function evidenceLabel(evidence: Evidence, { t, tp }: Pick<I18n, 't' | 't
       return of === null ? tp('today.med.days_nolimit', count, { used: count }) : t('today.med.days', { used: count, limit: of });
     case 'insight':
       return t('evidence.insight', { count, of: of ?? count });
+    // A signal cites medicine days against their limit, or the nights before attacks (no `of`).
+    case 'signal':
+      return of === null ? tp('evidence.attack_nights', count) : t('today.med.days', { used: count, limit: of });
   }
 }
 

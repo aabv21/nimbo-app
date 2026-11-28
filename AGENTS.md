@@ -23,7 +23,7 @@ Docs for agents: `https://docs.expo.dev/llms.txt`
 - `pnpm install`: install dependencies. `pnpm expo install <package>`: add a package with native code (SDK-compatible version); `pnpm add` only for pure-JS tooling.
 - `pnpm start`: the dev server. `pnpm ios` / `pnpm android`: build the app with `expo run:*` and open it.
 - `pnpm typecheck` (`tsc --noEmit`), `pnpm lint` (`eslint .`), `pnpm test` (the `app`, `scripts` and `functions` Jest projects): the gate. `typecheck` and `lint` first run `pnpm routes:types` (`expo customize tsconfig.json`, no server) to generate the gitignored `.expo/types`, so results match CI.
-- `pnpm test:int`: the `integration` Jest project (auth, the profile, the outbox, premium, the agent's notes and the `companion` function with its mocks against the running local stack; start it with `pnpm db:start && pnpm env:local`, stop it after). Not part of the gate ([`docs/testing.md`](docs/testing.md)).
+- `pnpm test:int`: the `integration` Jest project (auth, the profile, the outbox, premium, the agent's notes, the forecast cache, and the `companion` function with its mocks against the running local stack; start it with `pnpm db:start && pnpm env:local`, stop it after). Not part of the gate ([`docs/testing.md`](docs/testing.md)).
 - `pnpm e2e`: the Maestro flows on the Android emulator (`E2E_PLATFORM=ios` for the simulator), against the local stack with a dev build installed; it starts Metro if needed ([`docs/testing.md`](docs/testing.md#end-to-end-flows-maestro)). Not part of the gate.
 - `pnpm catalog:sql`: prints `catalog_keys()` from the condition pack, for the new migration a catalog change needs ([`docs/database.md`](docs/database.md#catalog-helpers)).
 - `pnpm premium grant|revoke <email>`: the owner's premium switch, which needs `SUPABASE_SERVICE_ROLE_KEY` ([`docs/owner-runbook.md`](docs/owner-runbook.md#granting-premium)).
@@ -63,6 +63,7 @@ Docs for agents: `https://docs.expo.dev/llms.txt`
 - No health text in logs, route params or notification payloads: routes carry ids, and a reminder's `data` stays empty.
 - Model calls run only in Edge Functions (`supabase/functions/`), with the keys as function secrets; the phone never holds a provider key.
 - No request to Anthropic or TypeSafe carries the user's name, email, user id, location or any row id: tools return catalog keys, local times and short refs, and profile reads name their columns.
+- Every weather request goes through `supabase/functions/_shared/weather.ts` and carries only the one-decimal cell, never a user id, a name or a finer location.
 - Every companion reply goes through `screenReply` before it is returned; a replaced reply is never sent to the phone.
 - Drafts are written only by `applyDraft` when the user taps Confirm, through the stores and the outbox; a model or a tool never writes a health record (`save_note` writes only the agent's notes).
 - Agent notes reach the prompt only inside the escaped `<notes>` block, as data, never as instructions.
@@ -129,7 +130,7 @@ Docs for agents: `https://docs.expo.dev/llms.txt`
 | [`README.md`](README.md) | What the app is, its status, the quick start, the commands |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | The pull request flow, supply-chain hardening |
 | [`SECURITY.md`](SECURITY.md) | How to report a vulnerability |
-| [`docs/architecture.md`](docs/architecture.md) | Where it runs, the components, the gate flow, consent, offline start, health data offline, crisis mode, red flags and the emergency numbers, the companion and its guards, the overuse guard, reminders, premium, security, design decisions, regenerating the diagrams |
+| [`docs/architecture.md`](docs/architecture.md) | Where it runs, the components, the gate flow, consent, offline start, health data offline, crisis mode, red flags and the emergency numbers, the companion and its guards, the overuse guard, the pressure forecast, reminders, premium, security, design decisions, regenerating the diagrams |
 | [`docs/ai.md`](docs/ai.md) | The companion's flow, model and request, system prompt, tools, Jev questions, Haiku schemas, failure ladder, local reply checks, quotas, cost, outcomes and calibration |
 | [`docs/red-team.md`](docs/red-team.md) | Each attack on the companion, its defense and its test, and the known gaps |
 | [`docs/api.md`](docs/api.md) | The `companion` function's request, response and statuses |
@@ -141,8 +142,8 @@ Docs for agents: `https://docs.expo.dev/llms.txt`
 | [`docs/app.md`](docs/app.md) | Each module under `src/` |
 | [`docs/native-config.md`](docs/native-config.md) | Permissions and `app.json` settings |
 | [`docs/owner-runbook.md`](docs/owner-runbook.md) | The owner's steps and their status |
-| [`docs/database.md`](docs/database.md) | The profiles table, the tracking tables, entitlements, their RLS and grants, the RPCs, the new-table checklist |
-| [`docs/local-stack.md`](docs/local-stack.md) | The local Supabase stack: commands, ports, auth email |
+| [`docs/database.md`](docs/database.md) | The profiles table, the tracking tables, entitlements, the forecast cache and its prune job, the signals, their RLS and grants, the RPCs, the new-table checklist |
+| [`docs/local-stack.md`](docs/local-stack.md) | The local Supabase stack: commands, ports, auth email, the provider mocks |
 | [`docs/testing.md`](docs/testing.md) | Each test suite, the calibration fixtures, the Maestro flows, how to run them, what CI runs |
 
 ## Branches and pull requests

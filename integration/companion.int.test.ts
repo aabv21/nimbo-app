@@ -282,6 +282,48 @@ test(
 );
 
 test(
+  "a get_signals round reads today's stored pressure row through RLS and hands the model refs, never ids",
+  async () => {
+    const user = await seededUser('companion-signals');
+    const other = await seededUser('companion-signals-other');
+    const date = today();
+    const tomorrow = new Date(Date.parse(`${date}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
+    const row = (userId: string, localDate: string) => ({
+      user_id: userId,
+      kind: 'pressure',
+      cause: 'pressure',
+      cause_key: `pressure:${localDate}`,
+      local_date: localDate,
+      evidence: { nowHpa: 1012, laterHpa: 1006, laterAt: `${tomorrow}T13:00:00Z`, dropHpa: 6.5 },
+    });
+    const yesterday = new Date(Date.parse(`${date}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
+    // Another user's row for today and the caller's from yesterday must both stay out.
+    const { data: stored, error } = await serviceClient()
+      .from('signals')
+      .insert([row(user.id, date), row(user.id, yesterday), { ...row(other.id, date), evidence: { nowHpa: 1020, laterHpa: 1001, laterAt: `${tomorrow}T13:00:00Z`, dropHpa: 19 } }])
+      .select('id');
+    expect(error).toBeNull();
+    claude.respondWithSequence([fixture('tool-signals'), fixture('answer')]);
+    // No timeZone and no profile zone: the tool reads the UTC day.
+    const result = await invoke(user.client, message('Anything for today?'));
+    expect(result.status).toBe(200);
+    const round2 = claude.requests().at(-1) as { messages: { role: string; content: unknown }[] };
+    const results = round2.messages.flatMap((turn) =>
+      Array.isArray(turn.content) ? (turn.content as { type: string; content?: string }[]).filter((block) => block.type === 'tool_result') : [],
+    );
+    expect(JSON.parse(results[0]?.content ?? '{}')).toEqual({
+      status: 'ok',
+      signals: [
+        { ref: 's1', kind: 'pressure', local_date: date, evidence: { now_hpa: 1012, later_hpa: 1006, later_at: `${tomorrow}T13:00:00+00:00`, drop_hpa: 6.5 } },
+      ],
+    });
+    const body = JSON.stringify(round2);
+    for (const id of [user.id, user.episodeId, ...(stored ?? []).map((item) => item.id)]) expect(body).not.toContain(id);
+  },
+  FUNCTION_TIMEOUT_MS,
+);
+
+test(
   "a request's timeZone makes the second system block print the request's localDate on that zone's clock",
   async () => {
     const user = await seededUser('companion-zone');

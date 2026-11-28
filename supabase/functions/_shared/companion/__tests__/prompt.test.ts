@@ -207,6 +207,8 @@ describe('the tools', () => {
       enum: ['attack_free_streak', 'helped', 'monthly_frequency', 'sleep_before', 'time_of_day', 'trigger_frequency', 'weekday'],
     });
     expect(COMPANION_SYSTEM_PROMPT).toContain('get_insights: patterns the app computed, each with count and of; cite its ref; never turn it into a percentage or a cause.');
+    expect(COMPANION_SYSTEM_PROMPT).toContain("get_signals: today's signals with their reasons; a signal is a reminder, never a forecast of an attack.");
+    expect(COMPANION_SYSTEM_PROMPT).toContain('the ref of a signal for its medicine days or nights');
   });
 
   test('the definitions are stable (any change also changes the cached prefix)', () => {

@@ -2,7 +2,7 @@
 
 The backend is Supabase (Postgres 17), run locally through the `db:*` scripts ([`local-stack.md`](local-stack.md)).
 This document covers what the migrations create: `public.profiles`, its policies and grants, the
-signup trigger, the consent RPCs, the tracking tables with their RPCs, entitlements, the AI quotas, the companion's data (the debrief columns, `set_dose_helped` and `agent_notes`) and `record_inputs`, the read the insights run on. Schema changes are new migration files in
+signup trigger, the consent RPCs, the tracking tables with their RPCs, entitlements, the AI quotas, the companion's data (the debrief columns, `set_dose_helped` and `agent_notes`) `record_inputs`, the read the insights and signals run on, the pressure forecast cache and the stored signals. Schema changes are new migration files in
 `supabase/migrations/`; a merged migration is never edited. The diagram [`diagrams/data-model.svg`](diagrams/data-model.svg) shows how the pieces relate, and [`architecture.md`](architecture.md#the-consent-model) explains why consent is RPC-only.
 
 ## `public.profiles`
@@ -208,15 +208,67 @@ user's id gets four empty lists, a null `timeZone` and `onboardedAt`, and `hasLo
 hourly monitor will). Revoked from `public` and `anon`, granted to `authenticated` and `service_role`. The window
 (`INSIGHT_SINCE_DAYS`, 366 days) covers six months of monthly counts and the year-long attack-free stretch.
 
+## Pressure forecast cache
+
+`20261129120100_weather_cache.sql` adds the shared cache of pressure forecasts, the daily prune of the server-only
+caches, and the `pg_cron` extension (created in `pg_catalog`; its objects live in the `cron` schema, and its schedules
+are in GMT).
+
+| Object | Contract |
+| --- | --- |
+| `public.weather_cache` | `location_key text` (the one-decimal cell, `'4.6,-74.1'`; a check on `^-?[0-9]{1,2}\.[0-9],-?[0-9]{1,3}\.[0-9]$` refuses anything else with `23514`), `fetched_at timestamptz` default `now()` (the functions write the UTC hour of the fetch, the forecast's first hour), `payload jsonb` (`{ hours, hPa }`, the forecast `_shared/weather.ts` parsed). Primary key `(location_key, fetched_at)`, which the read's filter on the cell uses. No user id: one row serves everyone in the cell. RLS is on with no policy and every privilege is revoked from `anon` and `authenticated`, so only the service role reads or writes it. |
+| `prune_expired_caches() returns void` | `security definer`, `search_path = ''`, owned by `postgres`, revoked from `public`, `anon` and `authenticated`. Deletes `weather_cache` rows over 2 days old (the functions read a forecast for 3 hours at most) and the `cron.job_run_details` of the jobs `prune-expired-caches` and `monitor` over 7 days old (pg_cron never deletes its run history). A later migration that adds a cache redefines it with its own delete. |
+| Job `prune-expired-caches` | `cron.schedule('prune-expired-caches', '17 3 * * *', 'select public.prune_expired_caches()')`: daily at 03:17 GMT. Scheduling under the same name again replaces the job. |
+
+Edge Functions reach the cache only through `pressureFor` (`supabase/functions/_shared/weather.ts`): it reads the newest
+row for the cell no older than the age it is given (`weather_cache?location_key=eq.<cell>&fetched_at=gte.<cutoff>&order=fetched_at.desc&limit=1`),
+else fetches the forecast once and inserts it with `Prefer: resolution=ignore-duplicates`. Since `fetched_at` is the UTC
+hour, a second write for the cell in the same hour hits the primary key and is ignored, leaving one row. It cannot stop two
+runs that miss the cache at the same moment from both calling the provider: overlapping runs can cost one extra call per cell. A forecast that
+is empty or ends before 24 hours past the hour in progress is neither returned nor stored, and a cached row that no longer
+reaches that far (null tail hours shorten a series) is read as a miss and fetched again.
+
+## Signals
+
+`20261129120200_signals.sql` adds the signals the hourly monitor computes (`computeSignals` in
+`supabase/functions/_shared/signals.ts`), one row per cause key.
+
+| Column | Contract |
+| --- | --- |
+| `id` | `uuid` pk, `gen_random_uuid()`. |
+| `user_id` | `uuid not null`, cascade from `auth.users`, so deleting the account deletes its signals. |
+| `kind` | `text`, one of `long_attack`, `overuse_limit`, `debrief_due`, `overuse_warn`, `short_sleep`, `pressure`, `quiet_tracker` (`23514` otherwise). |
+| `cause` | `text`, 1 to 120 characters: what the 24-hour rule compares (`pressure`, `overuse:triptan`, `debrief:<episode id>`, …). |
+| `cause_key` | `text`, 1 to 160 characters: one occurrence of a cause (`pressure:<local date>`, `overuse:<scope>:<level>:<YYYY-MM>`, `long_attack:<episode id>:<stage>`, `quiet:<last check-in date>`, …). `unique (user_id, cause_key)` (`23505` on a second row), so a key is stored, and pushed, at most once. |
+| `local_date` | `date not null`: the user's local day it was computed for. |
+| `evidence` | `jsonb not null`, an object (`23514` otherwise): the signal's evidence as `signals.ts` types it, in camelCase, which `signalFromRow` reads back. |
+| `computed_at` | `timestamptz not null default now()`. |
+| `pushed_at` | `timestamptz`, null until the signal is pushed. |
+
+Indexes: the unique `(user_id, cause_key)`, a partial `(user_id, pushed_at) where pushed_at is not null` (the push cap and
+the 24-hour cause rule read a user's pushed rows) and `(user_id, local_date)` (Today and `get_signals` read one day). RLS
+read-own `select` (`signals_select_own`, `user_id = (select auth.uid())`); every privilege is revoked from `anon` and
+`authenticated`, then `select` granted back to `authenticated`, so a client insert, update or delete is `42501`. Only the
+service role writes it: the monitor's RPCs come with the monitor.
+
 ## Tests
 
-pgTAP files in `supabase/tests/`, run by `pnpm db:test`. `profiles.test.sql` (37 assertions), `tracking.test.sql` (106), `onboarding_profile.test.sql` (13), `entitlements.test.sql` (29), `quota.test.sql` (20), `companion_data.test.sql` (55) and `record_inputs.test.sql` (22). `profiles.test.sql` covers
+pgTAP files in `supabase/tests/`, run by `pnpm db:test`. `profiles.test.sql` (37 assertions), `tracking.test.sql` (106), `onboarding_profile.test.sql` (13), `entitlements.test.sql` (29), `quota.test.sql` (20), `companion_data.test.sql` (55), `record_inputs.test.sql` (22), `weather_cache.test.sql` (25) and `signals.test.sql` (20). `profiles.test.sql` covers
 the signup row and its defaults, own-row visibility, the update grants and each refused column,
 both RPCs including the repeat and withdrawal cases, the value checks, function privileges for
 `anon` and `authenticated`, and the refused insert and delete. `tracking.test.sql` covers RLS and the refused direct writes on the four tables, each RPC's idempotency, patch semantics (including a moved start, a start after the end as `23514`, times ten minutes ahead stored as now, a clamped start stopping at the stored end, and times two days ahead as `22023`), ownership (`P0002`), catalog and range errors, and `anon` privileges. `onboarding_profile.test.sql` covers `complete_onboarding`, the trigger catalog check, the priorities and `track_period`. `entitlements.test.sql` covers own-row reads, the `updated_at` trigger, each refused write, the boundary at exactly now, `service_role`, the grant and purchase time cases (an expired purchase beside a grant and the reverse), the `42501` for another user, and `anon`. `quota.test.sql` covers the 41st `companion` call refused, `dictation` counted apart, another user's own budget, the day rule (a day three days off and a null day count on the UTC day, one day ahead gets its own counter), a zero or null limit, RLS with no policy, and no execute or select for `anon` or `authenticated`. `companion_data.test.sql` covers the relief checks on `helped` and `did_not_help`, `debriefed` stamping once (a repeat keeps an earlier stamp) and `false` clearing it, a non-boolean `debriefed` as `22023`, a replayed debrief, `set_dose_helped` set, repeated, cleared by omitting `p_helped` and refused on another user's dose, `agent_notes` read-own and its refused direct writes, the 200-character, blank and control-character notes, the 21st note, `delete_agent_note` leaving another user's note, the signed-out `42501`s and `anon`. `record_inputs.test.sql` covers the caller's own episodes, check-ins, doses and medications
 (archived included), `hasLocation` turning true once an area is saved, another user's id giving empty lists and a null zone, the
 `p_since` cut (an ended attack before it dropped, an open one kept, an older dose dropped, the check-in day before kept), no
-`coarse_lat` or `coarse_lon` key or value in the output, `anon` refused and `service_role` granted.
+`coarse_lat` or `coarse_lon` key or value in the output, `anon` refused and `service_role` granted. `weather_cache.test.sql` covers
+RLS on with no policy, the primary key, `anon` and `authenticated` refused a select, insert or delete (and `authenticated` an
+update) while the service role reads and writes, the key check (`'4.62,-74.1'`, `'4,-74'` and a prefixed key are `23514`; the
+widest cells fit), the prune (a forecast 3 days old goes, one 1 day old stays; run history over 7 days old goes for
+`prune-expired-caches` and `monitor` but not another job), the one job at `17 3 * * *`, and the function's definer,
+`search_path` and refused execute for `public`, `anon` and `authenticated`. `signals.test.sql` covers RLS on with only the
+read-own policy, both indexes, user A reading only A's rows (B's not even by its id), refused inserts, updates and deletes
+for `authenticated` and refused selects and inserts for `anon`, the service role inserting and stamping a push, a second
+`(user_id, cause_key)` as `23505` (the same key for another user is fine), `kind = 'storm'`, an array evidence, an empty
+cause and a 161-character key as `23514`, and the cascade from `auth.users`.
 
 ## New table checklist
 

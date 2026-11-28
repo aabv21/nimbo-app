@@ -16,6 +16,16 @@ export type DayPart = 'night' | 'morning' | 'afternoon' | 'evening';
 
 export type Weekday = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
 
+/** The six signal rules, overuse split in two so a limit outranks a debrief and a warning does not. */
+export type SignalKind =
+  | 'long_attack'
+  | 'overuse_limit'
+  | 'debrief_due'
+  | 'overuse_warn'
+  | 'short_sleep'
+  | 'pressure'
+  | 'quiet_tracker';
+
 export interface CatalogItem {
   readonly key: string;
   readonly labelKey: string;
@@ -92,5 +102,29 @@ export interface ConditionPack {
     };
     /** Local hours `[from, to)` of each day part. */
     readonly timeOfDayBuckets: Readonly<Record<DayPart, readonly [number, number]>>;
+  };
+  /** The signal rules' thresholds; the history they read is `insights.windowDays` long. */
+  readonly signals: {
+    readonly pressure: {
+      /** A fall of at least this much from the hour in progress to the same hour `horizonHours` later. */
+      readonly dropHpa: number;
+      readonly horizonHours: number;
+      /** Attacks tagged `weather` in the window that make the rule apply without the onboarding choice. */
+      readonly minTaggedEpisodes: number;
+      readonly maxForecastAgeHours: number;
+    };
+    readonly shortSleep: { readonly minAttackNights: number; readonly minGapHours: number };
+    /** Hours an open attack must reach for each stage, ascending. */
+    readonly longAttackHours: readonly number[];
+    readonly quietTrackerDays: number;
+    readonly maxOnToday: number;
+    readonly suppressDuringAttack: readonly SignalKind[];
+    /** Every kind, highest first: the order of Today's rows and of the push choice. */
+    readonly priority: readonly SignalKind[];
+  };
+  readonly push: {
+    /** The same cause is not pushed again within this many hours, whatever its key. */
+    readonly sameCauseHours: number;
+    readonly perRunMax: number;
   };
 }

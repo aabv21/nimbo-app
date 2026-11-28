@@ -2,7 +2,7 @@
 
 This page covers where Nimbo runs, what each part does, how the app decides which screen to show,
 how consent is recorded, how it starts offline, how health data is kept and synced offline, crisis mode,
-the red-flag paths, the companion and its guards, the overuse guard, reminders, premium, the security
+the red-flag paths, the companion and its guards, the overuse guard, the pressure forecast, reminders, premium, the security
 model, the reasons behind the design choices, and how to regenerate the diagrams. Parts that later waves
 add are drawn as planned and marked that way.
 
@@ -29,8 +29,11 @@ or Portuguese. It is not a medical device and never diagnoses or prescribes.
 - **The model providers.** Anthropic (Claude Sonnet 5.5 converses, Claude Haiku 5.5 is the fallback
   classifier) and TypeSafe (Jev screens every message and reply), called only from the `companion`
   function, never from the phone. Locally they are mocks on the host ([`local-stack.md`](local-stack.md#mocks)).
-- **Planned services.** An email relay for the hosted project, the data APIs insights will need, and a
-  daily GitHub Actions call to `keep_alive()` so a free project is not paused.
+- **The forecast provider.** Open-Meteo's forecast API gives the hourly sea-level pressure for a coarse
+  cell, fetched by the Edge Functions only and cached in `weather_cache`
+  ([Signals and the pressure forecast](#signals-and-the-pressure-forecast)). Locally it is a mock on the host.
+- **Planned services.** An email relay for the hosted project and a daily GitHub Actions call to
+  `keep_alive()` so a free project is not paused.
 
 ## What each component does
 
@@ -407,6 +410,27 @@ not count; an archived acute medication's doses still do. Today and the cabinet 
 notice (a class limit before a combined one, a limit before a warning). The guard informs and never
 blocks a dose.
 
+## Signals and the pressure forecast
+
+The pressure signal needs the only input the phone does not have: the forecast. Everything about the provider
+lives in `supabase/functions/_shared/weather.ts` (the URL, the parameters and the parsing), so changing provider
+or plan touches one module and its mock.
+
+- **The request.** `GET /v1/forecast` with `hourly=pressure_msl`, `forecast_hours=28` and `timezone=GMT`, for the
+  profile's coarse cell at one decimal (about 11 km). It carries no user id, name or finer location; the cell is
+  read on the server and never sent back to the phone. 28 hours cover the next 24 from a forecast up to 3 hours old.
+- **The cache.** `weather_cache` holds one row per cell and fetch, shared by everyone in the cell and readable only
+  by the service role. `pressureFor` answers from a row newer than the age it is given, else fetches once (5 s
+  deadline) and stores the result stamped with the UTC hour, so writers in the same hour keep one row; a daily `pg_cron` job prunes rows over 2 days old ([`database.md`](database.md#pressure-forecast-cache)).
+- **Failure.** A slow, refused, rate-limited or malformed answer, one that ends before 24 hours past the hour in
+  progress, or a cache that cannot be read, gives no forecast (and nothing is cached), and the pressure signal is
+  skipped for that run; an hour the provider leaves empty is dropped. No
+  stale forecast is used past the age asked for, nor a cached one that no longer reaches 24 hours ahead.
+- **The plan.** Open-Meteo's free API is non-commercial, so it serves development and closed testing only.
+  Before the public store release the owner buys the commercial API Standard plan (`OPEN_METEO_URL` set to the
+  customer endpoint and `OPEN_METEO_API_KEY` to its key, which `pressureUrl` then sends) or switches provider
+  ([`owner-runbook.md`](owner-runbook.md)).
+
 ## Reminders and lock-screen privacy
 
 Preventive medications with a schedule (daily, monthly or quarterly) get local reminders, scheduled on
@@ -435,7 +459,8 @@ No feature is gated yet; the server check is the authority.
   through the outbox. Consent and the onboarding stamp are RPC-only too, and only the service role
   writes `entitlements`.
 - **Coarse location only.** The phone rounds a fix to one decimal before saving it, the columns hold
-  nothing finer, and the app never reads the area back (`PROFILE_COLUMNS` leaves it out).
+  nothing finer, and the app never reads the area back (`PROFILE_COLUMNS` leaves it out). The forecast
+  request carries that cell and nothing else ([Signals and the pressure forecast](#signals-and-the-pressure-forecast)).
 - **No secrets in the bundle.** `EXPO_PUBLIC_*` holds only the Supabase URL, the anon key and the
   Google OAuth client ids. The service-role key is read by `integration/helpers.ts` and scripts
   only, never under `src/`.

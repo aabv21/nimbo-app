@@ -133,6 +133,20 @@ isOneToOne: false
                   Relationships: [
                     
                   ]
+                },"signals": {
+                  Row: {
+                    "cause": string,"cause_key": string,"computed_at": string,"evidence": NonNullable<Json>,"id": string,"kind": string,"local_date": string,"pushed_at": string | null,"user_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "cause": string,"cause_key": string,"computed_at"?: string,"evidence": NonNullable<Json>,"id"?: string,"kind": string,"local_date": string,"pushed_at"?: string | null,"user_id": string
+                  }
+                  Update: {
+                    "cause"?: string,"cause_key"?: string,"computed_at"?: string,"evidence"?: NonNullable<Json>,"id"?: string,"kind"?: string,"local_date"?: string,"pushed_at"?: string | null,"user_id"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
                 },"usage_counters": {
                   Row: {
                     "count": number,"day": string,"kind": Database["public"]['Enums']["quota_kind"],"user_id": string
@@ -143,6 +157,20 @@ isOneToOne: false
                   }
                   Update: {
                     "count"?: number,"day"?: string,"kind"?: Database["public"]['Enums']["quota_kind"],"user_id"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
+                },"weather_cache": {
+                  Row: {
+                    "fetched_at": string,"location_key": string,"payload": NonNullable<Json>
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "fetched_at"?: string,"location_key": string,"payload": NonNullable<Json>
+                  }
+                  Update: {
+                    "fetched_at"?: string,"location_key"?: string,"payload"?: NonNullable<Json>
                   }
                   Relationships: [
                     
@@ -191,6 +219,9 @@ isOneToOne: false
                            },
 "log_episode":
 { Args: { "p_fields": Json,"p_id": string,"p_started_at": string }; Returns: undefined
+                           },
+"prune_expired_caches":
+{ Args: Record<PropertyKey, never>; Returns: undefined
                            },
 "record_inputs":
 { Args: { "p_since": string,"p_user_id": string }; Returns: Json

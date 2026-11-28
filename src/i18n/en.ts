@@ -610,6 +610,8 @@ export const en = {
   'companion.footer.degraded': 'Nimbo’s safety check is limited right now. If you notice a sudden severe headache, weakness, trouble speaking, a fever with a stiff neck or a severe headache, or vision loss, seek urgent care.',
   'evidence.episodes.one': '{n} attack',
   'evidence.episodes.other': '{n} attacks',
+  'evidence.attack_nights.one': '{n} night before an attack',
+  'evidence.attack_nights.other': '{n} nights before your attacks',
   'draft.error': 'This can’t be saved as it is. Edit it and try again.',
   'draft.k.not_helped': 'What didn’t help',
   'draft.v.yes': 'Yes',

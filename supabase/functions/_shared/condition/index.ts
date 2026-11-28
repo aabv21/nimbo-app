@@ -10,6 +10,7 @@ export type {
   MedicationClass,
   RedFlag,
   RedFlagKey,
+  SignalKind,
   SleepBand,
   Weekday,
 } from './types.ts';

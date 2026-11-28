@@ -612,6 +612,8 @@ export const es: Record<keyof typeof en, string> = {
   'companion.footer.degraded': 'La revisión de seguridad de Nimbo está limitada ahora. Si notas un dolor de cabeza intenso y repentino, debilidad, dificultad para hablar, fiebre con rigidez de cuello o con un dolor de cabeza intenso, o pérdida de visión, busca atención urgente.',
   'evidence.episodes.one': '{n} crisis',
   'evidence.episodes.other': '{n} crisis',
+  'evidence.attack_nights.one': '{n} noche previa a una crisis',
+  'evidence.attack_nights.other': '{n} noches previas a tus crisis',
   'draft.error': 'Esto no se puede guardar así. Edítalo y vuelve a intentarlo.',
   'draft.k.not_helped': 'Lo que no ayudó',
   'draft.v.yes': 'Sí',

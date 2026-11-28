@@ -16,3 +16,11 @@ test('an insight resting on no attack shows no chip, so it can never open an emp
   await render(<EvidenceChips evidence={[insight(['a'])]} onOpen={jest.fn()} />);
   expect(screen.getByRole('button', { name: translate('en', 'evidence.insight', { count: 12, of: 30 }) })).toBeTruthy();
 });
+
+test('a signal chip reads medicine days against the limit, or the nights before attacks', async () => {
+  const overuse: Evidence = { ref: 's1', source: 'signal', count: 10, of: 10, episodeIds: [], doseIds: ['d1'] };
+  const nights: Evidence = { ref: 's2', source: 'signal', count: 5, of: null, episodeIds: ['a', 'b'], doseIds: [] };
+  await render(<EvidenceChips evidence={[overuse, nights]} onOpen={jest.fn()} />);
+  expect(screen.getByRole('button', { name: translate('en', 'today.med.days', { used: 10, limit: 10 }) })).toBeTruthy();
+  expect(screen.getByRole('button', { name: translate('en', 'evidence.attack_nights.other', { n: 5 }) })).toBeTruthy();
+});

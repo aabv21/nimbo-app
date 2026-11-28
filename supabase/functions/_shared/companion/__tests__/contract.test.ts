@@ -130,6 +130,7 @@ describe('isCompanionResponse', () => {
       evidence: [
         { ref: 'r1', source: 'episodes', count: 3, of: null, episodeIds: ['a'], doseIds: [] },
         { ref: 'i1', source: 'insight', count: 3, of: 5, episodeIds: ['a'], doseIds: [] },
+        { ref: 's1', source: 'signal', count: 10, of: 10, episodeIds: [], doseIds: ['d'] },
       ],
       redFlags: [],
       intent: 'data_question',

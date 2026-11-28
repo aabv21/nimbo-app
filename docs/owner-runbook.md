@@ -12,6 +12,10 @@ and date when it changes.
   and Android package `com.aabv21.nimbo`.
 - **Nothing is deployed before the owner merges:** migrations, functions and builds go to a hosted
   project only from merged code.
+- **Open-Meteo's free API until the public release (2026-11-27):** the free, non-commercial API serves
+  development and closed testing. Before the public store listing, buy the commercial API Standard plan or
+  switch provider (the step below). The provider sits behind one module, `supabase/functions/_shared/weather.ts`
+  ([`architecture.md`](architecture.md#signals-and-the-pressure-forecast)), and gets only coarse coordinates.
 
 ## Steps
 
@@ -30,6 +34,7 @@ and date when it changes.
 | Set the function secrets and deploy `companion` | Pending | Only after the merge: `supabase secrets set ANTHROPIC_API_KEY=<key> TYPESAFE_API_KEY=<key>` on the hosted project, then deploy `companion`. Leave `ANTHROPIC_BASE_URL` and `TYPESAFE_BASE_URL` unset so the function uses the hosted APIs; the local stack points them at the mocks ([`local-stack.md`](local-stack.md#mocks)). |
 | Calibrate the guards | Pending | In the live session, with both keys exported in the shell (never in `.env.local`): `pnpm calibrate eval`, then `--layer claude`. Raise a threshold only where every positive is still caught; the script changes nothing itself ([`ai.md`](ai.md#calibration)). |
 | Name the processors of dictated audio in the privacy policy | Pending (Wave 5) | When the privacy policy is written: on Android without the offline language pack, dictation sends the audio to Google's speech recognizer, so Google is a processor of dictated audio; on iOS recognition stays on the device. Nimbo never stores or uploads audio itself, only the transcript as text ([`native-config.md`](native-config.md#permissions)). |
+| Buy Open-Meteo's commercial API or switch the forecast provider | Pending (Wave 5, before the public store release) | The free API is non-commercial. With the API Standard plan: `supabase secrets set OPEN_METEO_URL=https://customer-api.open-meteo.com OPEN_METEO_API_KEY=<key>` on the hosted project, then redeploy the functions that read the forecast; `pressureUrl` adds the key to each request. Another provider means changing `supabase/functions/_shared/weather.ts` and its mock route only. Until then leave both unset (the free `https://api.open-meteo.com`, no key). |
 | Print `{{ .Token }}` in the hosted confirmation and recovery email templates | Pending | The app asks for a 6-digit code; the hosted project's templates must contain it, as `supabase/templates/confirmation.html` and `recovery.html` do locally ([`local-stack.md`](local-stack.md)). |
 
 ## Granting premium
@@ -57,6 +62,9 @@ Google sign-in and Apple sign-in on a device, real email delivery of the codes, 
 migration, every tracking RPC and `has_premium` against the hosted project, and `pnpm premium grant`
 against it. For the companion: `pnpm calibrate eval` with the real keys, the deployed `companion` with its
 secrets (the prompt cache with the fallback header, the 3 s database cap on a cold project), dictation on
-a device (Android's Google recognizer, iOS on-device recognition), and the Maestro companion flow. The Maestro flows (`pnpm e2e`) run on the Android emulator against the local stack, and
+a device (Android's Google recognizer, iOS on-device recognition), and the Maestro companion flow. For the forecast:
+one real Open-Meteo call for a Bogotá and a São Paulo cell (the shape, 28 hours, GMT), the hosted `pg_cron` job
+`prune-expired-caches` after the merge, the free tier's rate limits from Supabase's egress addresses, and the
+commercial plan before the public listing. The Maestro flows (`pnpm e2e`) run on the Android emulator against the local stack, and
 on the iOS simulator once the iOS dev build exists; a preview build is made only after a merge. The
 offline suites cover the logic around each ([`testing.md`](testing.md)).

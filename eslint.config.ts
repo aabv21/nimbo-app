@@ -39,6 +39,11 @@ export default defineConfig(
     rules: { 'security/detect-object-injection': 'off' },
   },
   {
+    // The signal rules index a record by a medication class or a sleep band from a fixed tuple, and the forecast by position.
+    files: ['supabase/functions/_shared/signals.ts'],
+    rules: { 'security/detect-object-injection': 'off' },
+  },
+  {
     // The calibration script and its test index a record by a guard key, a red-flag key or a fixture's position, and read
     // one environment variable by its name.
     files: ['scripts/calibrate.ts', 'scripts/__tests__/calibration.test.ts'],

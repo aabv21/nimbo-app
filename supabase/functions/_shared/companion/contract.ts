@@ -66,7 +66,7 @@ export type Draft = EpisodeDraft | DoseDraft | CheckinDraft;
 /** What a number in a reply rests on: `count` of `of` (null when it is a plain count) and the records behind it. */
 export type Evidence = {
   ref: string;
-  source: 'episodes' | 'crisis_plan' | 'overuse' | 'insight';
+  source: 'episodes' | 'crisis_plan' | 'overuse' | 'insight' | 'signal';
   count: number;
   of: number | null;
   episodeIds: string[];
@@ -225,7 +225,7 @@ function isEvidence(value: unknown): value is Evidence {
   return (
     isRecord(value) &&
     isString(value.ref) &&
-    isIn(['episodes', 'crisis_plan', 'overuse', 'insight'])(value.source) &&
+    isIn(['episodes', 'crisis_plan', 'overuse', 'insight', 'signal'])(value.source) &&
     isNumber(value.count) &&
     isNullable(value.of, isNumber) &&
     isStrings(value.episodeIds) &&

@@ -29,7 +29,7 @@ range, clear of the Supabase CLI defaults (54320–54329), so it can run beside 
 | Analytics | 54527 | internal |
 | Connection pooler (disabled) | 54529 | reserved |
 | Edge Runtime inspector | 8283 | internal |
-| Mock Jev (`integration/mockServices.ts`) | 54518 | `http://127.0.0.1:54518`, `http://host.docker.internal:54518` from the functions |
+| Mock Jev and Open-Meteo (`integration/mockServices.ts`) | 54518 | `http://127.0.0.1:54518`, `http://host.docker.internal:54518` from the functions |
 | Mock Claude (`integration/mockAnthropic.ts`) | 54519 | `http://127.0.0.1:54519`, `http://host.docker.internal:54519` from the functions |
 
 Ports 54520 to 54529 form one block; CI reserves it so an outgoing connection cannot take a port
@@ -44,7 +44,7 @@ the stack needs. The mocks sit just below it, clear of Dressing Room's (54498 an
 
 ## Mocks
 
-Locally the Edge Functions never reach TypeSafe or Anthropic. `[edge_runtime.secrets]` in
+Locally the Edge Functions never reach TypeSafe, Anthropic or Open-Meteo. `[edge_runtime.secrets]` in
 `supabase/config.toml` gives them dummy keys (`local-only-not-a-key`) and points the base URLs at two
 mock servers on the host, which the Edge Runtime reaches from its container as `host.docker.internal`:
 
@@ -54,18 +54,26 @@ mock servers on the host, which the Edge Runtime reaches from its container as `
 | `TYPESAFE_BASE_URL` | `http://host.docker.internal:54518` | `https://api.typesafe.ai` |
 | `ANTHROPIC_API_KEY` | `local-only-not-a-key` | set by the owner |
 | `ANTHROPIC_BASE_URL` | `http://host.docker.internal:54519` | `https://api.anthropic.com` |
+| `OPEN_METEO_URL` | `http://host.docker.internal:54518` | `https://api.open-meteo.com` |
+| `OPEN_METEO_API_KEY` | unset | empty: the free API takes no key ([`owner-runbook.md`](owner-runbook.md)) |
+
+The mock on 54518 serves two routes. `POST /v1/systemone` is Jev. `GET /v1/forecast` is Open-Meteo's forecast:
+by default every hour reads 1013.0 hPa, from the current UTC hour, for as many hours as `forecast_hours` asks
+(28 when it is missing), in Open-Meteo's `timezone=GMT` shape. Like the real API it answers 400 with
+`{ error: true, reason }` for a missing or out-of-range `latitude` or `longitude`, an `hourly` variable it does not
+serve (only `pressure_msl`), `forecast_hours` over 384 or an unknown `timezone`.
 
 The integration tests start the mock they need and close it ([`testing.md`](testing.md#mocks)). For a
 manual check, `node integration/mockServices.ts --serve` keeps the mock Jev answering "nothing flagged"
-(every Noul 0.02, every Choice `other`) until Ctrl-C, and `node integration/mockAnthropic.ts --serve companion-checkin`
+(every Noul 0.02, every Choice `other`) and the forecast flat at 1013.0 hPa until Ctrl-C, and `node integration/mockAnthropic.ts --serve companion-checkin`
 keeps the mock Claude answering every message with a check-in draft, the scenario the Maestro companion flow uses
 ([`testing.md`](testing.md#end-to-end-flows-maestro)). The mocks listen on every interface, since the
 Edge Runtime calls from a container.
 
-With no mock running, a call to either model fails fast with a refused connection, and the functions
-treat it like a provider outage: the guards fall back from Jev to Claude Haiku, then to their offline
-rules, and mark the result degraded; a request that needs Claude itself answers 503. Nothing is retried
-against the real APIs.
+With no mock running, a call to either model or to the forecast fails fast with a refused connection, and the
+functions treat it like a provider outage: the guards fall back from Jev to Claude Haiku, then to their offline
+rules, and mark the result degraded; a request that needs Claude itself answers 503; the forecast reads as
+missing. Nothing is retried against the real APIs.
 
 ## What is not here
 

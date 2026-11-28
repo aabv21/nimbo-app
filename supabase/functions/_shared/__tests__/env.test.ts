@@ -66,4 +66,13 @@ describe('readEnv', () => {
     expect(env.typesafeBaseUrl).toBe('http://host.docker.internal:54518');
     expect(env.anthropicBaseUrl).toBe('http://host.docker.internal:54519');
   });
+
+  test('weather: OPEN_METEO_URL falls back to the hosted API and the key to empty, needing no secret', () => {
+    expect(readEnv(getter({}), ['weather'])).toEqual({ openMeteoUrl: 'https://api.open-meteo.com', openMeteoApiKey: '' });
+  });
+
+  test('weather: a set OPEN_METEO_URL loses its trailing slash, and a set key is kept', () => {
+    const env = readEnv(getter({ OPEN_METEO_URL: 'http://host.docker.internal:54518/', OPEN_METEO_API_KEY: 'k' }), ['weather']);
+    expect(env).toEqual({ openMeteoUrl: 'http://host.docker.internal:54518', openMeteoApiKey: 'k' });
+  });
 });

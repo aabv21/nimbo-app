@@ -612,6 +612,8 @@ export const pt: Record<keyof typeof en, string> = {
   'companion.footer.degraded': 'A verificação de segurança do Nimbo está limitada agora. Se você notar uma dor de cabeça forte e repentina, fraqueza, dificuldade para falar, febre com rigidez na nuca ou com uma dor de cabeça forte, ou perda de visão, procure atendimento urgente.',
   'evidence.episodes.one': '{n} crise',
   'evidence.episodes.other': '{n} crises',
+  'evidence.attack_nights.one': '{n} noite antes de uma crise',
+  'evidence.attack_nights.other': '{n} noites antes das suas crises',
   'draft.error': 'Isto não pode ser salvo assim. Edite e tente de novo.',
   'draft.k.not_helped': 'O que não ajudou',
   'draft.v.yes': 'Sim',

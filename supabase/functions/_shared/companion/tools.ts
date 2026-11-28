@@ -15,8 +15,9 @@ import {
 } from '../condition/index.ts';
 import { isRecord, UUID } from '../guards.ts';
 import { computeInsights, type Insight, INSIGHT_KINDS, insightNeeds } from '../insights.ts';
-import { INSIGHT_SINCE_DAYS, parseRecordInputs, trackingSinceOf } from '../records.ts';
+import { INSIGHT_SINCE_DAYS, parseRecordInputs, type RecordInputs, trackingSinceOf } from '../records.ts';
 import { rpcClient } from '../rest.ts';
+import { computeSignals, type Signal, type SignalUser, signalFromRow, signalRecords, withStoredPressure } from '../signals.ts';
 import { type CheckinDraft, type Draft, type DoseDraft, type EpisodeDraft, type Evidence, isLocalDate, NOTE_MAX_CHARS } from './contract.ts';
 import { addDays, type Caller, type EpisodeSpan, localIso, parseZonedTime, readCountedRows, readRows, type Row, zonedMidnight, zoneOrUtc } from './data.ts';
 import type { RefPrefix, Refs } from './refs.ts';
@@ -92,7 +93,10 @@ export const COMPANION_TOOLS: readonly ToolDefinition[] = Object.freeze([
     'get_cabinet',
     'Lists the person’s active medications (name, kind, class, form, the dose text they saved themselves, and whether they set a minimum interval) and this calendar month’s overuse counts: days with an acute dose per class and for the classes combined, each against its limit, with a ref to cite.',
   ),
-  tool('get_signals', 'Today’s signals and their reasons.'),
+  tool(
+    'get_signals',
+    'Today’s signals, which the app computed from the person’s records, highest priority first: an attack that has gone on long, medicine days near or at the limit, a debrief due for yesterday’s attack, a night shorter than on the nights before their attacks, a pressure drop over the next 24 hours, and no check-in for a few days. Each gives its kind, local_date, evidence (the numbers behind it) and a ref; cite the ref with medicine days and with nights before an attack. A signal is a reminder, never a forecast of an attack.',
+  ),
   tool(
     'get_crisis_plan',
     'What helped the person in attacks they debriefed: comfort measures and their own medications, best first, at most five, each with how many times it helped out of how many tries and a ref to cite.',
@@ -473,15 +477,20 @@ function insightFields(insight: Insight, env: ToolEnv, names: ReadonlyMap<string
   }
 }
 
-async function getInsights(input: Record<string, unknown>, env: ToolEnv): Promise<ToolOutcome> {
-  const kind = optionalOf(INSIGHT_KINDS, input.kind);
-  const now = new Date(env.now());
+async function readRecords(env: ToolEnv, now: Date, days: number): Promise<RecordInputs> {
   const { data, error } = await rpcClient(env.supabase, env.fetch, env.auth, env.timeoutMs()).rpc('record_inputs', {
     p_user_id: env.userId,
-    p_since: new Date(now.getTime() - INSIGHT_SINCE_DAYS * DAY_MS).toISOString(),
+    p_since: new Date(now.getTime() - days * DAY_MS).toISOString(),
   });
   const records = error === null ? parseRecordInputs(data) : null;
   if (records === null) throw new Error('record_inputs failed');
+  return records;
+}
+
+async function getInsights(input: Record<string, unknown>, env: ToolEnv): Promise<ToolOutcome> {
+  const kind = optionalOf(INSIGHT_KINDS, input.kind);
+  const now = new Date(env.now());
+  const records = await readRecords(env, now, INSIGHT_SINCE_DAYS);
   // Insight dates are local dates, and an unknown zone would throw: the handler's zone, checked again.
   const timeZone = zoneOrUtc(env.timeZone);
   const insightData = { ...records, now, timeZone, trackingSince: trackingSinceOf(records, timeZone, now) };
@@ -497,6 +506,69 @@ async function getInsights(input: Record<string, unknown>, env: ToolEnv): Promis
   });
   const needs = wanted(insightNeeds(insightData, env.pack)).map((need) => ({ kind: need.kind, unit: need.unit, min: need.min, have: need.have }));
   return { content: { status: 'ok', insights, needs }, isError: false, evidence };
+}
+
+/** A signal's evidence in snake_case: an attack by its ref, times on the person's clock. */
+function signalFields(signal: Signal, env: ToolEnv, timeZone: string): Record<string, unknown> {
+  switch (signal.kind) {
+    case 'pressure': {
+      const { nowHpa, laterHpa, laterAt, dropHpa } = signal.evidence;
+      return { now_hpa: nowHpa, later_hpa: laterHpa, later_at: localIso(Date.parse(laterAt), timeZone), drop_hpa: dropHpa };
+    }
+    case 'short_sleep': {
+      const { sleepBand, avgAttackNightHours, attackNights, avgOtherNightHours } = signal.evidence;
+      return { sleep_band: sleepBand, avg_attack_night_hours: avgAttackNightHours, attack_nights: attackNights, avg_other_night_hours: avgOtherNightHours };
+    }
+    case 'overuse_warn':
+    case 'overuse_limit': {
+      const { scope, days, limit, level } = signal.evidence;
+      return { scope, days, limit, level };
+    }
+    case 'long_attack':
+      return { episode_ref: env.refs.add('e', signal.evidence.episodeId), hours_open: signal.evidence.hoursOpen, stage: signal.evidence.stage };
+    case 'debrief_due':
+      return { episode_ref: env.refs.add('e', signal.evidence.episodeId), ended_at: localIso(Date.parse(signal.evidence.endedAt), timeZone) };
+    case 'quiet_tracker':
+      return { last_checkin_date: signal.evidence.lastCheckinDate };
+  }
+}
+
+/** Today's pressure row, which only the monitor can compute; a failed read leaves it out, as a missing forecast does. */
+async function storedPressure(env: ToolEnv, today: string): Promise<Signal | null> {
+  try {
+    const rows = await readRows(env, 'signals', [
+      ['select', 'kind,cause,cause_key,evidence'],
+      ['kind', 'eq.pressure'],
+      ['local_date', `eq.${today}`],
+      ['order', 'computed_at.desc'],
+      ['limit', '1'],
+    ]);
+    return signalFromRow(rows[0]);
+  } catch {
+    return null;
+  }
+}
+
+async function getSignals(env: ToolEnv): Promise<ToolOutcome> {
+  const now = new Date(env.now());
+  // Signal dates are local dates, and an unknown zone would throw: the handler's zone, checked again.
+  const timeZone = zoneOrUtc(env.timeZone);
+  const today = localDateIn(now, timeZone);
+  const [records, stored] = await Promise.all([readRecords(env, now, env.pack.insights.windowDays), storedPressure(env, today)]);
+  // Not yet onboarded reads as onboarded now, so a quiet tracker cannot fire.
+  const user: SignalUser = { ...records, timeZone, onboardedAt: records.onboardedAt ?? now.toISOString(), pressure: null };
+  const signals = withStoredPressure(computeSignals(user, now, env.pack), stored, user, now, env.pack);
+  const evidence: Evidence[] = [];
+  const listed = signals.map((signal) => {
+    const ref = env.refs.add('s', signal.causeKey);
+    if (signal.kind === 'overuse_warn' || signal.kind === 'overuse_limit') {
+      evidence.push({ ref, source: 'signal', count: signal.evidence.days, of: signal.evidence.limit, ...signalRecords(signal, user, now, env.pack) });
+    } else if (signal.kind === 'short_sleep') {
+      evidence.push({ ref, source: 'signal', count: signal.evidence.attackNights, of: null, ...signalRecords(signal, user, now, env.pack) });
+    }
+    return { ref, kind: signal.kind, local_date: today, evidence: signalFields(signal, env, timeZone) };
+  });
+  return { content: { status: 'ok', signals: listed }, isError: false, evidence };
 }
 
 /** The ref the model gave and the id behind it; both null when it gave none. */
@@ -658,7 +730,7 @@ export async function runTool(call: ToolCall, env: ToolEnv): Promise<ToolOutcome
       case 'get_cabinet':
         return await getCabinet(env);
       case 'get_signals':
-        return { content: { status: 'not_available_yet', signals: [] }, isError: false };
+        return await getSignals(env);
       case 'get_crisis_plan':
         return await getCrisisPlan(env);
       // The proposals are synchronous, so parallel calls in one round claim the draft cap one at a time.

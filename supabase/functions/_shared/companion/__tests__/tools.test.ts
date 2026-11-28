@@ -296,10 +296,114 @@ test('the cabinet and crisis-plan reads each name an order and a bound, so a cut
   }
 });
 
-test('get_signals is not available yet and reads nothing', async () => {
-  const { run, calls } = setup();
-  expect((await run('get_signals', {})).content).toEqual({ status: 'not_available_yet', signals: [] });
-  expect(calls).toHaveLength(0);
+describe('get_signals', () => {
+  const UUID_TEXT = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+  const TODAY_CHECKIN = { localDate: '2026-11-27', sleepBand: '7_8' as const, stress: 'mid' as const };
+  const inputsOf = (records: Partial<RecordInputs>): RecordInputs => ({
+    timeZone: TZ,
+    knownTriggers: [],
+    onboardedAt: '2026-09-01T12:00:00.000Z',
+    hasLocation: true,
+    episodes: [],
+    checkins: [TODAY_CHECKIN],
+    doses: [],
+    medications: MEDICATIONS.map((row) => ({ id: String(row.id), name: String(row.name), kind: row.kind as 'acute', class: row.class as 'triptan' })),
+    ...records,
+  });
+  /** A triptan dose at 15:00 local on day `day` of November 2026. */
+  const triptan = (n: number, day: number) => ({ id: id(800 + n), medicationId: SUMATRIPTAN, episodeId: null, takenAt: `2026-11-${String(day).padStart(2, '0')}T20:00:00.000Z`, helped: null });
+  const PRESSURE_EVIDENCE = { nowHpa: 1012, laterHpa: 1006, laterAt: '2026-11-28T13:00:00Z', dropHpa: 6.5 };
+  const pressureRow = (localDate: string): Row => ({
+    id: id(990),
+    user_id: USER_ID,
+    kind: 'pressure',
+    cause: 'pressure',
+    cause_key: `pressure:${localDate}`,
+    local_date: localDate,
+    evidence: PRESSURE_EVIDENCE,
+    computed_at: `${localDate}T13:05:00.000Z`,
+  });
+  // Yesterday's attack (09:00–13:00 local on the 26th), not debriefed.
+  const YESTERDAY = id(610);
+  const yesterday = { id: YESTERDAY, startedAt: '2026-11-26T14:00:00.000Z', endedAt: '2026-11-26T18:00:00.000Z', intensity: 6, triggers: [], helped: [], didNotHelp: [], debriefedAt: null };
+
+  /** `signals` null leaves the table out, so its read answers 404. */
+  function signalsSetup(records: Partial<RecordInputs>, signals: Row[] | null = [], answer?: () => Response) {
+    const args: Record<string, unknown>[] = [];
+    const rpc = {
+      record_inputs: (body: Record<string, unknown>) => {
+        args.push(body);
+        return answer?.() ?? json(200, inputsOf(records));
+      },
+    };
+    return { ...setup(signals === null ? {} : { signals }, { rpc }), args };
+  }
+
+  test('10 triptan days this month give an overuse_limit with a signal evidence item of 10 of 10', async () => {
+    const doses = [1, 3, 5, 7, 9, 11, 13, 15, 17, 19].map((day, n) => triptan(n, day));
+    const { run, args, calls } = signalsSetup({ doses });
+    const outcome = await run('get_signals', {});
+    expect(outcome.isError).toBe(false);
+    expect(outcome.content).toEqual({
+      status: 'ok',
+      signals: [{ ref: 's1', kind: 'overuse_limit', local_date: '2026-11-27', evidence: { scope: 'triptan', days: 10, limit: 10, level: 'limit' } }],
+    });
+    expect(outcome.evidence).toEqual([{ ref: 's1', source: 'signal', count: 10, of: 10, episodeIds: [], doseIds: doses.map((dose) => dose.id) }]);
+    expect(args).toEqual([{ p_user_id: USER_ID, p_since: new Date(NOW - 90 * 86_400_000).toISOString() }]);
+    for (const call of calls) expect(call.headers.get('authorization')).toBe(USER_AUTH);
+  });
+
+  test("today's stored pressure row is merged in priority order, read with the caller's token for today only", async () => {
+    const { run, calls, refs } = signalsSetup({ episodes: [yesterday] }, [pressureRow('2026-11-26'), pressureRow('2026-11-27')]);
+    const outcome = await run('get_signals', {});
+    expect(outcome.content).toEqual({
+      status: 'ok',
+      signals: [
+        { ref: 's1', kind: 'debrief_due', local_date: '2026-11-27', evidence: { episode_ref: 'e1', ended_at: '2026-11-26T13:00:00-05:00' } },
+        {
+          ref: 's2',
+          kind: 'pressure',
+          local_date: '2026-11-27',
+          evidence: { now_hpa: 1012, later_hpa: 1006, later_at: '2026-11-28T08:00:00-05:00', drop_hpa: 6.5 },
+        },
+      ],
+    });
+    expect(refs.idOf('e1')).toBe(YESTERDAY);
+    expect(outcome.evidence).toEqual([]);
+    const read = calls.find((call) => call.url.pathname === '/rest/v1/signals');
+    expect(read?.headers.get('authorization')).toBe(USER_AUTH);
+    expect(Object.fromEntries(read?.url.searchParams ?? [])).toMatchObject({ kind: 'eq.pressure', local_date: 'eq.2026-11-27', select: 'kind,cause,cause_key,evidence' });
+  });
+
+  test('no UUID reaches the content: attacks by ref, never an id, a cause key or a row id', async () => {
+    const open = { ...yesterday, id: id(611), startedAt: '2026-11-26T23:00:00.000Z', endedAt: null };
+    const doses = [1, 3, 5, 7, 9, 11, 13, 15].map((day, n) => triptan(n, day));
+    const { run } = signalsSetup({ episodes: [yesterday, open], doses }, [pressureRow('2026-11-27')]);
+    const outcome = await run('get_signals', {});
+    const kinds = (outcome.content as { signals: Row[] }).signals.map((signal) => signal.kind);
+    // The open attack (18 h) is a long attack and hides today's pressure row.
+    expect(kinds).toEqual(['long_attack', 'debrief_due', 'overuse_warn']);
+    const text = JSON.stringify(outcome.content);
+    expect(text).not.toMatch(UUID_TEXT);
+    expect(text).not.toMatch(/cause|%/);
+  });
+
+  test('a failed pressure read leaves pressure out; a failed or malformed records read is unavailable', async () => {
+    const { run, calls } = signalsSetup({ episodes: [yesterday] }, null);
+    const outcome = await run('get_signals', {});
+    expect((outcome.content as { signals: Row[] }).signals.map((signal) => signal.kind)).toEqual(['debrief_due']);
+    expect(calls.some((call) => call.url.pathname === '/rest/v1/signals')).toBe(true);
+    const failed = signalsSetup({}, [], () => json(500, { message: 'down' }));
+    expect(await failed.run('get_signals', {})).toEqual({ isError: true, content: { error: 'unavailable' } });
+    const malformed = signalsSetup({}, [], () => json(200, { episodes: 'none' }));
+    expect(await malformed.run('get_signals', {})).toEqual({ isError: true, content: { error: 'unavailable' } });
+  });
+
+  test('an unknown zone reads as UTC instead of throwing', async () => {
+    const world = signalsSetup({ checkins: [] });
+    world.env.timeZone = 'Mars/Base';
+    expect(((await world.run('get_signals', {})).content as { status: string }).status).toBe('ok');
+  });
 });
 
 describe('get_insights', () => {
